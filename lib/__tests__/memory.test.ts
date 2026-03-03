@@ -67,6 +67,47 @@ describe('memory', () => {
     })
   })
 
+  describe('appendCharacterToFile', () => {
+    it('appends character section to CHARACTERS.md', async () => {
+      const mockUpsert = vi.fn().mockResolvedValue({ error: null })
+      mockFrom.mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: { content: '## Aragorn\n- **Player:** player1\n' },
+                error: null,
+              }),
+            }),
+          }),
+        }),
+        upsert: mockUpsert,
+      })
+
+      const { appendCharacterToFile } = await import('../memory')
+      await appendCharacterToFile('camp-1', {
+        id: 'p2',
+        username: 'gandalf_player',
+        character_name: 'Gandalf',
+        character_class: 'Wizard',
+        character_backstory: 'An ancient wizard of great power.',
+      } as any)
+
+      expect(mockUpsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          filename: 'CHARACTERS.md',
+          content: expect.stringContaining('## Gandalf'),
+        }),
+        expect.any(Object)
+      )
+      const content = mockUpsert.mock.calls[0][0].content as string
+      expect(content).toContain('gandalf_player')
+      expect(content).toContain('Wizard')
+      expect(content).toContain('20/20')
+      expect(content).toContain('Aragorn') // existing character preserved
+    })
+  })
+
   describe('initializeCampaignFiles', () => {
     it('creates all 5 base files', async () => {
       const mockUpsert = vi.fn().mockResolvedValue({ error: null })

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAuthServerClient, createServerSupabaseClient } from '@/lib/supabase/server'
 import { generateAndStoreImage } from '@/lib/image-gen'
+import { appendCharacterToFile } from '@/lib/memory'
 
 export async function POST(
   request: NextRequest,
@@ -67,6 +68,9 @@ export async function POST(
   if (insertError) {
     return NextResponse.json({ error: 'Failed to join' }, { status: 500 })
   }
+
+  // Fire-and-forget: update CHARACTERS.md
+  appendCharacterToFile(campaignId, player).catch(() => { /* best-effort */ })
 
   // Fire-and-forget: generate character portrait if character_name provided
   if (body.character_name) {

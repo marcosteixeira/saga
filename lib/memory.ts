@@ -1,5 +1,5 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import type { CampaignFile } from '@/types'
+import type { CampaignFile, Player } from '@/types'
 
 export async function getCampaignFile(
   campaignId: string,
@@ -37,6 +37,25 @@ export async function upsertCampaignFile(
       { campaign_id: campaignId, filename, content },
       { onConflict: 'campaign_id,filename' }
     )
+}
+
+export async function appendCharacterToFile(
+  campaignId: string,
+  player: Player
+): Promise<void> {
+  const existing = (await getCampaignFile(campaignId, 'CHARACTERS.md')) ?? ''
+  const section = [
+    `## ${player.character_name ?? player.username}`,
+    `- **Player:** ${player.username}`,
+    player.character_class ? `- **Class:** ${player.character_class}` : null,
+    `- **HP:** 20/20`,
+    `- **Status:** Active`,
+    player.character_backstory ? `- **Backstory:** ${player.character_backstory}` : null,
+  ].filter(Boolean).join('\n')
+
+  const separator = existing.trim().length > 0 ? '\n\n' : ''
+  const updated = existing + separator + section
+  await upsertCampaignFile(campaignId, 'CHARACTERS.md', updated)
 }
 
 export async function initializeCampaignFiles(
