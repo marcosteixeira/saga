@@ -48,4 +48,13 @@ describe('middleware', () => {
     const res = await middleware(req)
     expect(res.status).not.toBe(307)
   })
+
+  it('redirects unauthenticated user from /campaign/some-id sub-path to /login', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: null } })
+    const { middleware } = await import('../middleware')
+    const req = new NextRequest('http://localhost/campaign/abc-123/lobby')
+    const res = await middleware(req)
+    expect(res.status).toBe(307)
+    expect(res.headers.get('location')).toContain('/login')
+  })
 })
