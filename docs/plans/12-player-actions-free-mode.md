@@ -36,8 +36,7 @@ See: `docs/plans/2026-03-03-steampunk-design-system.md`
 
 `POST /api/campaign/[id]/message`
 
-Request headers:
-- `x-session-token: <player_session_token>`
+No special headers — player is identified via Supabase auth session (cookie).
 
 Request body:
 ```json
@@ -48,50 +47,242 @@ Request body:
 ```
 
 Behavior:
-1. Validate campaign exists and status is `active`
-2. Validate player exists with matching session token and is `active` status
-3. Validate content is non-empty
-4. Validate type is one of: `action`, `ooc`
-5. Check player hasn't already submitted this turn (no duplicate action in current turn window)
-6. Save message to `messages` table with current `session_id`
-7. Broadcast the message to all clients via Supabase Realtime: `campaign:{id}:messages`
-8. Return `{ message: { id, ... } }` with status 201
+1. Get authenticated user via `createServerAuthClient().auth.getUser()` → 401 if missing
+2. Validate campaign exists and status is `active` → 404 / 400
+3. Look up player by `campaign_id` + `user_id` → 403 if not found
+4. Validate player status is `active` (not dead/incapacitated) → 400
+5. Validate content is non-empty and type is `action` or `ooc` → 400
+6. Check player hasn't already submitted this turn → 409
+7. Save message to `messages` table with current `session_id`
+8. Broadcast message via Supabase Realtime: `campaign:{id}:messages`
+9. Return `{ message }` with status 201
 
 Error responses:
+- 401: not authenticated
 - 404: campaign not found
-- 403: invalid session token / player not found
+- 400: campaign not active
+- 403: player not in this campaign
 - 400: player is dead/incapacitated
 - 400: empty content or invalid type
 - 409: player already submitted this turn
 
-**Step 1: Write tests**
+**Step 1: Write the failing tests**
 
 ```typescript
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { NextRequest } from 'next/server'
+import { POST } from '../route'
+
+const mockGetUser = vi.fn()
+const mockFrom = vi.fn()
+const mockChannel = vi.fn()
+
+vi.mock('@/lib/supabase/server', () => ({
+  createServerAuthClient: vi.fn(() => ({ auth: { getUser: mockGetUser } })),
+  createServerSupabaseClient: vi.fn(() => ({
+    from: mockFrom,
+    channel: mockChannel,
+  }))
+}))
+
+function makeRequest(campaignId: string, body = {}) {
+  return new NextRequest(`http://localhost/api/campaign/${campaignId}/message`, {
+    method: 'POST',
+    body: JSON.stringify({ content: 'I attack!', type: 'action', ...body }),
+    headers: { 'Content-Type': 'application/json' }
+  })
+}
+
 describe('POST /api/campaign/[id]/message', () => {
-  it('returns 404 when campaign not found', ...)
-  it('returns 403 when session token is invalid', ...)
-  it('returns 400 when player is dead', ...)
-  it('returns 400 when player is incapacitated', ...)
-  it('returns 400 when content is empty', ...)
-  it('returns 400 when type is invalid', ...)
-  it('returns 409 when player already submitted this turn', ...)
-  it('returns 201 and saves message on success', ...)
-  it('broadcasts message via Supabase Realtime', ...)
+  beforeEach(() => { vi.clearAllMocks() })
+
+  it('returns 401 when not authenticated', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: null } })
+    const res = await POST(makeRequest('c1'), { params: { id: 'c1' } })
+    expect(res.status).toBe(401)
+  })
+
+  it('returns 404 when campaign not found', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'u1' } } })
+    mockFrom.mockReturnValueOnce({ select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: null, error: {} }) }) }) })
+    const res = await POST(makeRequest('c1'), { params: { id: 'c1' } })
+    expect(res.status).toBe(404)
+  })
+
+  it('returns 400 when campaign is not active', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'u1' } } })
+    mockFrom.mockReturnValueOnce({ select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'c1', status: 'lobby', current_session_id: 's1' }, error: null }) }) }) })
+    const res = await POST(makeRequest('c1'), { params: { id: 'c1' } })
+    expect(res.status).toBe(400)
+  })
+
+  it('returns 403 when player not in campaign', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'u1' } } })
+    mockFrom.mockReturnValueOnce({ select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'c1', status: 'active', current_session_id: 's1' }, error: null }) }) }) })
+    mockFrom.mockReturnValueOnce({ select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: null, error: {} }) }) }) }) })
+    const res = await POST(makeRequest('c1'), { params: { id: 'c1' } })
+    expect(res.status).toBe(403)
+  })
+
+  it('returns 400 when player is dead', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'u1' } } })
+    mockFrom.mockReturnValueOnce({ select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'c1', status: 'active', current_session_id: 's1' }, error: null }) }) }) })
+    mockFrom.mockReturnValueOnce({ select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'p1', status: 'dead' }, error: null }) }) }) }) })
+    const res = await POST(makeRequest('c1'), { params: { id: 'c1' } })
+    expect(res.status).toBe(400)
+  })
+
+  it('returns 400 when content is empty', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'u1' } } })
+    mockFrom.mockReturnValueOnce({ select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'c1', status: 'active', current_session_id: 's1' }, error: null }) }) }) })
+    mockFrom.mockReturnValueOnce({ select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'p1', status: 'active' }, error: null }) }) }) }) })
+    const res = await POST(makeRequest('c1', { content: '' }), { params: { id: 'c1' } })
+    expect(res.status).toBe(400)
+  })
+
+  it('returns 409 when player already submitted this turn', async () => {
+    // ... setup campaign, active player, then turn tracker returns already submitted
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'u1' } } })
+    mockFrom.mockReturnValueOnce({ select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'c1', status: 'active', current_session_id: 's1' }, error: null }) }) }) })
+    mockFrom.mockReturnValueOnce({ select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'p1', status: 'active' }, error: null }) }) }) }) })
+    // existing message from this player this turn
+    mockFrom.mockReturnValueOnce({ select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ gt: vi.fn().mockResolvedValue({ data: [{ id: 'msg-existing' }], error: null }) }) }) }) }) }) })
+    const res = await POST(makeRequest('c1'), { params: { id: 'c1' } })
+    expect(res.status).toBe(409)
+  })
+
+  it('returns 201 and saves message on success', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'u1' } } })
+    mockFrom.mockReturnValueOnce({ select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'c1', status: 'active', current_session_id: 's1' }, error: null }) }) }) })
+    mockFrom.mockReturnValueOnce({ select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'p1', status: 'active' }, error: null }) }) }) }) })
+    // no existing message
+    mockFrom.mockReturnValueOnce({ select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ gt: vi.fn().mockResolvedValue({ data: [], error: null }) }) }) }) }) }) })
+    // insert message
+    mockFrom.mockReturnValueOnce({ insert: vi.fn().mockReturnValue({ select: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'msg-1', content: 'I attack!', type: 'action' }, error: null }) }) }) })
+    mockChannel.mockReturnValue({ send: vi.fn().mockResolvedValue('ok') })
+    const res = await POST(makeRequest('c1'), { params: { id: 'c1' } })
+    expect(res.status).toBe(201)
+  })
 })
 ```
 
-9 test cases.
+**Step 2: Run tests — verify they fail**
 
-**Step 2: Run tests — fail**
+```bash
+yarn test app/api/campaign/\[id\]/message/__tests__/route
+```
 
-**Step 3: Implement**
+Expected: FAIL — `Cannot find module '../route'`
 
-**Step 4: Run tests — pass**
+**Step 3: Implement `app/api/campaign/[id]/message/route.ts`**
+
+```typescript
+import { NextRequest, NextResponse } from 'next/server'
+import { createServerAuthClient, createServerSupabaseClient } from '@/lib/supabase/server'
+
+const VALID_TYPES = ['action', 'ooc'] as const
+
+export async function POST(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const authClient = createServerAuthClient()
+  const { data: { user } } = await authClient.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const supabase = createServerSupabaseClient()
+  const campaignId = params.id
+  const body = await request.json().catch(() => ({}))
+  const { content, type } = body
+
+  // 1. Validate campaign
+  const { data: campaign } = await supabase
+    .from('campaigns')
+    .select('id, status, current_session_id')
+    .eq('id', campaignId)
+    .single()
+  if (!campaign) return NextResponse.json({ error: 'Campaign not found' }, { status: 404 })
+  if (campaign.status !== 'active') return NextResponse.json({ error: 'Campaign is not active' }, { status: 400 })
+
+  // 2. Find player
+  const { data: player } = await supabase
+    .from('players')
+    .select('id, status')
+    .eq('campaign_id', campaignId)
+    .eq('user_id', user.id)
+    .single()
+  if (!player) return NextResponse.json({ error: 'You are not in this campaign' }, { status: 403 })
+  if (!['active', 'absent'].includes(player.status)) {
+    return NextResponse.json({ error: 'Your character cannot act' }, { status: 400 })
+  }
+
+  // 3. Validate input
+  if (!content?.trim()) return NextResponse.json({ error: 'Content is required' }, { status: 400 })
+  if (!VALID_TYPES.includes(type)) return NextResponse.json({ error: 'Invalid type' }, { status: 400 })
+
+  // 4. Check for duplicate submission this turn
+  // "This turn" = since the last narration message in this session
+  const { data: lastNarration } = await supabase
+    .from('messages')
+    .select('created_at')
+    .eq('campaign_id', campaignId)
+    .eq('session_id', campaign.current_session_id)
+    .eq('type', 'narration')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single()
+  const sinceTime = lastNarration?.created_at ?? new Date(0).toISOString()
+
+  const { data: existingAction } = await supabase
+    .from('messages')
+    .select('id')
+    .eq('campaign_id', campaignId)
+    .eq('session_id', campaign.current_session_id)
+    .eq('player_id', player.id)
+    .eq('type', 'action')
+    .gt('created_at', sinceTime)
+  if (existingAction && existingAction.length > 0) {
+    return NextResponse.json({ error: 'Already submitted this turn' }, { status: 409 })
+  }
+
+  // 5. Save message
+  const { data: message, error: insertError } = await supabase
+    .from('messages')
+    .insert({
+      campaign_id: campaignId,
+      session_id: campaign.current_session_id,
+      player_id: player.id,
+      content: content.trim(),
+      type,
+    })
+    .select()
+    .single()
+  if (insertError) return NextResponse.json({ error: 'Failed to save message' }, { status: 500 })
+
+  // 6. Broadcast via Realtime
+  await supabase.channel(`campaign:${campaignId}:messages`).send({
+    type: 'broadcast',
+    event: 'new_message',
+    payload: message,
+  })
+
+  return NextResponse.json({ message }, { status: 201 })
+}
+```
+
+**Step 4: Run tests — verify they pass**
+
+```bash
+yarn test app/api/campaign/\[id\]/message/__tests__/route
+```
+
+Expected: PASS (8 tests)
 
 **Step 5: Commit**
 
 ```bash
-git add -A && git commit -m "feat: POST /api/campaign/[id]/message with validation"
+git add app/api/campaign/\[id\]/message/
+git commit -m "feat: POST /api/campaign/[id]/message with Supabase auth"
 ```
 
 ---

@@ -75,9 +75,9 @@ git add -A && git commit -m "feat: error boundaries, loading states, and 404 pag
 
 **Edge cases to handle:**
 
-1. **Player reconnection:** When a player refreshes the page, they should reconnect to the game seamlessly (session token in localStorage identifies them)
+1. **Player reconnection:** When a player refreshes the page, they reconnect seamlessly — Supabase auth session is cookie-based and automatic. The player is re-identified by matching `auth.user.id` against `players.user_id`. No localStorage handling needed.
 
-2. **Stale session tokens:** If a player's session token doesn't match any player in the campaign, show a "rejoin" option
+2. **Auth edge case — player not in campaign:** If an authenticated user navigates to a game room they haven't joined (their `user_id` isn't in `players` for this campaign), show a clear "You haven't joined this campaign" message with a link back to the lobby.
 
 3. **Campaign not found:** Graceful handling when navigating to a non-existent campaign ID
 
@@ -182,7 +182,7 @@ git add -A && git commit -m "chore: deployment configuration for Vercel"
 
 **Step 1: Run full test suite**
 
-Run: `npx vitest run`
+Run: `yarn test`
 Expected: All tests pass.
 
 **Step 2: Run production build**
@@ -248,7 +248,7 @@ git add -A && git commit -m "fix: final polish and deployment fixes"
 - [ ] Edge cases handled: reconnection, stale tokens, empty states
 - [ ] Supabase storage bucket documented/scripted
 - [ ] next.config.ts configured for image domains
-- [ ] All tests pass (`npx vitest run`)
+- [ ] All tests pass (`yarn test`)
 - [ ] Production build succeeds (`yarn build`)
 - [ ] Successfully deployed to Vercel
 - [ ] Full game flow works on deployed app
