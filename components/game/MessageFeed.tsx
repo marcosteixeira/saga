@@ -5,6 +5,8 @@ import { Message, Player } from '@/types'
 interface MessageFeedProps {
   messages: Message[]
   players: Player[]
+  streamingContent?: string | null
+  streamingMessageId?: string | null
 }
 
 function getPlayer(players: Player[], playerId: string | null) {
@@ -105,7 +107,12 @@ function OOCMessage({ message, player }: { message: Message; player: Player | nu
   )
 }
 
-export default function MessageFeed({ messages, players }: MessageFeedProps) {
+export default function MessageFeed({
+  messages,
+  players,
+  streamingContent,
+  streamingMessageId,
+}: MessageFeedProps) {
   const bottomRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const userScrolled = useRef(false)
@@ -129,12 +136,14 @@ export default function MessageFeed({ messages, players }: MessageFeedProps) {
     if (!userScrolled.current) {
       bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
     }
-  }, [messages])
+  }, [messages, streamingContent])
 
   // Scroll to bottom on initial load
   useEffect(() => {
     bottomRef.current?.scrollIntoView()
   }, [])
+
+  const isStreaming = streamingContent != null && streamingContent.length > 0
 
   return (
     <div
@@ -143,7 +152,7 @@ export default function MessageFeed({ messages, players }: MessageFeedProps) {
       style={{ scrollbarWidth: 'thin', scrollbarColor: 'var(--brass) var(--gunmetal)' }}
     >
       <div className="flex flex-col gap-0.5 py-2">
-        {messages.length === 0 && (
+        {messages.length === 0 && !isStreaming && (
           <p
             className="text-center py-8"
             style={{
@@ -168,8 +177,53 @@ export default function MessageFeed({ messages, players }: MessageFeedProps) {
               return <OOCMessage key={message.id} message={message} player={player} />
           }
         })}
+        {isStreaming && (
+          <div
+            key={streamingMessageId ?? 'streaming'}
+            className="py-2 px-3"
+            style={{ borderLeft: '3px solid var(--brass)' }}
+          >
+            <p
+              className="text-xs uppercase mb-1"
+              style={{
+                fontFamily: 'var(--font-mono), monospace',
+                color: 'var(--brass)',
+                letterSpacing: '0.1em',
+              }}
+            >
+              ⚙ Game Master
+            </p>
+            <p
+              style={{
+                fontFamily: 'var(--font-heading), serif',
+                color: 'var(--steam)',
+                lineHeight: 1.7,
+                fontSize: '0.95rem',
+              }}
+            >
+              {streamingContent}
+              <span
+                style={{
+                  display: 'inline-block',
+                  width: '2px',
+                  height: '1em',
+                  background: 'var(--brass)',
+                  marginLeft: '1px',
+                  verticalAlign: 'text-bottom',
+                  animation: 'blink-cursor 1s step-end infinite',
+                }}
+              />
+            </p>
+          </div>
+        )}
         <div ref={bottomRef} />
       </div>
+      <style>{`
+        @keyframes blink-cursor {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0; }
+        }
+      `}</style>
     </div>
   )
 }

@@ -6,6 +6,7 @@ import ActionInput from './ActionInput'
 import SceneImage from './SceneImage'
 import { AmbientSmoke } from '@/components/ambient-smoke'
 import { EmberParticles } from '@/components/ember-particles'
+import { useNarrationStream } from '@/lib/use-narration-stream'
 
 interface GameRoomProps {
   campaign: Campaign
@@ -15,6 +16,8 @@ interface GameRoomProps {
 }
 
 export default function GameRoom({ campaign, players, messages, currentPlayer }: GameRoomProps) {
+  const { isStreaming, streamingContent, streamingMessageId } = useNarrationStream(campaign.id)
+
   const sceneImage = [...messages]
     .reverse()
     .find(m => m.type === 'narration' && m.image_url)?.image_url ?? null
@@ -79,13 +82,43 @@ export default function GameRoom({ campaign, players, messages, currentPlayer }:
             <div className="rivet-bottom-left" />
             <div className="rivet-bottom-right" />
             <div className="flex-1 overflow-hidden">
-              <MessageFeed messages={messages} players={players} />
+              <MessageFeed
+                messages={messages}
+                players={players}
+                streamingContent={isStreaming ? streamingContent : null}
+                streamingMessageId={streamingMessageId}
+              />
             </div>
           </div>
 
-          {/* Action input */}
+          {/* Narrating indicator + Action input */}
           <div className="mt-2 flex-shrink-0">
-            <ActionInput onSubmit={handleSubmit} />
+            {isStreaming && (
+              <div
+                className="flex items-center gap-2 px-3 py-1 mb-1"
+                style={{ fontFamily: 'var(--font-mono), monospace' }}
+              >
+                <span
+                  className="inline-block w-2 h-2 rounded-full"
+                  style={{
+                    background: 'var(--furnace)',
+                    animation: 'pulse 1s ease-in-out infinite',
+                    boxShadow: '0 0 6px var(--furnace)',
+                  }}
+                />
+                <span
+                  className="text-xs uppercase tracking-widest"
+                  style={{ color: 'var(--copper)' }}
+                >
+                  GM IS NARRATING...
+                </span>
+              </div>
+            )}
+            <ActionInput
+              onSubmit={handleSubmit}
+              disabled={isStreaming}
+              placeholder={isStreaming ? 'THE GAME MASTER SPEAKS...' : 'Describe your action...'}
+            />
           </div>
         </div>
       </div>

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { anthropic } from '@/lib/anthropic'
 import { buildGMSystemPrompt } from '@/lib/prompts/gm-system'
@@ -10,7 +10,7 @@ interface NarrateRequestBody {
 }
 
 export async function POST(
-  req: NextRequest,
+  req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: campaignId } = await params
