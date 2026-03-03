@@ -1,65 +1,113 @@
 import Image from "next/image";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { EmberParticles } from "@/components/ember-particles";
+import { AmbientSmoke } from "@/components/ambient-smoke";
+import { GearDecoration } from "@/components/gear-decoration";
+import { JoinCampaignForm } from "@/components/join-campaign-form";
 
 export default function Home() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+    <main className="relative min-h-screen bg-soot">
+      {/* === Atmospheric layers === */}
+      <GearDecoration />
+      <AmbientSmoke />
+      <EmberParticles count={25} />
+      <div className="furnace-overlay" />
+      <div className="vignette" />
+
+      {/* === Content === */}
+      <div className="relative z-10 mx-auto flex min-h-screen max-w-6xl flex-col items-center justify-center gap-16 px-6 py-16">
+        {/* Hero Section */}
+        <section className="grid w-full items-center gap-10 lg:grid-cols-2 lg:gap-14">
+          {/* Hero Art */}
+          <div
+            className="hero-art animate-entrance order-first lg:order-last"
+            data-delay="2"
           >
             <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+              src="/images/hero-tavern.png"
+              alt="A candlelit fantasy tavern with adventurers gathered around a quest board"
+              width={800}
+              height={600}
+              className="block h-auto w-full"
+              priority
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+          </div>
+
+          {/* Iron Plate Card */}
+          <div
+            className="iron-plate animate-entrance p-8 lg:p-10"
+            data-delay="1"
           >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+            <span className="rivet-bottom-left" />
+            <span className="rivet-bottom-right" />
+
+            <h1
+              className="mb-2 text-4xl tracking-[0.15em] text-primary lg:text-5xl"
+              style={{ fontFamily: "var(--font-display), sans-serif" }}
+            >
+              SAGA
+            </h1>
+
+            <div className="iron-seam" />
+
+            <p
+              className="mb-3 text-sm uppercase tracking-[0.12em] text-ash"
+              style={{ fontFamily: "var(--font-mono), monospace" }}
+            >
+              Your table. Your tale. AI Game Master.
+            </p>
+            <p className="mb-8 leading-relaxed text-steam/80">
+              Gather your party and embark on adventures through dark fantasy
+              realms. An AI Game Master narrates your story, rolls the dice, and
+              brings the world to life — no preparation needed.
+            </p>
+
+            <Button
+              asChild
+              size="lg"
+              className="w-full text-base font-semibold uppercase tracking-widest transition-all duration-300 hover:shadow-[0_0_24px_rgba(196,148,61,0.35)] sm:w-auto"
+            >
+              <Link href="/campaign/new">Create Campaign</Link>
+            </Button>
+          </div>
+        </section>
+
+        {/* I-beam divider */}
+        <div
+          className="i-beam animate-entrance w-full max-w-xs"
+          data-delay="3"
+        />
+
+        {/* Join Section */}
+        <section className="w-full max-w-lg animate-entrance" data-delay="3">
+          <div className="iron-plate p-6">
+            <span className="rivet-bottom-left" />
+            <span className="rivet-bottom-right" />
+
+            <h2
+              className="mb-4 text-center text-xl tracking-widest text-primary"
+              style={{ fontFamily: "var(--font-heading), serif" }}
+            >
+              Join a Campaign
+            </h2>
+
+            <div className="iron-seam mb-4" />
+
+            <JoinCampaignForm />
+          </div>
+        </section>
+
+        {/* Footer */}
+        <footer
+          className="animate-entrance text-xs uppercase tracking-[0.12em] text-ash"
+          style={{ fontFamily: "var(--font-mono), monospace" }}
+          data-delay="4"
+        >
+          Powered by Claude
+        </footer>
+      </div>
+    </main>
   );
 }
