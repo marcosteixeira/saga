@@ -11,7 +11,7 @@ export async function POST(req: Request) {
 
   const body = await req.json()
   const { name, world_description, system_description } = body
-  const host_username: string = body.host_username?.trim() || user.email!
+  const host_username: string = body.host_username?.trim() || user.email || 'Unknown Host'
 
   if (!name || !world_description) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
