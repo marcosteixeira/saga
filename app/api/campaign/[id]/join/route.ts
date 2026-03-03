@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAuthServerClient, createServerSupabaseClient } from '@/lib/supabase/server'
+import { generateAndStoreImage } from '@/lib/image-gen'
 
 export async function POST(
   request: NextRequest,
@@ -65,6 +66,19 @@ export async function POST(
 
   if (insertError) {
     return NextResponse.json({ error: 'Failed to join' }, { status: 500 })
+  }
+
+  // Fire-and-forget: generate character portrait if character_name provided
+  if (body.character_name) {
+    const prompt = `Fantasy RPG character portrait: ${body.character_name}, a ${body.character_class ?? 'adventurer'}. ${(body.character_backstory ?? '').slice(0, 200)}`
+    generateAndStoreImage({
+      prompt,
+      bucket: 'character-portraits',
+      path: `${campaignId}/${player.id}.png`,
+    }).then(url => {
+      const supabaseAdmin = createServerSupabaseClient()
+      return supabaseAdmin.from('players').update({ character_image_url: url }).eq('id', player.id)
+    }).catch(() => { /* portrait generation is best-effort */ })
   }
 
   return NextResponse.json({ player }, { status: 201 })
