@@ -116,13 +116,6 @@ export default function NotFound() {
             textDecorationColor: 'rgba(232,168,53,0.4)',
             textUnderlineOffset: '4px',
           }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLAnchorElement).style.textDecorationColor = 'var(--amber-glow)'
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLAnchorElement).style.textDecorationColor =
-              'rgba(232,168,53,0.4)'
-          }}
         >
           ← Return through the fog
         </Link>
