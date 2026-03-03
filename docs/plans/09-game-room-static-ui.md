@@ -12,6 +12,24 @@
 
 ---
 
+## Design System Reference
+
+All UI work in this PR must follow the **Steampunk "The Foundry"** design system.
+See: `docs/plans/2026-03-03-steampunk-design-system.md`
+
+**This is the most UI-intensive PR — apply the full design system rigorously.**
+
+- **`GameRoom` layout:** Background uses the full 5-layer atmospheric system (soot + furnace underglow + smog drift + particles + vignette). Sidebar and center panel are Iron Plate panels with `--gunmetal` borders and corner rivets. Vertical brass pipe separator between sidebar and center.
+- **`PlayerList` sidebar:** Each player card is a compact Iron Plate panel. Avatar: circular with `--brass` ring. Character name in `Rokkitt` weight 700. Class in `Barlow Condensed` small-caps `--ash`. Current player highlighted with `--brass` border glow (`box-shadow: 0 0 8px rgba(196,148,61,0.4)`).
+- **`HPBar`:** Track background `--gunmetal`, fill uses Tailwind width %. Color states: `--patina` (green) > 50%, `--amber` 25–50%, `--furnace` < 25%. Text in `Share Tech Mono`, e.g. `15 / 20`.
+- **Status dot:** Tiny circle (8px), colors: active → `--patina`, incapacitated → `--amber`, dead → `--furnace`, absent → `--ash`.
+- **`MessageFeed`:** Dark scrollable area inside the center Iron Plate panel. Narration messages: `Rokkitt` serif, `--steam` color, full-width, slight left border in `--brass` (3px). Action messages: `Barlow Condensed`, player name in `--amber` bold. System messages: `Share Tech Mono`, `--ash`, centered, small. OOC messages: `Barlow Condensed`, italic, `--ash`, `[OOC]` prefix in `--gunmetal`.
+- **`ActionInput` bar:** Copper Gauge Panel container at the bottom (`2px solid --copper`). Textarea: `--iron` bg, `--gunmetal` border, `--brass` focus glow. Submit button: Primary — `--brass`, chamfered. Disabled state: `--gunmetal` bg, `--ash` text.
+- **`SceneImage`:** Displayed at top of center column. Image with vignette overlay and `--gunmetal` border. Collapse toggle button as Ghost variant with a gear icon. Smooth CSS height transition (300ms ease).
+- **Scrollbar styling:** `--gunmetal` track, `--brass` thumb, thin (6px) across all scroll areas.
+
+---
+
 ### Task 1: Build the Game Room Layout
 
 **Files:**

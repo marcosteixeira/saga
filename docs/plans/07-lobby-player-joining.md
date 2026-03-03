@@ -12,6 +12,24 @@
 
 ---
 
+## Design System Reference
+
+All UI work in this PR must follow the **Steampunk "The Foundry"** design system.
+See: `docs/plans/2026-03-03-steampunk-design-system.md`
+
+**Applicable to this PR:**
+
+- **Lobby page background:** Full layered background system (soot + furnace underglow + smog drift animation + vignette). This is a high-visibility page — use the full atmospheric effect stack.
+- **Campaign info section:** Iron Plate panel with campaign name in `Pragati Narrow` display size, uppercase, `--brass` with glow text-shadow. Cover image (if available) with vignette overlay.
+- **`CharacterCreation` form:** Copper Gauge Panel container (`2px solid --copper`, inner amber glow). Inputs: `--iron` bg, `--gunmetal` border, `--brass` focus glow. Labels in `Share Tech Mono` uppercase `--copper`.
+- **Player list (joined state):** Each player card as a small Iron Plate panel. Avatar with circular crop and `--brass` border ring. Username in `Rokkitt`, class in `Barlow Condensed` small-caps `--ash`.
+- **"Share this link" block:** Copper Gauge Panel with the URL in `Share Tech Mono`. Copy button as Ghost variant (`--brass` text + border, fills `--smog` on hover).
+- **"Start Session" button:** Primary button — `--brass`, chamfered, hover → `--furnace`. Disabled state: `--gunmetal` bg, `--ash` text, 50% opacity.
+- **"Waiting for host..." message:** `Barlow Condensed`, italic, `--ash`, small-caps. Optionally animate with a slow pulsing opacity (2s ease-in-out cycle).
+- **Player count badge:** `Share Tech Mono`, `--amber` text, `--gunmetal` background — gauge readout style (e.g., `03 / 06`).
+
+---
+
 ### Task 1: Build Player Join API Route
 
 **Files:**

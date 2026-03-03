@@ -12,6 +12,20 @@
 
 ---
 
+## Design System Reference
+
+All UI work in this PR must follow the **Steampunk "The Foundry"** design system.
+See: `docs/plans/2026-03-03-steampunk-design-system.md`
+
+**Applicable to this PR:**
+
+- **Streaming narration in `MessageFeed`:** As tokens arrive, the in-progress narration message should render with a blinking cursor (thin `--brass` vertical bar, 1s blink cycle) at the end of the current text.
+- **"GM is narrating..." indicator:** Show a small status chip above the ActionInput bar in `Share Tech Mono` uppercase `--copper` — gauge readout style. Include a pulsing ember dot (`--furnace`, 1s pulse) to indicate live activity.
+- **ActionInput disabled during narration:** Apply the standard disabled style (`--gunmetal` bg, `--ash` text). Placeholder: `"THE GAME MASTER SPEAKS..."` in `Share Tech Mono` uppercase.
+- **Narration complete:** The blinking cursor disappears and the cursor fades out. No jarring re-render — the final text replaces the streaming buffer seamlessly.
+
+---
+
 ### Task 1: Build GM System Prompt
 
 **Files:**

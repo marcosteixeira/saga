@@ -12,6 +12,20 @@
 
 ---
 
+## Design System Reference
+
+All UI work in this PR must follow the **Steampunk "The Foundry"** design system.
+See: `docs/plans/2026-03-03-steampunk-design-system.md`
+
+**Applicable to this PR:**
+
+- **Session summary page (`/campaign/[id]/summary`):** Full layered background. Session title in `Pragati Narrow` display size, uppercase, `--brass` glow. Summary prose in `Rokkitt`, `--steam`, generous line-height. Wrap in an Iron Plate panel with rivet corners.
+- **"Continue Campaign" / "End Campaign" buttons:** Continue → Primary (`--brass`, chamfered). End → Destructive (rusted red, chamfered, hover ember burst).
+- **"End Session" host control:** Displayed as a Secondary button (`--gunmetal` bg, `--copper` border) in the game room. Confirm dialog styled as a Copper Gauge Panel with a destructive confirm button.
+- **Session transition overlay:** When session ends, show a steam burst + fade-to-black before routing to the summary page.
+
+---
+
 ### Task 1: Build Session Summary Prompt
 
 **Files:**

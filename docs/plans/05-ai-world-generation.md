@@ -12,6 +12,22 @@
 
 ---
 
+## Design System Reference
+
+All UI work in this PR must follow the **Steampunk "The Foundry"** design system.
+See: `docs/plans/2026-03-03-steampunk-design-system.md`
+
+**Applicable to this PR:**
+
+- **Loading state ("Generating your world..."):** Use the piston animation as the primary loader. Display message in `Rokkitt`, uppercase, `--steam` color. Ambient smoke blobs can drift across the background during the wait.
+- **`WorldPreview` card:** Iron Plate panel — `--smog` at 85% opacity, `--gunmetal` border, corner rivets. Campaign name as H1 (`Rokkitt`, uppercase, `--brass` with warm glow text-shadow).
+- **World content text:** `Barlow Condensed` body font, `--steam` color, `line-height: 1.6`. Use `--ash` for section sub-headings.
+- **Scroll area:** Minimal scrollbar styled with `--gunmetal` track and `--brass` thumb.
+- **"Enter Lobby" button:** Primary button — `--brass` bg, chamfered corners, hover → `--furnace`.
+- **Page transition into preview:** Steam burst + fade when switching from form to preview state.
+
+---
+
 ### Task 1: Install Anthropic SDK
 
 **Step 1: Install**

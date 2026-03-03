@@ -12,6 +12,18 @@
 
 ---
 
+## Design System Reference
+
+All UI work in this PR must follow the **Steampunk "The Foundry"** design system.
+See: `docs/plans/2026-03-03-steampunk-design-system.md`
+
+**Applicable to this PR:**
+
+- **Scene image injection into `MessageFeed`:** When a new scene image appears (after GENERATE_IMAGE completes), display it inline within the narration message using the Iron Plate panel treatment with vignette overlay. Fade the image in over 400ms.
+- **Memory update indicator (optional, subtle):** A brief flash of a small `--patina` chip ("LORE UPDATED") in `Share Tech Mono` uppercase can appear momentarily in the sidebar or top bar when memory files are updated — reinforces the living world feel.
+
+---
+
 ### Task 1: Build MEMORY_UPDATE Extractor
 
 **Files:**

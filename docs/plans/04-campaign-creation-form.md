@@ -12,6 +12,24 @@
 
 ---
 
+## Design System Reference
+
+All UI work in this PR must follow the **Steampunk "The Foundry"** design system.
+See: `docs/plans/2026-03-03-steampunk-design-system.md`
+
+**Applicable to this PR:**
+
+- **Form page (`app/campaign/new/page.tsx`):** Layered background system (soot base + furnace underglow + vignette). Center the form within a max-width container.
+- **`WorldGenForm` inputs:** Use `--iron` background, `1px solid --gunmetal` border, focus state `--brass` glow. Labels in `Share Tech Mono`, uppercase, `--copper` color — gauge label style.
+- **Textarea fields:** Same input treatment; use `--ash` placeholder text.
+- **Submit button:** Primary button variant — `--brass` bg, `--soot` text, chamfered corners, hover → `--furnace`.
+- **Card container:** Iron Plate panel — `--smog` at 85% opacity, `--gunmetal` border, corner rivet pseudo-elements.
+- **Typography:** Form heading in `Rokkitt`, uppercase, `letter-spacing: 0.08em`. Field labels in `Share Tech Mono`.
+- **Loading state:** Piston animation (horizontal reciprocating bar) while request is in flight.
+- **Error messages:** Rusted red (`#a63d2a`) text, small-caps.
+
+---
+
 ### Task 1: Install Additional shadcn/ui Components
 
 **Step 1: Add form-related components**
