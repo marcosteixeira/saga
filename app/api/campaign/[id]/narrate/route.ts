@@ -3,6 +3,9 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { anthropic } from '@/lib/anthropic'
 import { buildGMSystemPrompt } from '@/lib/prompts/gm-system'
 import { formatMessageHistory } from '@/lib/prompts/message-history'
+import { extractMemoryUpdate } from '@/lib/prompts/memory-update'
+import { applyMemoryUpdate } from '@/lib/memory-updater'
+import { generateAndStoreImage } from '@/lib/image-gen'
 import type { Message, Player } from '@/types'
 
 interface NarrateRequestBody {
@@ -130,14 +133,17 @@ export async function POST(
     })
   }
 
-  // Save full narration to messages table
+  // Extract MEMORY_UPDATE and GENERATE_IMAGE from full content
+  const { narration: cleanNarration, memoryUpdate, generateImage } = extractMemoryUpdate(fullContent)
+
+  // Save clean narration to messages table
   const { data: savedMessage } = await supabase
     .from('messages')
     .insert({
       campaign_id: campaignId,
       session_id: campaign.current_session_id,
       player_id: null,
-      content: fullContent,
+      content: cleanNarration,
       type: 'narration',
     })
     .select()
@@ -145,12 +151,26 @@ export async function POST(
 
   const savedMessageId = savedMessage?.id ?? tempMessageId
 
-  // Broadcast done event
+  // Broadcast done event with clean narration
   await channel.send({
     type: 'broadcast',
     event: 'done',
-    payload: { type: 'done', messageId: savedMessageId, fullContent },
+    payload: { type: 'done', messageId: savedMessageId, fullContent: cleanNarration },
   })
+
+  // Fire-and-forget: apply memory update
+  if (memoryUpdate) {
+    applyMemoryUpdate(campaignId, memoryUpdate).catch(() => { /* best-effort */ })
+  }
+
+  // Fire-and-forget: generate scene image
+  if (generateImage) {
+    generateAndStoreImage({
+      prompt: generateImage,
+      bucket: 'scene-images',
+      path: `${campaignId}/${savedMessageId}.png`,
+    }).catch(() => { /* best-effort */ })
+  }
 
   return NextResponse.json({ messageId: savedMessageId }, { status: 200 })
 }
