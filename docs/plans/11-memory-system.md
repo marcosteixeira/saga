@@ -319,4 +319,4 @@ git add -A && git commit -m "feat: update CHARACTERS.md when player joins"
 - [ ] CHARACTERS.md updated when player joins (1 test passing)
 - [ ] Malformed JSON doesn't crash the system
 - [ ] Scene images generated when GENERATE_IMAGE detected
-- [ ] `npm run build` succeeds
+- [ ] `yarn build` succeeds

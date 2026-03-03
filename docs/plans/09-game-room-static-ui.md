@@ -334,4 +334,4 @@ git add -A && git commit -m "feat: include messages in GET /api/campaign/[id]"
 - [ ] ActionInput submits on Enter, clears after submit, supports Shift+Enter
 - [ ] SceneImage expands/collapses smoothly, hidden when no image
 - [ ] GET /api/campaign/[id] includes messages (3 tests passing)
-- [ ] `npm run build` succeeds
+- [ ] `yarn build` succeeds

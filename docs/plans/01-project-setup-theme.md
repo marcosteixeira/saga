@@ -25,7 +25,7 @@ Accept defaults. This creates the full project scaffold.
 
 **Step 2: Verify it runs**
 
-Run: `npm run dev`
+Run: `yarn dev`
 Expected: App running at localhost:3000 with default Next.js page.
 
 **Step 3: Commit**
@@ -51,7 +51,7 @@ Choose: New York style, Zinc base color, CSS variables = yes.
 
 **Step 2: Verify build still works**
 
-Run: `npm run build`
+Run: `yarn build`
 Expected: Build succeeds with no errors.
 
 **Step 3: Commit**
@@ -64,8 +64,8 @@ git add -A && git commit -m "chore: configure shadcn/ui"
 
 ## Testing Strategy
 
-- Verify `npm run dev` starts without errors
-- Verify `npm run build` succeeds
+- Verify `yarn dev` starts without errors
+- Verify `yarn build` succeeds
 - Verify default Next.js page renders at localhost:3000
 
 No unit tests needed — pure scaffolding.
@@ -76,5 +76,5 @@ No unit tests needed — pure scaffolding.
 
 - [ ] Next.js 14 project scaffolded with TypeScript + Tailwind
 - [ ] shadcn/ui initialized and configured
-- [ ] `npm run dev` starts without errors
-- [ ] `npm run build` succeeds with no errors
+- [ ] `yarn dev` starts without errors
+- [ ] `yarn build` succeeds with no errors

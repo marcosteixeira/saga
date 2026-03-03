@@ -305,4 +305,4 @@ git add -A && git commit -m "feat: campaign page redirect based on status"
 - [ ] Lobby shows campaign info, player list, and share link
 - [ ] Host sees "Start Session" button, non-host sees waiting message
 - [ ] `/campaign/[id]` redirects to lobby when status is `lobby`
-- [ ] `npm run build` succeeds
+- [ ] `yarn build` succeeds

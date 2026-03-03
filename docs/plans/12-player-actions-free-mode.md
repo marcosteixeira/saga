@@ -390,4 +390,4 @@ git add -A && git commit -m "feat: opening narration when session starts"
 - [ ] Actions broadcast to all connected clients in real-time
 - [ ] Opening narration fires when session starts (1 test passing)
 - [ ] Full free mode loop works: actions → narration → actions → ...
-- [ ] `npm run build` succeeds
+- [ ] `yarn build` succeeds

@@ -297,4 +297,4 @@ git add -A && git commit -m "feat: GET /api/campaign/[id] route"
 - [ ] Form submits to API, stores session token in localStorage, redirects to lobby
 - [ ] Loading state shown during submission
 - [ ] Error messages shown on failure
-- [ ] `npm run build` succeeds
+- [ ] `yarn build` succeeds

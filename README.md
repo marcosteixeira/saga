@@ -38,7 +38,7 @@ The AI narrates the story, arbitrates rules (d20-based), generates scene and cha
 ```bash
 git clone https://github.com/marcosteixeira/saga.git
 cd saga
-npm install
+yarn install
 ```
 
 Create a `.env.local` file:
@@ -52,7 +52,7 @@ GOOGLE_AI_API_KEY=your_google_ai_api_key
 ```
 
 ```bash
-npm run dev
+yarn dev
 ```
 
 ## License

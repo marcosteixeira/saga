@@ -340,4 +340,4 @@ git add -A && git commit -m "feat: message history formatter for Claude conversa
 - [ ] Completed narration saved to messages table
 - [ ] MessageFeed auto-scrolls during streaming
 - [ ] Streaming indicator visible during narration
-- [ ] `npm run build` succeeds
+- [ ] `yarn build` succeeds

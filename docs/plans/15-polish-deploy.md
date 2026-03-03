@@ -130,7 +130,7 @@ git add -A && git commit -m "docs: Supabase storage bucket setup"
 **Vercel configuration:**
 - Function timeout: set to maximum for narration streaming (Vercel Pro: 60s, Hobby: 10s)
 - Environment variables: document all required vars
-- Build command: `npm run build`
+- Build command: `yarn build`
 - Output directory: default (`.next`)
 
 **Vercel env vars to set:**
@@ -170,12 +170,12 @@ Expected: All tests pass.
 
 **Step 2: Run production build**
 
-Run: `npm run build`
+Run: `yarn build`
 Expected: Build succeeds with no errors.
 
 **Step 3: Run production server locally**
 
-Run: `npm start`
+Run: `yarn start`
 Expected: App loads, navigate through all pages.
 
 **Step 4: Manual smoke test**
@@ -218,7 +218,7 @@ git add -A && git commit -m "fix: final polish and deployment fixes"
 | 404 page | Visual/manual | Visit invalid URL |
 | Edge cases | Visual/manual | Each edge case scenario |
 | Full test suite | vitest | All unit tests pass |
-| Production build | npm run build | No build errors |
+| Production build | yarn build | No build errors |
 | End-to-end flow | Manual | Full game session on deployed app |
 
 ---
@@ -232,6 +232,6 @@ git add -A && git commit -m "fix: final polish and deployment fixes"
 - [ ] Supabase storage bucket documented/scripted
 - [ ] next.config.ts configured for image domains
 - [ ] All tests pass (`npx vitest run`)
-- [ ] Production build succeeds (`npm run build`)
+- [ ] Production build succeeds (`yarn build`)
 - [ ] Successfully deployed to Vercel
 - [ ] Full game flow works on deployed app
