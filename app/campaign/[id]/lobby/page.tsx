@@ -223,13 +223,23 @@ export default function LobbyPage() {
 
           {/* Host controls / waiting */}
           {isHost ? (
-            <Button
-              className="w-full max-w-xs bg-[--brass] text-black hover:bg-[--furnace] disabled:bg-[--gunmetal] disabled:text-[--ash] disabled:opacity-50"
-              disabled={nonHostPlayers.length === 0 || isStarting}
-              onClick={handleStartSession}
-            >
-              Start Session
-            </Button>
+            <div className="space-y-3">
+              {nonHostPlayers.length === 0 && (
+                <p
+                  className="italic text-sm"
+                  style={{ fontFamily: 'Barlow Condensed, sans-serif', color: 'var(--ash)' }}
+                >
+                  Waiting for adventurers to join...
+                </p>
+              )}
+              <Button
+                className="w-full max-w-xs bg-[--brass] text-black hover:bg-[--furnace] disabled:bg-[--gunmetal] disabled:text-[--ash] disabled:opacity-50"
+                disabled={nonHostPlayers.length === 0 || isStarting}
+                onClick={handleStartSession}
+              >
+                Start Session
+              </Button>
+            </div>
           ) : (
             <p
               className="italic text-[--ash] animate-pulse"
