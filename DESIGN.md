@@ -332,17 +332,6 @@ Generates a 400-600 word narrative prose summary (past tense, third person) of t
 
 ---
 
-## UI Design
-
-### Theme: Dark Fantasy
-
-- Dark backgrounds (#0a0a0a to #1a1a2e)
-- Gold/amber accents (#d4a574, #c9a55a)
-- Parchment-toned text for narration
-- Medieval-inspired typography (serif for narration, sans-serif for UI)
-- Subtle textures and gradients
-- Scene images displayed prominently
-
 ### Pages
 
 **`/` — Landing**
