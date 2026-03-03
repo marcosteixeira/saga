@@ -71,6 +71,7 @@ CREATE INDEX idx_players_campaign_id ON players(campaign_id);
 CREATE INDEX idx_messages_campaign_created ON messages(campaign_id, created_at);
 CREATE INDEX idx_campaign_files_campaign_id ON campaign_files(campaign_id);
 CREATE INDEX idx_sessions_campaign_id ON sessions(campaign_id);
+CREATE INDEX idx_messages_session_id ON messages(session_id);
 
 -- NOTE: Run this block manually in Supabase SQL Editor if not using Supabase CLI migrations
 -- Auto-update updated_at on campaign_files
