@@ -1,3 +1,9 @@
+export type TurnState = {
+  order: string[]
+  current_index: number
+  round: number
+}
+
 export type Campaign = {
   id: string
   name: string
@@ -10,6 +16,7 @@ export type Campaign = {
   status: 'lobby' | 'active' | 'paused' | 'ended'
   turn_mode: 'free' | 'sequential'
   turn_timer_seconds: number
+  turn_state: TurnState | null
   current_session_id: string | null
   created_at: string
 }

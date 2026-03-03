@@ -1,4 +1,4 @@
-export type { Campaign, CampaignInsert } from './campaign'
+export type { Campaign, CampaignInsert, TurnState } from './campaign'
 export type { Player, PlayerInsert } from './player'
 export type { Message, MessageInsert } from './message'
 export type { CampaignFile, CampaignFileInsert } from './campaign-file'
