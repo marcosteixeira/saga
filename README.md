@@ -55,6 +55,16 @@ GOOGLE_AI_API_KEY=your_google_ai_api_key
 yarn dev
 ```
 
+### Docker
+
+Alternatively, run with Docker:
+
+```bash
+docker compose up --build
+```
+
+The app will be available at `http://localhost:3000` with hot reloading enabled.
+
 ## License
 
 MIT
