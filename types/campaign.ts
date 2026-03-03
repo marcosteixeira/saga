@@ -2,7 +2,7 @@ export type Campaign = {
   id: string
   name: string
   host_username: string
-  host_session_token: string
+  host_user_id: string
   world_description: string
   system_description: string | null
   cover_image_url: string | null
@@ -16,7 +16,7 @@ export type Campaign = {
 
 export type CampaignInsert = Pick<
   Campaign,
-  'name' | 'host_username' | 'host_session_token' | 'world_description'
+  'name' | 'host_username' | 'host_user_id' | 'world_description'
 > & {
   system_description?: string
   cover_image_url?: string

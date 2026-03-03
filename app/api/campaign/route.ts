@@ -1,33 +1,44 @@
 import { NextResponse } from 'next/server'
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { createServerSupabaseClient, createAuthServerClient } from '@/lib/supabase/server'
 
 export async function POST(req: Request) {
-  const body = await req.json()
-  const { name, host_username, world_description, system_description } = body
+  const authClient = await createAuthServerClient()
+  const { data: { user } } = await authClient.auth.getUser()
 
-  if (!name || !host_username || !world_description) {
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const body = await req.json()
+  const { name, world_description, system_description } = body
+  const host_username: string =
+    body.host_username?.trim() ||
+    user.user_metadata?.display_name ||
+    user.email ||
+    'Unknown Host'
+
+  if (!name || !world_description) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
   }
 
   const supabase = createServerSupabaseClient()
-  const host_session_token = crypto.randomUUID()
 
   const { data, error } = await supabase
     .from('campaigns')
     .insert({
       name,
       host_username,
+      host_user_id: user.id,
       world_description,
       system_description: system_description || null,
-      host_session_token,
       status: 'lobby',
     })
-    .select('id, host_session_token')
+    .select('id')
     .single()
 
   if (error || !data) {
     return NextResponse.json({ error: 'Failed to create campaign' }, { status: 500 })
   }
 
-  return NextResponse.json({ id: data.id, host_session_token: data.host_session_token }, { status: 201 })
+  return NextResponse.json({ id: data.id }, { status: 201 })
 }
