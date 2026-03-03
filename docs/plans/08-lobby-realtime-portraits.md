@@ -12,6 +12,19 @@
 
 ---
 
+## Design System Reference
+
+All UI work in this PR must follow the **Steampunk "The Foundry"** design system.
+See: `docs/plans/2026-03-03-steampunk-design-system.md`
+
+**Applicable to this PR:**
+
+- **Player join animation:** When a new player appears in the realtime-updated list, animate them in with a brief steam burst + fade-in (translate from slight bottom offset, opacity 0 → 1, ~300ms ease-out).
+- **Character portraits:** Display as circular crops with a `--brass` border ring (2px). While portrait is generating, show the piston animation shimmer placeholder in `--smog`. Portrait frame can optionally use a Copper Gauge Panel ring for emphasis.
+- **"Session starting" transition:** When host starts the session, all clients should see a dramatic full-screen steam burst overlay (white-to-transparent particles burst from bottom edge) before routing to the game room.
+
+---
+
 ### Task 1: Add Realtime Player List Subscription
 
 **Files:**

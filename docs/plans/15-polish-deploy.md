@@ -12,6 +12,23 @@
 
 ---
 
+## Design System Reference
+
+All UI work in this PR must follow the **Steampunk "The Foundry"** design system.
+See: `docs/plans/2026-03-03-steampunk-design-system.md`
+
+**This PR finalizes the design system integration — ensure full consistency across all screens.**
+
+- **Error boundary page:** Full layered background. Heading: `"SYSTEM FAILURE"` in `Pragati Narrow` display size, uppercase, `--furnace` color with ember glow. Body text in `Barlow Condensed` `--steam`. "Try Again" → Primary button. Gear mechanism SVG in background corner at low opacity.
+- **Loading page / skeletons:** Skeleton shimmer using `--smog` base with `--gunmetal` sweep animation. Match the skeleton shape to the page's layout. Include the piston animation for full-page loads.
+- **404 page:** `"LOST IN THE SMOG"` in `Pragati Narrow`, display size, `--ash`. Body copy in `Barlow Condensed`. Return link styled as `--amber` with underline. Full atmospheric background with dense smog and reduced ember particles.
+- **`prefers-reduced-motion` audit:** Verify all animations (smog drift, ember particles, piston, gear rotation) have static fallbacks. This is required per the design system accessibility spec.
+- **Font loading:** Confirm `Pragati Narrow`, `Rokkitt`, `Barlow Condensed`, and `Share Tech Mono` are loaded via `next/font/google` with `display: swap` and correct subsets.
+- **CSS variable consolidation:** Ensure all steampunk color tokens are defined in `globals.css` (or equivalent) and used consistently — no hardcoded hex values outside the token definitions.
+- **Responsive check:** Verify atmospheric effects degrade gracefully: tablet (fewer particles), mobile (~10 particles, no parallax, furnace glow + vignette preserved).
+
+---
+
 ### Task 1: Error Boundaries and Loading States
 
 **Files:**

@@ -12,6 +12,20 @@
 
 ---
 
+## Design System Reference
+
+All UI work in this PR must follow the **Steampunk "The Foundry"** design system.
+See: `docs/plans/2026-03-03-steampunk-design-system.md`
+
+**Applicable to this PR:**
+
+- **Image loading placeholder:** While cover/map images generate asynchronously, show a shimmer skeleton with `--smog` base and `--gunmetal` shimmer sweep. Dimensions should match the final image container.
+- **Cover art display:** Display within an Iron Plate panel with `--gunmetal` border. Add a subtle vignette overlay on the image edges (radial gradient from transparent → `--soot` at 30%) to blend it into the dark background.
+- **World map display:** Same panel treatment. Optionally add a Copper Gauge Panel border (`2px solid --copper`) to give it a cartographic instrument feel.
+- **Image prompts:** When building Gemini prompts, guide outputs toward the steampunk aesthetic: warm amber lighting, industrial/mechanical elements, smog and steam, burnished metal textures.
+
+---
+
 ### Task 1: Install Google AI SDK and Create Client
 
 **Step 1: Install**

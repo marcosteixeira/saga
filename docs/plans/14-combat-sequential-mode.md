@@ -12,6 +12,22 @@
 
 ---
 
+## Design System Reference
+
+All UI work in this PR must follow the **Steampunk "The Foundry"** design system.
+See: `docs/plans/2026-03-03-steampunk-design-system.md`
+
+**Applicable to this PR:**
+
+- **Active player highlight in `PlayerList`:** The currently acting player's card gets a `--brass` border glow (`box-shadow: 0 0 12px rgba(196,148,61,0.6)`) and a small animated gear icon (slow rotation, `--brass`) next to their name indicating it's their turn.
+- **"YOUR TURN" indicator:** A prominent banner or chip appears above the ActionInput in `Pragati Narrow` uppercase, `--amber` color with furnace glow — unmissable. Optionally animate in with a brief steam burst from the bottom.
+- **ActionInput — active turn:** Full enabled state, `--brass` focus ring. Placeholder: `"DECLARE YOUR ACTION..."` in `Share Tech Mono`.
+- **ActionInput — not your turn:** Standard disabled state (`--gunmetal`, `--ash`). Show `"OPERATOR [NAME]'S TURN"` in `Share Tech Mono` as placeholder.
+- **Mode toggle (Free / Sequential):** Host control rendered as a Leather Strap tab pair. Active tab shows `--brass` rivet indicator.
+- **Turn order display:** Optional compact row in the sidebar or top bar showing player avatars in sequence, with the current player's avatar highlighted with `--brass` ring.
+
+---
+
 ### Task 1: Add Turn Order State
 
 **Files:**

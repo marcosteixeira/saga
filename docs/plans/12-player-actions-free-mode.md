@@ -12,6 +12,20 @@
 
 ---
 
+## Design System Reference
+
+All UI work in this PR must follow the **Steampunk "The Foundry"** design system.
+See: `docs/plans/2026-03-03-steampunk-design-system.md`
+
+**Applicable to this PR:**
+
+- **Action submitted state:** After a player submits an action, show a brief mechanical "clunk" feedback on the submit button (tiny downward shift + shadow reduction, ~100ms), then disable it with `--gunmetal` bg. Show `"ACTION LOGGED"` in `Share Tech Mono` `--patina` as a transient chip near the input.
+- **"Waiting for others" state:** ActionInput disabled, placeholder `"AWAITING FELLOW OPERATORS..."` in `Share Tech Mono` uppercase. The submitted action appears in the feed with a small `--ash` `[PENDING]` tag until narration triggers.
+- **Turn timer (if applicable):** Display as a circular gauge or linear progress bar in `Share Tech Mono`. Color transitions: `--patina` (full) → `--amber` (< 30s) → `--furnace` (< 10s). Pulsing glow at low time.
+- **Other players' actions appearing in realtime:** Animate in with the same steam burst + fade-in as the lobby join animation.
+
+---
+
 ### Task 1: Build Message Submission API Route
 
 **Files:**
