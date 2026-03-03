@@ -1,7 +1,7 @@
 export type Player = {
   id: string
   campaign_id: string
-  session_token: string
+  user_id: string
   username: string
   character_name: string | null
   character_class: string | null
@@ -17,7 +17,7 @@ export type Player = {
 
 export type PlayerInsert = Pick<
   Player,
-  'campaign_id' | 'session_token' | 'username'
+  'campaign_id' | 'user_id' | 'username'
 > & {
   character_name?: string
   character_class?: string
