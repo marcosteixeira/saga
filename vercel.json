@@ -1,0 +1,19 @@
+{
+  "functions": {
+    "app/api/campaign/[id]/narrate/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/campaign/[id]/session/start/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/campaign/[id]/session/end/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/campaign/[id]/image/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/campaign/route.ts": {
+      "maxDuration": 60
+    }
+  }
+}
