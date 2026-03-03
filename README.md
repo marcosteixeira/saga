@@ -8,7 +8,7 @@ The AI narrates the story, arbitrates rules (d20-based), generates scene and cha
 
 | Layer          | Technology                         |
 | -------------- | ---------------------------------- |
-| Frontend + API | Next.js 14 (App Router) + TypeScript |
+| Frontend + API | Next.js 16 (App Router) + TypeScript |
 | Styling        | Tailwind CSS + shadcn/ui          |
 | Database       | Supabase (Postgres + Realtime)    |
 | AI — Game Master | Claude Sonnet 4.6 (Anthropic)   |

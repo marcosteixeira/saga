@@ -6,7 +6,8 @@ services:
     ports:
       - "3000:3000"
     env_file:
-      - .env.local
+      - path: .env.local
+        required: false
     volumes:
       - .:/app
       - /app/node_modules
