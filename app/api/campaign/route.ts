@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createServerSupabaseClient, createAuthServerClient } from '@/lib/supabase/server'
+import { anthropic } from '@/lib/anthropic'
+import { buildWorldGenPrompt } from '@/lib/prompts/world-gen'
+import { initializeCampaignFiles } from '@/lib/memory'
 
 export async function POST(req: Request) {
   const authClient = await createAuthServerClient()
@@ -39,6 +42,18 @@ export async function POST(req: Request) {
   if (error || !data) {
     return NextResponse.json({ error: 'Failed to create campaign' }, { status: 500 })
   }
+
+  const prompt = buildWorldGenPrompt(world_description)
+  const aiResponse = await anthropic.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 2048,
+    messages: [{ role: 'user', content: prompt }],
+  })
+  const worldContent = aiResponse.content
+    .filter((b) => b.type === 'text')
+    .map((b) => (b as { type: 'text'; text: string }).text)
+    .join('')
+  await initializeCampaignFiles(data.id, worldContent)
 
   return NextResponse.json({ id: data.id }, { status: 201 })
 }

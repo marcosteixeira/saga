@@ -8,6 +8,20 @@ const mockSingle = vi.fn()
 // Mock auth client
 const mockGetUser = vi.fn()
 
+vi.mock('@/lib/anthropic', () => ({
+  anthropic: {
+    messages: {
+      create: vi.fn().mockResolvedValue({
+        content: [{ type: 'text', text: '# World\nGenerated content' }]
+      })
+    }
+  }
+}))
+
+vi.mock('@/lib/memory', () => ({
+  initializeCampaignFiles: vi.fn().mockResolvedValue(undefined)
+}))
+
 vi.mock('@/lib/supabase/server', () => ({
   createServerSupabaseClient: vi.fn(() => ({
     from: () => ({
@@ -120,5 +134,32 @@ describe('POST /api/campaign', () => {
     })
     const res = await POST(req)
     expect(res.status).toBe(500)
+  })
+
+  it('calls Claude and initializes campaign files on success', async () => {
+    mockGetUser.mockResolvedValue({
+      data: { user: { id: 'user-1', email: 'gm@saga.com' } },
+    })
+    mockSingle.mockResolvedValue({ data: { id: 'campaign-123' }, error: null })
+
+    const { anthropic } = await import('@/lib/anthropic')
+    const { initializeCampaignFiles } = await import('@/lib/memory')
+
+    const { POST } = await import('../route')
+    const req = new Request('http://localhost/api/campaign', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: 'Test Campaign',
+        world_description: 'A dark world...',
+      }),
+      headers: { 'Content-Type': 'application/json' },
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(201)
+    expect(anthropic.messages.create).toHaveBeenCalledOnce()
+    expect(initializeCampaignFiles).toHaveBeenCalledWith(
+      expect.any(String),
+      '# World\nGenerated content'
+    )
   })
 })
