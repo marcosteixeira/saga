@@ -8,14 +8,14 @@ export function GearDecoration() {
     >
       {/* Top-right cluster */}
       <svg
-        className="absolute -right-16 -top-16 h-64 w-64 opacity-[0.06]"
+        className="gear-spin-animation absolute -right-16 -top-16 h-64 w-64 opacity-[0.06]"
         viewBox="0 0 200 200"
         style={{ animation: "gear-spin 80s linear infinite" }}
       >
         <GearSVG cx={100} cy={100} r={80} teeth={16} toothDepth={14} />
       </svg>
       <svg
-        className="absolute right-20 top-20 h-40 w-40 opacity-[0.04]"
+        className="gear-spin-animation absolute right-20 top-20 h-40 w-40 opacity-[0.04]"
         viewBox="0 0 200 200"
         style={{ animation: "gear-spin 60s linear infinite reverse" }}
       >
@@ -24,14 +24,14 @@ export function GearDecoration() {
 
       {/* Bottom-left cluster */}
       <svg
-        className="absolute -bottom-20 -left-20 h-72 w-72 opacity-[0.05]"
+        className="gear-spin-animation absolute -bottom-20 -left-20 h-72 w-72 opacity-[0.05]"
         viewBox="0 0 200 200"
         style={{ animation: "gear-spin 90s linear infinite" }}
       >
         <GearSVG cx={100} cy={100} r={80} teeth={20} toothDepth={12} />
       </svg>
       <svg
-        className="absolute bottom-16 left-32 h-36 w-36 opacity-[0.04]"
+        className="gear-spin-animation absolute bottom-16 left-32 h-36 w-36 opacity-[0.04]"
         viewBox="0 0 200 200"
         style={{ animation: "gear-spin 70s linear infinite reverse" }}
       >

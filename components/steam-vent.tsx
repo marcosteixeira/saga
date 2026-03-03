@@ -1,23 +1,19 @@
 "use client";
 
-// Simple seeded PRNG — deterministic across server/client
-function seededRandom(seed: number) {
-  let s = seed;
-  return () => {
-    s = (s * 16807 + 0) % 2147483647;
-    return (s - 1) / 2147483646;
-  };
-}
+import { useMemo } from "react";
+import { seededRandom } from "@/lib/seeded-random";
 
 export function SteamVent({ puffs = 8 }: { puffs?: number }) {
-  const rand = seededRandom(123);
-  const vents = Array.from({ length: puffs }, (_, i) => ({
-    id: i,
-    left: `${(10 + (i / (puffs - 1)) * 80).toFixed(4)}%`,
-    delay: `${(-rand() * 3).toFixed(4)}s`,
-    duration: `${(2.5 + rand() * 1.5).toFixed(4)}s`,
-    size: +(30 + rand() * 20).toFixed(4),
-  }));
+  const vents = useMemo(() => {
+    const rand = seededRandom(123);
+    return Array.from({ length: puffs }, (_, i) => ({
+      id: i,
+      left: `${(10 + (i / (puffs - 1)) * 80).toFixed(4)}%`,
+      delay: `${(-rand() * 3).toFixed(4)}s`,
+      duration: `${(2.5 + rand() * 1.5).toFixed(4)}s`,
+      size: +(30 + rand() * 20).toFixed(4),
+    }));
+  }, [puffs]);
 
   return (
     <div className="steam-vent-container" aria-hidden="true">

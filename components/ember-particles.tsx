@@ -1,13 +1,7 @@
 "use client";
 
-// Simple seeded PRNG — deterministic across server/client
-function seededRandom(seed: number) {
-  let s = seed;
-  return () => {
-    s = (s * 16807 + 0) % 2147483647;
-    return (s - 1) / 2147483646;
-  };
-}
+import { useMemo } from "react";
+import { seededRandom } from "@/lib/seeded-random";
 
 interface Ember {
   id: number;
@@ -21,17 +15,19 @@ interface Ember {
 }
 
 export function EmberParticles({ count = 25 }: { count?: number }) {
-  const rand = seededRandom(42);
-  const embers: Ember[] = Array.from({ length: count }, (_, i) => ({
-    id: i,
-    left: `${(rand() * 100).toFixed(4)}%`,
-    size: +(1 + rand() * 3).toFixed(4),
-    duration: `${(8 + rand() * 12).toFixed(4)}s`,
-    delay: `${(-rand() * 20).toFixed(4)}s`,
-    drift: `${(-30 + rand() * 60).toFixed(4)}px`,
-    opacity: +(0.3 + rand() * 0.5).toFixed(4),
-    color: rand() > 0.4 ? "var(--furnace)" : "var(--amber-glow)",
-  }));
+  const embers = useMemo<Ember[]>(() => {
+    const rand = seededRandom(42);
+    return Array.from({ length: count }, (_, i) => ({
+      id: i,
+      left: `${(rand() * 100).toFixed(4)}%`,
+      size: +(1 + rand() * 3).toFixed(4),
+      duration: `${(8 + rand() * 12).toFixed(4)}s`,
+      delay: `${(-rand() * 20).toFixed(4)}s`,
+      drift: `${(-30 + rand() * 60).toFixed(4)}px`,
+      opacity: +(0.3 + rand() * 0.5).toFixed(4),
+      color: rand() > 0.4 ? "var(--furnace)" : "var(--amber-glow)",
+    }));
+  }, [count]);
 
   return (
     <div
@@ -41,7 +37,7 @@ export function EmberParticles({ count = 25 }: { count?: number }) {
       {embers.map((ember) => (
         <span
           key={ember.id}
-          className="absolute bottom-0 rounded-full"
+          className="ember-particle absolute bottom-0 rounded-full"
           style={{
             left: ember.left,
             width: `${ember.size}px`,

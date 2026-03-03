@@ -786,7 +786,9 @@
   .furnace-overlay,
   .smog-band,
   .smoke-blob,
-  .steam-vent-puff {
+  .steam-vent-puff,
+  .gear-spin-animation,
+  .ember-particle {
     animation: none !important;
   }
 

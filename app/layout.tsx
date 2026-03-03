@@ -32,6 +32,9 @@ const shareTechMono = Share_Tech_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_APP_URL ?? "https://saga.vercel.app"
+  ),
   title: "Saga",
   description:
     "AI-powered tabletop RPG — gather your party, let the AI Game Master guide your adventure through dark fantasy realms.",
