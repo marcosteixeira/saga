@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
@@ -10,6 +11,13 @@ import { Label } from '@/components/ui/label'
 export function WorldGenForm() {
   const router = useRouter()
   const [hostUsername, setHostUsername] = useState('')
+
+  useEffect(() => {
+    createClient().auth.getUser().then(({ data }) => {
+      const displayName = data.user?.user_metadata?.display_name
+      if (displayName) setHostUsername(displayName)
+    })
+  }, [])
   const [name, setName] = useState('')
   const [worldDescription, setWorldDescription] = useState('')
   const [systemDescription, setSystemDescription] = useState('')

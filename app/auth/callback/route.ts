@@ -30,10 +30,16 @@ export async function GET(request: NextRequest) {
     }
   )
 
-  const { error } = await supabase.auth.exchangeCodeForSession(code)
+  const { data: sessionData, error } = await supabase.auth.exchangeCodeForSession(code)
 
   if (error) {
     return NextResponse.redirect(`${origin}/login?error=auth_failed`)
+  }
+
+  // First-time login: no display_name set yet → send to setup page
+  const hasDisplayName = !!sessionData.user?.user_metadata?.display_name
+  if (!hasDisplayName) {
+    return NextResponse.redirect(`${origin}/setup?redirect=${encodeURIComponent(redirect)}`)
   }
 
   return NextResponse.redirect(`${origin}${redirect}`)

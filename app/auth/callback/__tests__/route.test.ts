@@ -16,11 +16,14 @@ vi.mock('next/headers', () => ({
   })),
 }))
 
+const userWithName = { user_metadata: { display_name: 'DungeonMaster42' } }
+const userWithoutName = { user_metadata: {} }
+
 describe('GET /auth/callback', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('exchanges code and redirects to /redirect param on success', async () => {
-    mockExchangeCode.mockResolvedValue({ error: null })
+  it('exchanges code and redirects to /redirect param when user has display_name', async () => {
+    mockExchangeCode.mockResolvedValue({ data: { user: userWithName }, error: null })
     const { GET } = await import('../route')
     const req = new Request(
       'http://localhost/auth/callback?code=test-code&redirect=/campaign/new'
@@ -31,8 +34,28 @@ describe('GET /auth/callback', () => {
     expect(res.headers.get('location')).toBe('http://localhost/campaign/new')
   })
 
-  it('redirects to / when no redirect param', async () => {
-    mockExchangeCode.mockResolvedValue({ error: null })
+  it('redirects to /setup when user has no display_name (first login)', async () => {
+    mockExchangeCode.mockResolvedValue({ data: { user: userWithoutName }, error: null })
+    const { GET } = await import('../route')
+    const req = new Request(
+      'http://localhost/auth/callback?code=test-code&redirect=/campaign/new'
+    )
+    const res = await GET(req as any)
+    expect(res.status).toBe(307)
+    expect(res.headers.get('location')).toContain('/setup')
+    expect(res.headers.get('location')).toContain('redirect=')
+  })
+
+  it('redirects to /setup when no redirect param and no display_name', async () => {
+    mockExchangeCode.mockResolvedValue({ data: { user: userWithoutName }, error: null })
+    const { GET } = await import('../route')
+    const req = new Request('http://localhost/auth/callback?code=test-code')
+    const res = await GET(req as any)
+    expect(res.headers.get('location')).toContain('/setup')
+  })
+
+  it('redirects to / (not /setup) when user has display_name and no redirect param', async () => {
+    mockExchangeCode.mockResolvedValue({ data: { user: userWithName }, error: null })
     const { GET } = await import('../route')
     const req = new Request('http://localhost/auth/callback?code=test-code')
     const res = await GET(req as any)
@@ -40,7 +63,7 @@ describe('GET /auth/callback', () => {
   })
 
   it('redirects to /login?error=auth_failed when exchange fails', async () => {
-    mockExchangeCode.mockResolvedValue({ error: { message: 'invalid code' } })
+    mockExchangeCode.mockResolvedValue({ data: null, error: { message: 'invalid code' } })
     const { GET } = await import('../route')
     const req = new Request('http://localhost/auth/callback?code=bad-code')
     const res = await GET(req as any)
@@ -49,7 +72,7 @@ describe('GET /auth/callback', () => {
   })
 
   it('redirects to / when redirect param is an external URL (open redirect protection)', async () => {
-    mockExchangeCode.mockResolvedValue({ error: null })
+    mockExchangeCode.mockResolvedValue({ data: { user: userWithName }, error: null })
     const { GET } = await import('../route')
     const req = new Request(
       'http://localhost/auth/callback?code=test-code&redirect=//evil.com/phish'
