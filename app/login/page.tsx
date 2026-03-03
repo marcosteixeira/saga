@@ -25,6 +25,16 @@ function LoginForm() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
+
+    if (!email.trim()) {
+      setError('An email is required to enter the forge.')
+      return
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setError('That doesn\'t look like a valid email address.')
+      return
+    }
+
     setLoading(true)
 
     const supabase = createClient()
