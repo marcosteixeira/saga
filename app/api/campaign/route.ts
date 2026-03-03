@@ -3,6 +3,7 @@ import { createServerSupabaseClient, createAuthServerClient } from '@/lib/supaba
 import { anthropic } from '@/lib/anthropic'
 import { buildWorldGenPrompt } from '@/lib/prompts/world-gen'
 import { initializeCampaignFiles } from '@/lib/memory'
+import { generateAndStoreImage } from '@/lib/image-gen'
 
 export async function POST(req: Request) {
   const authClient = await createAuthServerClient()
@@ -54,6 +55,34 @@ export async function POST(req: Request) {
     .map((b) => (b as { type: 'text'; text: string }).text)
     .join('')
   await initializeCampaignFiles(data.id, worldContent)
+
+  // Fire-and-forget: generate cover and map images in parallel
+  const coverPrompt = `Steampunk fantasy RPG cover art, dark atmospheric, warm amber lighting, industrial/mechanical elements, smog and steam, burnished metal textures: ${name}. ${world_description.slice(0, 300)}`
+  const mapPrompt = `Steampunk fantasy world map, parchment style with mechanical overlays, gear motifs, detailed regions, sepia tones with copper accents: ${worldContent.slice(0, 400)}`
+  Promise.all([
+    generateAndStoreImage({
+      prompt: coverPrompt,
+      bucket: 'campaign-images',
+      path: `campaign-${data.id}/cover.png`,
+    }).then(url =>
+      createServerSupabaseClient()
+        .from('campaigns')
+        .update({ cover_image_url: url })
+        .eq('id', data.id)
+    ),
+    generateAndStoreImage({
+      prompt: mapPrompt,
+      bucket: 'campaign-images',
+      path: `campaign-${data.id}/map.png`,
+    }).then(url =>
+      createServerSupabaseClient()
+        .from('campaigns')
+        .update({ map_image_url: url })
+        .eq('id', data.id)
+    ),
+  ]).catch(() => {
+    // Image generation failure must not break campaign creation
+  })
 
   return NextResponse.json({ id: data.id }, { status: 201 })
 }

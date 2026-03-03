@@ -22,6 +22,10 @@ vi.mock('@/lib/memory', () => ({
   initializeCampaignFiles: vi.fn().mockResolvedValue(undefined)
 }))
 
+vi.mock('@/lib/image-gen', () => ({
+  generateAndStoreImage: vi.fn().mockResolvedValue('https://storage.example.com/image.png')
+}))
+
 vi.mock('@/lib/supabase/server', () => ({
   createServerSupabaseClient: vi.fn(() => ({
     from: () => ({
@@ -134,6 +138,33 @@ describe('POST /api/campaign', () => {
     })
     const res = await POST(req)
     expect(res.status).toBe(500)
+  })
+
+  it('triggers cover and map image generation after world gen', async () => {
+    mockGetUser.mockResolvedValue({
+      data: { user: { id: 'user-1', email: 'gm@saga.com' } },
+    })
+    mockSingle.mockResolvedValue({ data: { id: 'campaign-123' }, error: null })
+
+    const { generateAndStoreImage } = await import('@/lib/image-gen')
+
+    const { POST } = await import('../route')
+    const req = new Request('http://localhost/api/campaign', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: 'Dark Realm',
+        world_description: 'A shadowy world of ancient ruins.',
+      }),
+      headers: { 'Content-Type': 'application/json' },
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(201)
+    // Allow fire-and-forget promises to resolve
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(generateAndStoreImage).toHaveBeenCalledTimes(2)
+    const calls = vi.mocked(generateAndStoreImage).mock.calls
+    expect(calls.some(c => c[0].path.includes('cover'))).toBe(true)
+    expect(calls.some(c => c[0].path.includes('map'))).toBe(true)
   })
 
   it('calls Claude and initializes campaign files on success', async () => {
