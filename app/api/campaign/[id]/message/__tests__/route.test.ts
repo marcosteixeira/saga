@@ -5,6 +5,12 @@ import { POST } from '../route'
 const mockGetUser = vi.fn()
 const mockFrom = vi.fn()
 const mockChannel = vi.fn()
+vi.mock('@/lib/turns', () => ({
+  maybeTriggerNarration: vi.fn().mockResolvedValue(false),
+}))
+
+import { maybeTriggerNarration } from '@/lib/turns'
+const mockMaybeTriggerNarration = maybeTriggerNarration as ReturnType<typeof vi.fn>
 
 vi.mock('@/lib/supabase/server', () => ({
   createAuthServerClient: vi.fn(async () => ({ auth: { getUser: mockGetUser } })),
@@ -260,5 +266,70 @@ describe('POST /api/campaign/[id]/message', () => {
 
     const res = await POST(makeRequest('c1'), { params: Promise.resolve({ id: 'c1' }) })
     expect(res.status).toBe(201)
+  })
+
+  it('calls maybeTriggerNarration after saving action', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'u1' } } })
+    mockMaybeTriggerNarration.mockResolvedValue(false)
+    // campaign
+    mockFrom.mockReturnValueOnce({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({ data: { id: 'c1', status: 'active', current_session_id: 's1' }, error: null }),
+        }),
+      }),
+    })
+    // player
+    mockFrom.mockReturnValueOnce({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({ data: { id: 'p1', status: 'active' }, error: null }),
+          }),
+        }),
+      }),
+    })
+    // last narration
+    mockFrom.mockReturnValueOnce({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              order: vi.fn().mockReturnValue({
+                limit: vi.fn().mockReturnValue({
+                  single: vi.fn().mockResolvedValue({ data: null, error: null }),
+                }),
+              }),
+            }),
+          }),
+        }),
+      }),
+    })
+    // no existing action
+    mockFrom.mockReturnValueOnce({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                gt: vi.fn().mockResolvedValue({ data: [], error: null }),
+              }),
+            }),
+          }),
+        }),
+      }),
+    })
+    // insert message
+    mockFrom.mockReturnValueOnce({
+      insert: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({ data: { id: 'msg-1', content: 'I attack!', type: 'action' }, error: null }),
+        }),
+      }),
+    })
+    mockChannel.mockReturnValue({ send: vi.fn().mockResolvedValue('ok') })
+
+    await POST(makeRequest('c1'), { params: Promise.resolve({ id: 'c1' }) })
+    expect(mockMaybeTriggerNarration).toHaveBeenCalledWith('c1', 's1')
   })
 })

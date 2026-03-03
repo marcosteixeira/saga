@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAuthServerClient, createServerSupabaseClient } from '@/lib/supabase/server'
+import { maybeTriggerNarration } from '@/lib/turns'
 
 const VALID_TYPES = ['action', 'ooc'] as const
 
@@ -86,6 +87,9 @@ export async function POST(
     event: 'new_message',
     payload: message,
   })
+
+  // 7. Fire-and-forget: trigger narration if all players have submitted
+  maybeTriggerNarration(campaignId, campaign.current_session_id).catch(() => {})
 
   return NextResponse.json({ message }, { status: 201 })
 }

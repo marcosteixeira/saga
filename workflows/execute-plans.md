@@ -185,21 +185,20 @@ $(yarn build 2>&1 | tail -10)
 > ⚠️ Do not merge without Marcos's explicit approval."
 ```
 
-#### 6. Notify Marcos
+#### 6. Notify Marcos — one ping per step
 
-Send a message with:
-```
-⚙️ Plan <N> — <Title>
-Branch: <BRANCH>
-PR: <link>
+Send a Telegram message after **each individual step**, not just at the end:
 
-Tests: X passed / Y failed
-Build: ✅ / ⚠️ errors
-
-Issues: <none | brief list>
-
-Starting plan <N+1> now...
-```
+| Step | Message |
+|------|---------|
+| 1 — Branch created | `🌿 Plan <N> · Branch created: <BRANCH> (from <PREV>)` |
+| 2 — Claude started | `🤖 Plan <N> · Claude CLI running...` |
+| 2 — Claude finished | `✅ Plan <N> · Claude done. Exit: 0 · Files changed: N` |
+| 3 — Tests | `🧪 Plan <N> · Tests: X passed / Y failed` |
+| 3 — Build | `🏗️ Plan <N> · Build: ✅ success / ⚠️ errors` |
+| 4 — Pushed | `⬆️ Plan <N> · Branch pushed to origin` |
+| 5 — PR opened | `📬 Plan <N> · PR: <link> (base: <PREV>)` |
+| 6 — Done | `📋 Plan <N> complete. Starting plan <N+1>...` |
 
 Then immediately proceed to plan N+1 (do not wait for approval to start the next implementation).
 
