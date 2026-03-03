@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { subscribeToPlayers, unsubscribeFromChannel } from '@/lib/realtime'
+import { subscribeToPlayers, unsubscribeFromChannel, type RealtimePayload } from '@/lib/realtime'
 import { CharacterCreation } from '@/components/campaign/CharacterCreation'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -17,6 +17,7 @@ export default function LobbyPage() {
   const [players, setPlayers] = useState<Player[]>([])
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [isStarting, setIsStarting] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -35,6 +36,27 @@ export default function LobbyPage() {
       setIsLoading(false)
     }
     load()
+  }, [campaignId, router])
+
+  // Subscribe to campaign status changes — redirect all clients when session starts
+  useEffect(() => {
+    if (!campaignId) return
+    const supabase = createClient()
+    const channel = supabase
+      .channel(`campaign-status:${campaignId}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'campaigns',
+        filter: `id=eq.${campaignId}`,
+      }, (payload: RealtimePayload) => {
+        const updated = payload.new as { status?: string }
+        if (updated.status === 'active') {
+          router.replace(`/campaign/${campaignId}`)
+        }
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
   }, [campaignId, router])
 
   // Subscribe to realtime player changes
@@ -70,6 +92,18 @@ export default function LobbyPage() {
 
   function handleJoined(player: Player) {
     setPlayers(prev => [...prev, player])
+  }
+
+  async function handleStartSession() {
+    setIsStarting(true)
+    try {
+      const res = await fetch(`/api/campaign/${campaignId}/session/start`, { method: 'POST' })
+      if (res.ok) {
+        router.replace(`/campaign/${campaignId}`)
+      }
+    } finally {
+      setIsStarting(false)
+    }
   }
 
   const shareUrl = typeof window !== 'undefined'
@@ -191,8 +225,8 @@ export default function LobbyPage() {
           {isHost ? (
             <Button
               className="w-full max-w-xs bg-[--brass] text-black hover:bg-[--furnace] disabled:bg-[--gunmetal] disabled:text-[--ash] disabled:opacity-50"
-              disabled={nonHostPlayers.length === 0}
-              onClick={() => {/* Start session — PR 08 */}}
+              disabled={nonHostPlayers.length === 0 || isStarting}
+              onClick={handleStartSession}
             >
               Start Session
             </Button>
