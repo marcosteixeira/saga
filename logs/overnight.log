@@ -1,0 +1,52 @@
+==============================================
+ Saga Overnight Agent Orchestrator
+ Started:  ter  3 mar 2026 20:53:39 CAT
+ Plans:    5 → 15
+ Timeout:  30 min/agent
+ Retries:  1
+ PID:      91791
+ Logs:     /Users/marcosteixeira/Dev/saga/logs/overnight-20260303-205339
+==============================================
+
+ PR chain (each PR targets its parent's branch):
+
+   main
+    ├─ 05-ai-world-generation
+    │   └─ 06-image-generation
+    └─ 07-lobby-player-joining
+        └─ 08-lobby-realtime-portraits
+            └─ 09-game-room-static-ui
+                ├─ 10-ai-narration-streaming
+                │   └─ 11-memory-system
+                └─ 12-player-actions-free-mode
+                    ├─ 13-session-management
+                    └─ 14-combat-sequential-mode
+                        └─ 15-polish-deploy
+
+ Execution order (interleaved chains):
+   5 7 6 8 9 10 12 11 13 14 15
+
+Checking for already-completed plans...
+  Plan 5: branch exists but no PR — will re-run
+
+Pre-flight checks...
+  Plan 5: base=main ✓
+  Plan 7: base=main ✓
+  Plan 6: base=feat/05-ai-world-generation ✓
+  Plan 8: base=feat/07-lobby-player-joining (will be created by plan 7)
+  Plan 9: base=feat/08-lobby-realtime-portraits (will be created by plan 8)
+  Plan 10: base=feat/09-game-room-static-ui (will be created by plan 9)
+  Plan 12: base=feat/09-game-room-static-ui (will be created by plan 9)
+  Plan 11: base=feat/10-ai-narration-streaming (will be created by plan 10)
+  Plan 13: base=feat/12-player-actions-free-mode (will be created by plan 12)
+  Plan 14: base=feat/12-player-actions-free-mode (will be created by plan 12)
+  Plan 15: base=feat/14-combat-sequential-mode (will be created by plan 14)
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ Plan 5: 05-ai-world-generation
+ Branch: feat/05-ai-world-generation → main
+ Attempt: 1 / 2
+ Timeout: 30 minutes
+ Started: ter  3 mar 2026 20:53:44 CAT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
