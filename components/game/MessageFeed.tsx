@@ -161,7 +161,7 @@ export default function MessageFeed({
               fontSize: '0.75rem',
             }}
           >
-            The adventure begins...
+            The adventure has not yet begun...
           </p>
         )}
         {messages.map(message => {

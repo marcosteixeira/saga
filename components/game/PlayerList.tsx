@@ -23,8 +23,19 @@ function getInitials(name: string) {
 }
 
 export default function PlayerList({ players, currentPlayer }: PlayerListProps) {
+  const nonHostPlayers = players.filter(p => !p.is_host)
+  const showWaiting = nonHostPlayers.length === 0
+
   return (
     <div className="flex flex-col gap-2 p-2">
+      {showWaiting && (
+        <p
+          className="text-center py-4 text-xs uppercase tracking-widest"
+          style={{ fontFamily: 'var(--font-mono)', color: 'var(--ash)' }}
+        >
+          Waiting for adventurers to join...
+        </p>
+      )}
       {players.map(player => {
         const isMe = currentPlayer?.id === player.id
         const displayName = player.character_name ?? player.username
