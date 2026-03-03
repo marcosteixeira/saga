@@ -1,12 +1,18 @@
 'use client'
+import { useState, useEffect, useCallback } from 'react'
 import { Campaign, Player, Message } from '@/types'
 import PlayerList from './PlayerList'
 import MessageFeed from './MessageFeed'
 import ActionInput from './ActionInput'
 import SceneImage from './SceneImage'
+import TurnIndicator from './TurnIndicator'
 import { AmbientSmoke } from '@/components/ambient-smoke'
 import { EmberParticles } from '@/components/ember-particles'
 import { useNarrationStream } from '@/lib/use-narration-stream'
+import { useTurnTimer } from '@/lib/turn-timer'
+import { createClient } from '@/lib/supabase/client'
+
+const TURN_TIMER_SECONDS = 120
 
 interface GameRoomProps {
   campaign: Campaign
@@ -15,17 +21,74 @@ interface GameRoomProps {
   currentPlayer: Player | null
 }
 
-export default function GameRoom({ campaign, players, messages, currentPlayer }: GameRoomProps) {
+export default function GameRoom({ campaign, players, messages: initialMessages, currentPlayer }: GameRoomProps) {
   const { isStreaming, streamingContent, streamingMessageId } = useNarrationStream(campaign.id)
+  const [messages, setMessages] = useState<Message[]>(initialMessages)
+  const [hasSubmitted, setHasSubmitted] = useState(false)
+
+  const activePlayers = players.filter(p => p.status === 'active')
+  const submittedCount = (() => {
+    const lastNarration = [...messages].reverse().find(m => m.type === 'narration')
+    const sinceTime = lastNarration?.created_at ?? new Date(0).toISOString()
+    const submittedIds = new Set(
+      messages
+        .filter(m => m.type === 'action' && m.created_at > sinceTime)
+        .map(m => m.player_id)
+        .filter(Boolean)
+    )
+    return activePlayers.filter(p => submittedIds.has(p.id)).length
+  })()
+
+  const allSubmitted = activePlayers.length > 0 && submittedCount >= activePlayers.length
+
+  const handleTimerExpire = useCallback(async () => {
+    if (isStreaming) return
+    await fetch(`/api/campaign/${campaign.id}/narrate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: [] }),
+    })
+  }, [campaign.id, isStreaming])
+
+  const { timeRemaining, reset: resetTimer } = useTurnTimer(TURN_TIMER_SECONDS, handleTimerExpire)
+
+  // Reset timer and submitted state when narration completes
+  useEffect(() => {
+    if (!isStreaming) {
+      setHasSubmitted(false)
+      resetTimer()
+    }
+  }, [isStreaming]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Subscribe to realtime action broadcasts
+  useEffect(() => {
+    const supabase = createClient()
+    const channel = supabase
+      .channel(`campaign:${campaign.id}:messages`)
+      .on('broadcast', { event: 'new_message' }, ({ payload }) => {
+        setMessages(prev => {
+          if (prev.some(m => m.id === payload.id)) return prev
+          return [...prev, payload as Message]
+        })
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [campaign.id])
+
+  async function handleSubmit(content: string) {
+    const res = await fetch(`/api/campaign/${campaign.id}/message`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content, type: 'action' }),
+    })
+    if (res.ok) {
+      setHasSubmitted(true)
+    }
+  }
 
   const sceneImage = [...messages]
     .reverse()
     .find(m => m.type === 'narration' && m.image_url)?.image_url ?? null
-
-  function handleSubmit(content: string) {
-    // Wired in PR 11
-    console.log('submit', content)
-  }
 
   return (
     <div className="relative h-screen overflow-hidden bg-[--soot]">
@@ -91,8 +154,17 @@ export default function GameRoom({ campaign, players, messages, currentPlayer }:
             </div>
           </div>
 
-          {/* Narrating indicator + Action input */}
+          {/* Turn indicator + Narrating indicator + Action input */}
           <div className="mt-2 flex-shrink-0">
+            {!isStreaming && (
+              <TurnIndicator
+                submitted={submittedCount}
+                total={activePlayers.length}
+                timeRemaining={timeRemaining}
+                timerSeconds={TURN_TIMER_SECONDS}
+                allSubmitted={allSubmitted}
+              />
+            )}
             {isStreaming && (
               <div
                 className="flex items-center gap-2 px-3 py-1 mb-1"
@@ -117,6 +189,7 @@ export default function GameRoom({ campaign, players, messages, currentPlayer }:
             <ActionInput
               onSubmit={handleSubmit}
               disabled={isStreaming}
+              submitted={hasSubmitted && !isStreaming}
               placeholder={isStreaming ? 'THE GAME MASTER SPEAKS...' : 'Describe your action...'}
             />
           </div>
