@@ -4,11 +4,19 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ═══════════════════════════════════════════
+   TAILWIND THEME INLINE
+   Maps CSS vars to Tailwind utility classes
+   ═══════════════════════════════════════════ */
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-body);
+  --font-display: var(--font-display);
+  --font-heading: var(--font-heading);
+  --font-body: var(--font-body);
+  --font-mono: var(--font-mono);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -45,75 +53,123 @@
   --radius-2xl: calc(var(--radius) + 8px);
   --radius-3xl: calc(var(--radius) + 12px);
   --radius-4xl: calc(var(--radius) + 16px);
+  /* Steampunk-specific color utilities */
+  --color-soot: var(--soot);
+  --color-iron: var(--iron);
+  --color-smog: var(--smog);
+  --color-gunmetal: var(--gunmetal);
+  --color-ash: var(--ash);
+  --color-brass: var(--brass);
+  --color-copper: var(--copper);
+  --color-amber: var(--amber-glow);
+  --color-furnace: var(--furnace);
+  --color-steam: var(--steam);
+  --color-patina: var(--patina);
+  --color-sky-slate: var(--sky-slate);
+  /* Animations */
+  --animate-fade-in-up: fadeInUp 0.7s ease-out both;
+  --animate-steam-rise: steam-rise var(--steam-duration, 16s) linear infinite;
+  --animate-ember-rise: ember-rise var(--ember-duration, 14s) linear infinite;
+  --animate-furnace-glow: furnace-pulse 4s ease-in-out infinite;
+  --animate-gear-spin: gear-spin var(--gear-speed, 60s) linear infinite;
+  --animate-smog-drift: smog-drift var(--smog-speed, 35s) linear infinite;
+  --animate-smoke-float: smoke-float var(--smoke-speed, 25s) ease-in-out infinite;
 }
+
+/* ═══════════════════════════════════════════
+   GOLDEN HOUR FOUNDRY PALETTE
+   Industrial steampunk — warm amber-lit
+   ═══════════════════════════════════════════ */
 
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --radius: 0.25rem;
+
+  /* Core palette */
+  --soot: #0d0c0a;
+  --iron: #1a1814;
+  --smog: #2a2520;
+  --gunmetal: #3d3630;
+  --ash: #6b5d52;
+  --brass: #c4943d;
+  --copper: #b87333;
+  --amber-glow: #e8a835;
+  --furnace: #d4622a;
+  --steam: #d4cabb;
+  --patina: #5a7a6d;
+  --sky-slate: #4a5568;
+  --rust: #a63d2a;
+
+  /* shadcn semantic mapping */
+  --background: var(--soot);
+  --foreground: var(--steam);
+  --card: var(--smog);
+  --card-foreground: var(--steam);
+  --popover: var(--smog);
+  --popover-foreground: var(--steam);
+  --primary: var(--brass);
+  --primary-foreground: var(--soot);
+  --secondary: var(--gunmetal);
+  --secondary-foreground: var(--steam);
+  --muted: var(--iron);
+  --muted-foreground: var(--ash);
+  --accent: var(--copper);
+  --accent-foreground: var(--soot);
+  --destructive: var(--rust);
+  --border: var(--gunmetal);
+  --input: var(--gunmetal);
+  --ring: var(--brass);
+
+  /* Charts */
+  --chart-1: var(--brass);
+  --chart-2: var(--copper);
+  --chart-3: var(--patina);
+  --chart-4: var(--furnace);
+  --chart-5: var(--amber-glow);
+
+  /* Sidebar */
+  --sidebar: var(--iron);
+  --sidebar-foreground: var(--steam);
+  --sidebar-primary: var(--brass);
+  --sidebar-primary-foreground: var(--soot);
+  --sidebar-accent: var(--smog);
+  --sidebar-accent-foreground: var(--steam);
+  --sidebar-border: var(--gunmetal);
+  --sidebar-ring: var(--brass);
 }
 
+/* Dark variant mirrors root (app is always dark) */
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --background: var(--soot);
+  --foreground: var(--steam);
+  --card: var(--smog);
+  --card-foreground: var(--steam);
+  --popover: var(--smog);
+  --popover-foreground: var(--steam);
+  --primary: var(--brass);
+  --primary-foreground: var(--soot);
+  --secondary: var(--gunmetal);
+  --secondary-foreground: var(--steam);
+  --muted: var(--iron);
+  --muted-foreground: var(--ash);
+  --accent: var(--copper);
+  --accent-foreground: var(--soot);
+  --destructive: var(--rust);
+  --border: var(--gunmetal);
+  --input: var(--gunmetal);
+  --ring: var(--brass);
+  --chart-1: var(--brass);
+  --chart-2: var(--copper);
+  --chart-3: var(--patina);
+  --chart-4: var(--furnace);
+  --chart-5: var(--amber-glow);
+  --sidebar: var(--iron);
+  --sidebar-foreground: var(--steam);
+  --sidebar-primary: var(--brass);
+  --sidebar-primary-foreground: var(--soot);
+  --sidebar-accent: var(--smog);
+  --sidebar-accent-foreground: var(--steam);
+  --sidebar-border: var(--gunmetal);
+  --sidebar-ring: var(--brass);
 }
 
 @layer base {
@@ -122,5 +178,622 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-body), sans-serif;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading), serif;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    text-shadow: 0 0 40px rgba(196, 148, 61, 0.3);
+  }
+}
+
+/* ═══════════════════════════════════════════
+   KEYFRAMES
+   ═══════════════════════════════════════════ */
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes steam-rise {
+  0% {
+    transform: translateY(0) translateX(0) scale(0.5);
+    opacity: 0;
+  }
+  8% {
+    opacity: var(--steam-opacity, 0.15);
+  }
+  50% {
+    transform: translateY(-50vh) translateX(var(--steam-drift, 30px)) scale(1.2);
+    opacity: var(--steam-opacity, 0.15);
+  }
+  100% {
+    transform: translateY(-100vh) translateX(var(--steam-drift, 30px)) scale(2);
+    opacity: 0;
+  }
+}
+
+@keyframes ember-rise {
+  0% {
+    transform: translateY(0) translateX(0) scale(1);
+    opacity: 0;
+  }
+  10% {
+    opacity: var(--ember-opacity, 0.7);
+  }
+  50% {
+    transform: translateY(-50vh) translateX(var(--ember-drift, 20px)) scale(0.8);
+    opacity: var(--ember-opacity, 0.5);
+  }
+  90% {
+    opacity: 0.1;
+  }
+  100% {
+    transform: translateY(-100vh) translateX(var(--ember-drift, 20px)) scale(0.3);
+    opacity: 0;
+  }
+}
+
+@keyframes furnace-pulse {
+  0%, 100% {
+    opacity: 0.06;
+  }
+  30% {
+    opacity: 0.09;
+  }
+  50% {
+    opacity: 0.04;
+  }
+  70% {
+    opacity: 0.08;
+  }
+}
+
+@keyframes gear-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes smog-drift {
+  0% {
+    transform: translateX(-30%) scaleX(1.5);
+  }
+  50% {
+    transform: translateX(10%) scaleX(1.3);
+  }
+  100% {
+    transform: translateX(-30%) scaleX(1.5);
+  }
+}
+
+@keyframes smoke-float {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: var(--smoke-opacity, 0.04);
+  }
+  33% {
+    transform: translate(5vw, -3vh) scale(1.1);
+    opacity: calc(var(--smoke-opacity, 0.04) * 1.5);
+  }
+  66% {
+    transform: translate(-3vw, 2vh) scale(0.9);
+    opacity: var(--smoke-opacity, 0.04);
+  }
+  100% {
+    transform: translate(0, 0) scale(1);
+    opacity: var(--smoke-opacity, 0.04);
+  }
+}
+
+@keyframes rivet-gleam {
+  0%, 100% {
+    box-shadow:
+      0 1px 3px rgba(0, 0, 0, 0.6),
+      inset 0 1px 1px rgba(255, 255, 255, 0.1);
+  }
+  50% {
+    box-shadow:
+      0 1px 3px rgba(0, 0, 0, 0.6),
+      inset 0 1px 1px rgba(255, 255, 255, 0.3);
+  }
+}
+
+@keyframes piston-load {
+  0% { transform: translateX(-100%); }
+  50% { transform: translateX(0%); }
+  100% { transform: translateX(100%); }
+}
+
+/* ═══════════════════════════════════════════
+   IRON PLATE — Primary container
+   Chamfered corners, rivets, cast iron feel
+   ═══════════════════════════════════════════ */
+
+.iron-plate {
+  position: relative;
+  background: var(--smog);
+  border: 1px solid var(--gunmetal);
+  clip-path: polygon(
+    8px 0%, calc(100% - 8px) 0%,
+    100% 8px, 100% calc(100% - 8px),
+    calc(100% - 8px) 100%, 8px 100%,
+    0% calc(100% - 8px), 0% 8px
+  );
+  box-shadow:
+    inset 1px 1px 0 rgba(255, 255, 255, 0.04),
+    inset -1px -1px 0 rgba(0, 0, 0, 0.3);
+}
+
+/* Rivet dots positioned at chamfer points */
+.iron-plate::before,
+.iron-plate::after {
+  content: "";
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, var(--ash), var(--gunmetal));
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.5),
+    inset 0 1px 1px rgba(255, 255, 255, 0.15);
+  z-index: 10;
+  animation: rivet-gleam 6s ease-in-out infinite;
+}
+
+.iron-plate::before {
+  top: 10px;
+  left: 10px;
+}
+
+.iron-plate::after {
+  top: 10px;
+  right: 10px;
+}
+
+.rivet-bottom-left,
+.rivet-bottom-right {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, var(--ash), var(--gunmetal));
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.5),
+    inset 0 1px 1px rgba(255, 255, 255, 0.15);
+  z-index: 10;
+  animation: rivet-gleam 6s ease-in-out 3s infinite;
+}
+
+.rivet-bottom-left {
+  bottom: 10px;
+  left: 10px;
+}
+
+.rivet-bottom-right {
+  bottom: 10px;
+  right: 10px;
+}
+
+/* ═══════════════════════════════════════════
+   COPPER GAUGE PANEL — Accent container
+   ═══════════════════════════════════════════ */
+
+.gauge-panel {
+  background: var(--iron);
+  border: 2px solid var(--copper);
+  border-radius: 2px;
+  box-shadow: inset 0 0 20px rgba(184, 115, 51, 0.1);
+}
+
+/* ═══════════════════════════════════════════
+   BRASS PIPE DIVIDER
+   ═══════════════════════════════════════════ */
+
+.brass-pipe {
+  height: 4px;
+  background: linear-gradient(
+    180deg,
+    var(--copper) 0%,
+    var(--brass) 40%,
+    var(--copper) 100%
+  );
+  border-radius: 2px;
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(232, 168, 53, 0.3);
+  position: relative;
+}
+
+.brass-pipe::before,
+.brass-pipe::after {
+  content: "";
+  position: absolute;
+  top: -3px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, var(--brass), var(--copper));
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+.brass-pipe::before { left: -5px; }
+.brass-pipe::after { right: -5px; }
+
+/* ═══════════════════════════════════════════
+   I-BEAM DIVIDER — Heavy section separator
+   ═══════════════════════════════════════════ */
+
+.i-beam {
+  position: relative;
+  height: 8px;
+  background: linear-gradient(
+    180deg,
+    var(--gunmetal) 0%,
+    var(--ash) 20%,
+    var(--gunmetal) 40%,
+    var(--gunmetal) 60%,
+    var(--ash) 80%,
+    var(--gunmetal) 100%
+  );
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.i-beam::before,
+.i-beam::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--gunmetal);
+}
+
+.i-beam::before { top: -3px; }
+.i-beam::after { bottom: -3px; }
+
+/* ═══════════════════════════════════════════
+   RIVET LINE — Dotted rivet row
+   ═══════════════════════════════════════════ */
+
+.rivet-line {
+  height: 1px;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--gunmetal) 0px,
+    var(--gunmetal) 4px,
+    transparent 4px,
+    transparent 16px
+  );
+}
+
+/* ═══════════════════════════════════════════
+   IRON SEAM — Subtle horizontal line
+   ═══════════════════════════════════════════ */
+
+.iron-seam {
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--gunmetal) 15%,
+    var(--ash) 50%,
+    var(--gunmetal) 85%,
+    transparent 100%
+  );
+  margin: 0.75rem 0;
+}
+
+/* ═══════════════════════════════════════════
+   FURNACE GLOW OVERLAY
+   ═══════════════════════════════════════════ */
+
+.furnace-overlay {
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(
+    ellipse 90% 40% at 50% 110%,
+    rgba(212, 98, 42, 0.07),
+    transparent 60%
+  );
+  animation: var(--animate-furnace-glow);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ═══════════════════════════════════════════
+   VIGNETTE OVERLAY
+   ═══════════════════════════════════════════ */
+
+.vignette {
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(
+    ellipse 70% 70% at 50% 50%,
+    transparent 40%,
+    rgba(13, 12, 10, 0.6) 100%
+  );
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ═══════════════════════════════════════════
+   SMOG DRIFT — Animated haze bands
+   ═══════════════════════════════════════════ */
+
+.smog-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  overflow: hidden;
+}
+
+.smog-band {
+  position: absolute;
+  width: 200%;
+  height: 30%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(42, 37, 32, 0.15) 20%,
+    rgba(42, 37, 32, 0.08) 50%,
+    rgba(42, 37, 32, 0.15) 80%,
+    transparent 100%
+  );
+  filter: blur(40px);
+  animation: var(--animate-smog-drift);
+}
+
+/* ═══════════════════════════════════════════
+   AMBIENT SMOKE BLOBS
+   ═══════════════════════════════════════════ */
+
+.smoke-blob {
+  position: fixed;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(42, 37, 32, 0.08) 0%,
+    transparent 70%
+  );
+  filter: blur(60px);
+  pointer-events: none;
+  z-index: 1;
+  animation: var(--animate-smoke-float);
+}
+
+/* ═══════════════════════════════════════════
+   HERO ART — Brass porthole frame
+   ═══════════════════════════════════════════ */
+
+.hero-art {
+  position: relative;
+  border: 3px solid var(--copper);
+  border-radius: 3px;
+  box-shadow:
+    0 8px 40px rgba(0, 0, 0, 0.7),
+    0 0 0 1px var(--gunmetal),
+    inset 0 0 30px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+}
+
+.hero-art::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 1px solid rgba(196, 148, 61, 0.2);
+  border-radius: 2px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* ═══════════════════════════════════════════
+   PISTON LOADER — Horizontal reciprocating bar
+   ═══════════════════════════════════════════ */
+
+.piston-loader {
+  position: relative;
+  height: 4px;
+  background: var(--iron);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.piston-loader::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, var(--brass), transparent);
+  animation: piston-load 1.5s ease-in-out infinite;
+}
+
+/* ═══════════════════════════════════════════
+   ENTRANCE ANIMATIONS
+   ═══════════════════════════════════════════ */
+
+.animate-entrance {
+  animation: var(--animate-fade-in-up);
+}
+
+.animate-entrance[data-delay="1"] { animation-delay: 0.15s; }
+.animate-entrance[data-delay="2"] { animation-delay: 0.3s; }
+.animate-entrance[data-delay="3"] { animation-delay: 0.45s; }
+.animate-entrance[data-delay="4"] { animation-delay: 0.6s; }
+.animate-entrance[data-delay="5"] { animation-delay: 0.75s; }
+
+/* ═══════════════════════════════════════════
+   PRESSURE GAUGE — Circular stat display
+   ═══════════════════════════════════════════ */
+
+.pressure-gauge {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 45% 40%, var(--smog), var(--iron));
+  border: 3px solid var(--copper);
+  box-shadow:
+    0 0 0 1px var(--gunmetal),
+    0 4px 20px rgba(0, 0, 0, 0.6),
+    inset 0 2px 8px rgba(0, 0, 0, 0.5),
+    inset 0 0 20px rgba(184, 115, 51, 0.08);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.pressure-gauge::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border-radius: 50%;
+  border: 1px solid var(--gunmetal);
+  pointer-events: none;
+}
+
+/* ═══════════════════════════════════════════
+   BRASS NAMEPLATE — Label strip
+   ═══════════════════════════════════════════ */
+
+.brass-nameplate {
+  display: inline-block;
+  background: linear-gradient(180deg, var(--brass) 0%, var(--copper) 100%);
+  color: var(--soot);
+  padding: 0.2em 1em;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+/* ═══════════════════════════════════════════
+   FEATURE PLATE — Overlapping panel
+   ═══════════════════════════════════════════ */
+
+.feature-plate {
+  position: relative;
+  background: linear-gradient(145deg, var(--smog), var(--iron));
+  border: 1px solid var(--gunmetal);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.5),
+    inset 1px 1px 0 rgba(255, 255, 255, 0.03),
+    inset -1px -1px 0 rgba(0, 0, 0, 0.2);
+  clip-path: polygon(
+    12px 0%, calc(100% - 12px) 0%,
+    100% 12px, 100% calc(100% - 12px),
+    calc(100% - 12px) 100%, 12px 100%,
+    0% calc(100% - 12px), 0% 12px
+  );
+}
+
+.feature-plate::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(196, 148, 61, 0.15), transparent);
+}
+
+/* ═══════════════════════════════════════════
+   DISPLAY TEXT — Massive industrial title
+   ═══════════════════════════════════════════ */
+
+.display-title {
+  font-family: var(--font-display), sans-serif;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  line-height: 0.85;
+  color: transparent;
+  background: linear-gradient(
+    180deg,
+    var(--brass) 0%,
+    var(--amber-glow) 40%,
+    var(--copper) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  filter: drop-shadow(0 0 40px rgba(196, 148, 61, 0.4))
+          drop-shadow(0 4px 8px rgba(0, 0, 0, 0.5));
+}
+
+/* ═══════════════════════════════════════════
+   STEAM VENT — Decorative bottom edge effect
+   ═══════════════════════════════════════════ */
+
+@keyframes steam-vent {
+  0% {
+    transform: translateY(0) scaleY(1);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.15;
+  }
+  100% {
+    transform: translateY(-60px) scaleY(2);
+    opacity: 0;
+  }
+}
+
+.steam-vent-container {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 80px;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.steam-vent-puff {
+  position: absolute;
+  bottom: 0;
+  width: 40px;
+  height: 20px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(212, 202, 187, 0.12), transparent 70%);
+  filter: blur(8px);
+  animation: steam-vent 3s ease-out infinite;
+}
+
+/* ═══════════════════════════════════════════
+   REDUCED MOTION
+   ═══════════════════════════════════════════ */
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-entrance,
+  .furnace-overlay,
+  .smog-band,
+  .smoke-blob,
+  .steam-vent-puff,
+  .gear-spin-animation,
+  .ember-particle {
+    animation: none !important;
+  }
+
+  .animate-entrance {
+    opacity: 1 !important;
+    transform: none !important;
   }
 }
