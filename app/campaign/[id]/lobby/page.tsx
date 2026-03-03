@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { subscribeToPlayers, unsubscribeFromChannel } from '@/lib/realtime'
 import { CharacterCreation } from '@/components/campaign/CharacterCreation'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -35,6 +36,25 @@ export default function LobbyPage() {
     }
     load()
   }, [campaignId, router])
+
+  // Subscribe to realtime player changes
+  useEffect(() => {
+    if (!campaignId) return
+    const channel = subscribeToPlayers(campaignId, (payload) => {
+      if (payload.eventType === 'INSERT') {
+        setPlayers(prev => {
+          const incoming = payload.new as Player
+          if (prev.some(p => p.id === incoming.id)) return prev
+          return [...prev, incoming]
+        })
+      } else if (payload.eventType === 'UPDATE') {
+        setPlayers(prev =>
+          prev.map(p => p.id === (payload.new as Player).id ? { ...p, ...(payload.new as Player) } : p)
+        )
+      }
+    })
+    return () => { unsubscribeFromChannel(channel) }
+  }, [campaignId])
 
   if (isLoading || !campaign) {
     return (
