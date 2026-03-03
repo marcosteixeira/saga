@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { createBrowserSupabaseClient } from '@/lib/supabase/client'
+import { createClient } from '@/lib/supabase/client'
 import { CharacterCreation } from '@/components/campaign/CharacterCreation'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -19,7 +19,7 @@ export default function LobbyPage() {
 
   useEffect(() => {
     async function load() {
-      const supabase = createBrowserSupabaseClient()
+      const supabase = createClient()
       const [campaignRes, userRes] = await Promise.all([
         fetch(`/api/campaign/${campaignId}`).then(r => r.json()),
         supabase.auth.getUser()
