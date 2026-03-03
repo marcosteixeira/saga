@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { Campaign, Player, Message } from '@/types'
 import PlayerList from './PlayerList'
 import MessageFeed from './MessageFeed'
@@ -11,6 +12,14 @@ import { EmberParticles } from '@/components/ember-particles'
 import { useNarrationStream } from '@/lib/use-narration-stream'
 import { useTurnTimer } from '@/lib/turn-timer'
 import { createClient } from '@/lib/supabase/client'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 const TURN_TIMER_SECONDS = 120
 
@@ -22,9 +31,14 @@ interface GameRoomProps {
 }
 
 export default function GameRoom({ campaign, players, messages: initialMessages, currentPlayer }: GameRoomProps) {
+  const router = useRouter()
   const { isStreaming, streamingContent, streamingMessageId } = useNarrationStream(campaign.id)
   const [messages, setMessages] = useState<Message[]>(initialMessages)
   const [hasSubmitted, setHasSubmitted] = useState(false)
+  const [showEndDialog, setShowEndDialog] = useState(false)
+  const [isEndingSession, setIsEndingSession] = useState(false)
+
+  const isHost = currentPlayer?.user_id === campaign.host_user_id
 
   const activePlayers = players.filter(p => p.status === 'active')
   const submittedCount = (() => {
@@ -75,6 +89,33 @@ export default function GameRoom({ campaign, players, messages: initialMessages,
     return () => { supabase.removeChannel(channel) }
   }, [campaign.id])
 
+  // Subscribe to campaign status broadcast — redirect all clients when session ends
+  useEffect(() => {
+    const supabase = createClient()
+    const channel = supabase
+      .channel(`campaign:${campaign.id}`)
+      .on('broadcast', { event: 'campaign_status' }, ({ payload }) => {
+        if (payload?.status === 'paused') {
+          router.push(`/campaign/${campaign.id}/summary`)
+        }
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [campaign.id, router])
+
+  async function handleEndSession() {
+    setIsEndingSession(true)
+    try {
+      const res = await fetch(`/api/campaign/${campaign.id}/session/end`, { method: 'POST' })
+      if (res.ok) {
+        router.push(`/campaign/${campaign.id}/summary`)
+      }
+    } finally {
+      setIsEndingSession(false)
+      setShowEndDialog(false)
+    }
+  }
+
   async function handleSubmit(content: string) {
     const res = await fetch(`/api/campaign/${campaign.id}/message`, {
       method: 'POST',
@@ -111,10 +152,26 @@ export default function GameRoom({ campaign, players, messages: initialMessages,
         >
           <div className="rivet-bottom-left" />
           <div className="rivet-bottom-right" />
-          <div className="px-3 py-2 border-b border-[--gunmetal]">
-            <h2 className="text-[--brass] text-xs uppercase tracking-widest font-mono">
+          <div className="px-3 py-2 border-b border-[--gunmetal] flex items-center justify-between gap-2">
+            <h2 className="text-[--brass] text-xs uppercase tracking-widest font-mono truncate">
               Crew — {campaign.name}
             </h2>
+            {isHost && (
+              <button
+                onClick={() => setShowEndDialog(true)}
+                className="flex-shrink-0 px-2 py-1 text-[10px] uppercase tracking-wider font-mono transition-colors"
+                style={{
+                  background: 'var(--gunmetal)',
+                  color: 'var(--copper)',
+                  border: '1px solid var(--copper)',
+                  clipPath: 'polygon(4px 0%, calc(100% - 4px) 0%, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 0% calc(100% - 4px), 0% 4px)',
+                }}
+                onMouseOver={(e) => { e.currentTarget.style.borderColor = 'var(--brass)'; e.currentTarget.style.color = 'var(--brass)' }}
+                onMouseOut={(e) => { e.currentTarget.style.borderColor = 'var(--copper)'; e.currentTarget.style.color = 'var(--copper)' }}
+              >
+                End
+              </button>
+            )}
           </div>
           <div className="flex-1 overflow-y-auto scrollbar-thin">
             <PlayerList players={players} currentPlayer={currentPlayer} />
@@ -202,6 +259,61 @@ export default function GameRoom({ campaign, players, messages: initialMessages,
         .scrollbar-thin::-webkit-scrollbar-track { background: var(--gunmetal); }
         .scrollbar-thin::-webkit-scrollbar-thumb { background: var(--brass); border-radius: 3px; }
       `}</style>
+
+      {/* End Session confirmation dialog */}
+      <Dialog open={showEndDialog} onOpenChange={setShowEndDialog}>
+        <DialogContent
+          style={{
+            background: 'var(--smog)',
+            border: '2px solid var(--copper)',
+            boxShadow: 'inset 0 0 20px rgba(184,115,51,0.1)',
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle
+              className="uppercase tracking-widest"
+              style={{ color: 'var(--brass)', fontFamily: 'Pragati Narrow, sans-serif', fontSize: '1.5rem' }}
+            >
+              End Session?
+            </DialogTitle>
+            <DialogDescription
+              className="text-sm leading-relaxed"
+              style={{ color: 'var(--steam)', fontFamily: 'Barlow Condensed, sans-serif' }}
+            >
+              This will generate a session summary and pause the campaign. All players will be redirected to the summary page.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-2">
+            <button
+              onClick={() => setShowEndDialog(false)}
+              disabled={isEndingSession}
+              className="px-4 py-2 text-sm font-mono uppercase tracking-wider transition-colors"
+              style={{
+                background: 'var(--gunmetal)',
+                color: 'var(--steam)',
+                border: '1px solid var(--copper)',
+                clipPath: 'polygon(4px 0%, calc(100% - 4px) 0%, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 0% calc(100% - 4px), 0% 4px)',
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleEndSession}
+              disabled={isEndingSession}
+              className="px-4 py-2 text-sm font-mono uppercase tracking-wider transition-colors disabled:opacity-50"
+              style={{
+                background: '#a63d2a',
+                color: 'var(--steam)',
+                clipPath: 'polygon(4px 0%, calc(100% - 4px) 0%, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 0% calc(100% - 4px), 0% 4px)',
+              }}
+              onMouseOver={(e) => { if (!isEndingSession) e.currentTarget.style.background = '#c44d35' }}
+              onMouseOut={(e) => { e.currentTarget.style.background = '#a63d2a' }}
+            >
+              {isEndingSession ? 'Ending...' : 'End Session'}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
