@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Saga — Plan Execution Workflow</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Rokkitt:wght@400;600;700&family=Barlow+Condensed:wght@300;400;500&display=swap');
+
+    :root {
+      --brass:    #c4943d;
+      --brass-glow: rgba(196,148,61,0.35);
+      --copper:   #b87333;
+      --gunmetal: #2a2d35;
+      --smog:     #1a1c22;
+      --soot:     #0d0e12;
+      --steam:    #e8e0d0;
+      --ash:      #9a9590;
+      --furnace:  #d45a1a;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--soot);
+      color: var(--steam);
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 16px;
+      min-height: 100vh;
+      padding: 48px 24px;
+      background-image:
+        radial-gradient(ellipse at 20% 10%, rgba(196,148,61,0.04) 0%, transparent 60%),
+        radial-gradient(ellipse at 80% 90%, rgba(180,115,51,0.04) 0%, transparent 60%);
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 56px;
+    }
+
+    header .eyebrow {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      color: var(--ash);
+      margin-bottom: 12px;
+    }
+
+    header h1 {
+      font-family: 'Rokkitt', serif;
+      font-size: 48px;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: var(--brass);
+      text-shadow: 0 0 40px var(--brass-glow), 0 0 80px rgba(196,148,61,0.15);
+      letter-spacing: 0.05em;
+      margin-bottom: 16px;
+    }
+
+    header p {
+      color: var(--ash);
+      font-size: 15px;
+      max-width: 560px;
+      margin: 0 auto;
+      line-height: 1.6;
+    }
+
+    /* ── Rivets ── */
+    .rivet-row {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      margin: 24px 0;
+    }
+    .rivet {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, var(--copper), #7a4a1e);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.6);
+    }
+
+    /* ── Section title ── */
+    .section-title {
+      font-family: 'Rokkitt', serif;
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.2em;
+      color: var(--ash);
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .section-title::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: linear-gradient(to right, var(--gunmetal), transparent);
+    }
+
+    /* ── Phase 0 panel ── */
+    .phase0 {
+      max-width: 860px;
+      margin: 0 auto 56px;
+    }
+
+    .panel {
+      background: var(--gunmetal);
+      border: 1px solid rgba(196,148,61,0.2);
+      border-radius: 4px;
+      padding: 28px 32px;
+      position: relative;
+    }
+
+    .panel::before, .panel::after,
+    .panel .corner-tl, .panel .corner-tr,
+    .panel .corner-bl, .panel .corner-br {
+      content: '';
+      position: absolute;
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, var(--copper), #5a3010);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.5);
+    }
+    .panel::before  { top: 8px;  left: 8px; }
+    .panel::after   { top: 8px;  right: 8px; }
+    .panel .corner-bl { bottom: 8px; left: 8px; }
+    .panel .corner-br { bottom: 8px; right: 8px; }
+
+    .panel h2 {
+      font-family: 'Rokkitt', serif;
+      font-size: 22px;
+      text-transform: uppercase;
+      color: var(--brass);
+      margin-bottom: 16px;
+      letter-spacing: 0.06em;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 2px;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    .badge-review { background: rgba(196,148,61,0.15); color: var(--brass); border: 1px solid rgba(196,148,61,0.4); }
+    .badge-impl   { background: rgba(100,160,100,0.12); color: #7ec87e; border: 1px solid rgba(100,160,100,0.3); }
+    .badge-merged { background: rgba(100,120,200,0.12); color: #8fa8e8; border: 1px solid rgba(100,120,200,0.3); }
+    .badge-pending{ background: rgba(154,149,144,0.12); color: var(--ash); border: 1px solid rgba(154,149,144,0.3); }
+
+    .step-list {
+      list-style: none;
+      padding: 0;
+      margin-top: 16px;
+    }
+    .step-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      font-size: 14px;
+      line-height: 1.5;
+      color: var(--steam);
+    }
+    .step-list li:last-child { border-bottom: none; }
+    .step-num {
+      flex-shrink: 0;
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      border: 1px solid rgba(196,148,61,0.4);
+      color: var(--brass);
+      font-size: 11px;
+      font-weight: 600;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    /* ── Pipeline ── */
+    .pipeline {
+      max-width: 860px;
+      margin: 0 auto 56px;
+    }
+
+    .plan-card {
+      display: grid;
+      grid-template-columns: 64px 1fr auto;
+      align-items: center;
+      gap: 0;
+      background: var(--gunmetal);
+      border: 1px solid rgba(196,148,61,0.15);
+      border-radius: 4px;
+      margin-bottom: 4px;
+      overflow: hidden;
+      transition: border-color 0.2s;
+    }
+    .plan-card:hover { border-color: rgba(196,148,61,0.4); }
+
+    .plan-num {
+      background: rgba(0,0,0,0.25);
+      border-right: 1px solid rgba(196,148,61,0.12);
+      height: 100%;
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Rokkitt', serif;
+      font-size: 20px;
+      color: var(--brass);
+      font-weight: 700;
+      padding: 20px 0;
+    }
+
+    .plan-body {
+      padding: 16px 20px;
+    }
+    .plan-title {
+      font-family: 'Rokkitt', serif;
+      font-size: 16px;
+      text-transform: uppercase;
+      color: var(--steam);
+      letter-spacing: 0.04em;
+      margin-bottom: 4px;
+    }
+    .plan-goal {
+      font-size: 13px;
+      color: var(--ash);
+      line-height: 1.5;
+      max-width: 520px;
+    }
+
+    .plan-meta {
+      padding: 16px 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 6px;
+      min-width: 160px;
+    }
+    .plan-branch {
+      font-size: 11px;
+      font-family: monospace;
+      color: rgba(196,148,61,0.7);
+      background: rgba(196,148,61,0.07);
+      padding: 3px 7px;
+      border-radius: 2px;
+    }
+    .plan-base {
+      font-size: 11px;
+      color: var(--ash);
+    }
+
+    /* ── Connector ── */
+    .connector {
+      width: 2px;
+      height: 16px;
+      background: linear-gradient(to bottom, rgba(196,148,61,0.3), rgba(196,148,61,0.1));
+      margin: 0 0 0 31px;
+    }
+
+    /* ── Per-plan steps ── */
+    .loop-steps {
+      max-width: 860px;
+      margin: 0 auto 56px;
+    }
+
+    .loop-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+    }
+
+    .loop-step {
+      background: var(--gunmetal);
+      border: 1px solid rgba(196,148,61,0.15);
+      border-radius: 4px;
+      padding: 16px;
+      position: relative;
+    }
+    .loop-step-num {
+      font-family: 'Rokkitt', serif;
+      font-size: 28px;
+      font-weight: 700;
+      color: rgba(196,148,61,0.2);
+      line-height: 1;
+      margin-bottom: 6px;
+    }
+    .loop-step-title {
+      font-size: 13px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--brass);
+      margin-bottom: 6px;
+    }
+    .loop-step-desc {
+      font-size: 12px;
+      color: var(--ash);
+      line-height: 1.5;
+    }
+    .loop-step code {
+      font-size: 11px;
+      background: rgba(0,0,0,0.3);
+      padding: 1px 5px;
+      border-radius: 2px;
+      color: #a8c8a0;
+    }
+
+    /* ── Failure box ── */
+    .failure-box {
+      max-width: 860px;
+      margin: 0 auto 56px;
+      background: rgba(212,90,26,0.06);
+      border: 1px solid rgba(212,90,26,0.3);
+      border-radius: 4px;
+      padding: 24px 28px;
+    }
+    .failure-box h2 {
+      font-family: 'Rokkitt', serif;
+      font-size: 18px;
+      text-transform: uppercase;
+      color: var(--furnace);
+      margin-bottom: 14px;
+      letter-spacing: 0.06em;
+    }
+    .failure-box ul {
+      list-style: none;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      font-size: 13px;
+      color: var(--steam);
+    }
+    .failure-box ul li::before {
+      content: '⚡ ';
+    }
+
+    /* ── Rules ── */
+    .rules {
+      max-width: 860px;
+      margin: 0 auto 56px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+    }
+    .rule-card {
+      background: var(--gunmetal);
+      border: 1px solid rgba(196,148,61,0.1);
+      border-radius: 4px;
+      padding: 16px;
+      text-align: center;
+    }
+    .rule-icon { font-size: 24px; margin-bottom: 8px; }
+    .rule-text {
+      font-size: 13px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--steam);
+    }
+    .rule-sub {
+      font-size: 11px;
+      color: var(--ash);
+      margin-top: 4px;
+      line-height: 1.4;
+    }
+
+    footer {
+      text-align: center;
+      color: rgba(154,149,144,0.4);
+      font-size: 11px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      margin-top: 40px;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="eyebrow">Saga RPG · Development Pipeline</div>
+    <h1>⚙ Plan Execution Workflow</h1>
+    <div class="rivet-row"><div class="rivet"></div><div class="rivet"></div><div class="rivet"></div></div>
+    <p>Serial execution of plans 05–15 via Claude CLI. Each plan branches from the previous. Marcos is the final gatekeeper — no merges without explicit approval.</p>
+  </header>
+
+  <!-- Phase 0 -->
+  <div class="phase0">
+    <div class="section-title">Phase 0 — Review existing work</div>
+    <div class="panel">
+      <div class="corner-bl"></div><div class="corner-br"></div>
+      <div style="display:flex; align-items:center; gap:12px; margin-bottom:18px;">
+        <h2 style="margin:0;">Plan 05 — AI World Generation</h2>
+        <span class="badge badge-review">Review only</span>
+        <span class="badge badge-merged" style="margin-left:auto;">Branch exists</span>
+      </div>
+      <p style="color:var(--ash); font-size:13px; margin-bottom:16px;">Branch <code style="background:rgba(0,0,0,0.3); padding:2px 6px; border-radius:2px; color:#a8c8a0;">feat/05-ai-world-generation</code> already implemented. No coding — only review.</p>
+      <ul class="step-list">
+        <li><span class="step-num">1</span>git fetch --all · checkout feat/05-ai-world-generation</li>
+        <li><span class="step-num">2</span>git diff main...feat/05 — compare against plan acceptance criteria</li>
+        <li><span class="step-num">3</span>gh pr view — check CI status + review comments</li>
+        <li><span class="step-num">4</span>Ping Marcos: criteria status ✅/❌, CI result, PR link, issues found</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Pipeline -->
+  <div class="pipeline">
+    <div class="section-title">Phase 1 — Implementation pipeline (06 → 15)</div>
+
+    <div class="plan-card">
+      <div class="plan-num">05</div>
+      <div class="plan-body">
+        <div class="plan-title">AI World Generation</div>
+        <div class="plan-goal">Claude Sonnet generates WORLD.md · campaign memory file system</div>
+      </div>
+      <div class="plan-meta">
+        <span class="badge badge-merged">Merged to main</span>
+        <span class="plan-branch">feat/05-ai-world-generation</span>
+      </div>
+    </div>
+
+    <div class="connector"></div>
+    <div class="plan-card">
+      <div class="plan-num">06</div>
+      <div class="plan-body">
+        <div class="plan-title">Image Generation</div>
+        <div class="plan-goal">Gemini cover art + world maps · Supabase Storage · async generation</div>
+      </div>
+      <div class="plan-meta">
+        <span class="badge badge-pending">Pending</span>
+        <span class="plan-branch">feat/06-image-generation</span>
+        <span class="plan-base">base → feat/05</span>
+      </div>
+    </div>
+
+    <div class="connector"></div>
+    <div class="plan-card">
+      <div class="plan-num">07</div>
+      <div class="plan-body">
+        <div class="plan-title">Lobby — Player Joining</div>
+        <div class="plan-goal">Join API · character creation form · static player list</div>
+      </div>
+      <div class="plan-meta">
+        <span class="badge badge-pending">Pending</span>
+        <span class="plan-branch">feat/07-lobby-player-joining</span>
+        <span class="plan-base">base → feat/06</span>
+      </div>
+    </div>
+
+    <div class="connector"></div>
+    <div class="plan-card">
+      <div class="plan-num">08</div>
+      <div class="plan-body">
+        <div class="plan-title">Lobby Realtime + Portraits</div>
+        <div class="plan-goal">Supabase Realtime player sync · AI character portraits · session start</div>
+      </div>
+      <div class="plan-meta">
+        <span class="badge badge-pending">Pending</span>
+        <span class="plan-branch">feat/08-lobby-realtime-portraits</span>
+        <span class="plan-base">base → feat/07</span>
+      </div>
+    </div>
+
+    <div class="connector"></div>
+    <div class="plan-card">
+      <div class="plan-num">09</div>
+      <div class="plan-body">
+        <div class="plan-title">Game Room Static UI</div>
+        <div class="plan-goal">Full game room layout · all components with DB data · no AI yet</div>
+      </div>
+      <div class="plan-meta">
+        <span class="badge badge-pending">Pending</span>
+        <span class="plan-branch">feat/09-game-room-static-ui</span>
+        <span class="plan-base">base → feat/08</span>
+      </div>
+    </div>
+
+    <div class="connector"></div>
+    <div class="plan-card">
+      <div class="plan-num">10</div>
+      <div class="plan-body">
+        <div class="plan-title">AI Narration + Streaming</div>
+        <div class="plan-goal">Claude streaming · Supabase Realtime broadcast · token-by-token render</div>
+      </div>
+      <div class="plan-meta">
+        <span class="badge badge-pending">Pending</span>
+        <span class="plan-branch">feat/10-ai-narration-streaming</span>
+        <span class="plan-base">base → feat/09</span>
+      </div>
+    </div>
+
+    <div class="connector"></div>
+    <div class="plan-card">
+      <div class="plan-num">11</div>
+      <div class="plan-body">
+        <div class="plan-title">Memory System</div>
+        <div class="plan-goal">MEMORY_UPDATE parsing · campaign file updates · GENERATE_IMAGE detection</div>
+      </div>
+      <div class="plan-meta">
+        <span class="badge badge-pending">Pending</span>
+        <span class="plan-branch">feat/11-memory-system</span>
+        <span class="plan-base">base → feat/10</span>
+      </div>
+    </div>
+
+    <div class="connector"></div>
+    <div class="plan-card">
+      <div class="plan-num">12</div>
+      <div class="plan-body">
+        <div class="plan-title">Player Actions — Free Mode</div>
+        <div class="plan-goal">Action submission · broadcast · all-submitted trigger → AI narration</div>
+      </div>
+      <div class="plan-meta">
+        <span class="badge badge-pending">Pending</span>
+        <span class="plan-branch">feat/12-player-actions-free-mode</span>
+        <span class="plan-base">base → feat/11</span>
+      </div>
+    </div>
+
+    <div class="connector"></div>
+    <div class="plan-card">
+      <div class="plan-num">13</div>
+      <div class="plan-body">
+        <div class="plan-title">Session Management</div>
+        <div class="plan-goal">End session flow · AI narrative summary · campaign status transitions</div>
+      </div>
+      <div class="plan-meta">
+        <span class="badge badge-pending">Pending</span>
+        <span class="plan-branch">feat/13-session-management</span>
+        <span class="plan-base">base → feat/12</span>
+      </div>
+    </div>
+
+    <div class="connector"></div>
+    <div class="plan-card">
+      <div class="plan-num">14</div>
+      <div class="plan-body">
+        <div class="plan-title">Combat — Sequential Mode</div>
+        <div class="plan-goal">Turn order · active player enforcement · free ↔ sequential toggle</div>
+      </div>
+      <div class="plan-meta">
+        <span class="badge badge-pending">Pending</span>
+        <span class="plan-branch">feat/14-combat-sequential-mode</span>
+        <span class="plan-base">base → feat/13</span>
+      </div>
+    </div>
+
+    <div class="connector"></div>
+    <div class="plan-card" style="border-color: rgba(196,148,61,0.35);">
+      <div class="plan-num" style="color:var(--copper);">15</div>
+      <div class="plan-body">
+        <div class="plan-title" style="color:var(--brass);">Polish + Deploy</div>
+        <div class="plan-goal">Error handling · edge cases · Vercel production deploy</div>
+      </div>
+      <div class="plan-meta">
+        <span class="badge badge-pending">Pending</span>
+        <span class="plan-branch">feat/15-polish-deploy</span>
+        <span class="plan-base">base → feat/14</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Per-plan loop -->
+  <div class="loop-steps">
+    <div class="section-title">Per-plan execution loop</div>
+    <div class="loop-grid">
+      <div class="loop-step">
+        <div class="loop-step-num">01</div>
+        <div class="loop-step-title">Branch</div>
+        <div class="loop-step-desc">Checkout previous branch, pull latest, create <code>feat/NN-*</code> from it</div>
+      </div>
+      <div class="loop-step">
+        <div class="loop-step-num">02</div>
+        <div class="loop-step-title">Implement</div>
+        <div class="loop-step-desc">Run <code>claude --dangerously-skip-permissions -p "$(cat plan)"</code> — Claude Code executes all tasks</div>
+      </div>
+      <div class="loop-step">
+        <div class="loop-step-num">03</div>
+        <div class="loop-step-title">Verify</div>
+        <div class="loop-step-desc">Check exit code · file changes · <code>yarn test --run</code> · <code>yarn build</code></div>
+      </div>
+      <div class="loop-step">
+        <div class="loop-step-num">04</div>
+        <div class="loop-step-title">Push</div>
+        <div class="loop-step-desc"><code>git push origin feat/NN-*</code></div>
+      </div>
+      <div class="loop-step">
+        <div class="loop-step-num">05</div>
+        <div class="loop-step-title">Open PR</div>
+        <div class="loop-step-desc"><code>gh pr create --base feat/prev</code> — base is previous plan branch, not main</div>
+      </div>
+      <div class="loop-step">
+        <div class="loop-step-num">06</div>
+        <div class="loop-step-title">Notify</div>
+        <div class="loop-step-desc">Ping Marcos: branch, PR link, test results, build status → start next plan immediately</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Failure protocol -->
+  <div class="failure-box">
+    <h2>🚨 Failure Protocol</h2>
+    <p style="font-size:13px; color:var(--ash); margin-bottom:14px;">Any of these conditions halts the chain immediately. Marcos is pinged with full details before continuing.</p>
+    <ul>
+      <li>Claude exits non-zero</li>
+      <li>Zero file changes after run</li>
+      <li>Critical build errors</li>
+      <li>yarn build fails</li>
+    </ul>
+  </div>
+
+  <!-- Rules -->
+  <div class="rules">
+    <div class="rule-card">
+      <div class="rule-icon">🔒</div>
+      <div class="rule-text">No commits to main</div>
+      <div class="rule-sub">All work in feat/* branches only</div>
+    </div>
+    <div class="rule-card">
+      <div class="rule-icon">🚫</div>
+      <div class="rule-text">No auto-merges</div>
+      <div class="rule-sub">Marcos merges. PRs are for review only.</div>
+    </div>
+    <div class="rule-card">
+      <div class="rule-icon">🔗</div>
+      <div class="rule-text">Chained PRs</div>
+      <div class="rule-sub">PR base = previous plan branch for focused diffs</div>
+    </div>
+    <div class="rule-card">
+      <div class="rule-icon">📋</div>
+      <div class="rule-text">Plan-only context</div>
+      <div class="rule-sub">Claude receives only the plan file as prompt</div>
+    </div>
+    <div class="rule-card">
+      <div class="rule-icon">📣</div>
+      <div class="rule-text">Always notify</div>
+      <div class="rule-sub">Ping after every plan. Don't wait for approval to start next.</div>
+    </div>
+    <div class="rule-card">
+      <div class="rule-icon">⚙️</div>
+      <div class="rule-text">Superpowers</div>
+      <div class="rule-sub">Claude uses superpowers:executing-plans skill per plan instruction</div>
+    </div>
+  </div>
+
+  <footer>Saga RPG · workflows/execute-plans.md · generated 2026-03-03</footer>
+
+</body>
+</html>
