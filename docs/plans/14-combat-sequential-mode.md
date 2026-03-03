@@ -304,4 +304,4 @@ git add -A && git commit -m "feat: sequential mode UI with turn enforcement"
 - [ ] PlayerList highlights active turn player
 - [ ] Host can toggle between free and sequential mode
 - [ ] Full combat round triggers narration after all players act
-- [ ] `npm run build` succeeds
+- [ ] `yarn build` succeeds

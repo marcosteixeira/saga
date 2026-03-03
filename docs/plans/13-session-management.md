@@ -287,4 +287,4 @@ git add -A && git commit -m "feat: campaign status transitions"
 - [ ] "End Session" button in game room with confirmation dialog
 - [ ] All clients redirected when session ends
 - [ ] Full lifecycle: lobby → active → paused → summary works
-- [ ] `npm run build` succeeds
+- [ ] `yarn build` succeeds

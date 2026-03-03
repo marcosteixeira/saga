@@ -16,7 +16,7 @@
 
 **Step 1: Install**
 
-Run: `npm install @anthropic-ai/sdk`
+Run: `yarn add @anthropic-ai/sdk`
 
 **Step 2: Create Anthropic client**
 
@@ -343,4 +343,4 @@ git add -A && git commit -m "feat: world preview after campaign creation"
 - [ ] All 5 campaign files initialized after creation
 - [ ] WorldPreview component displays generated world content
 - [ ] Loading state shown during AI generation
-- [ ] `npm run build` succeeds
+- [ ] `yarn build` succeeds

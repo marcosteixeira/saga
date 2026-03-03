@@ -19,7 +19,7 @@
 
 **Step 1: Install packages**
 
-Run: `npm install @supabase/supabase-js @supabase/ssr`
+Run: `yarn add @supabase/supabase-js @supabase/ssr`
 
 **Step 2: Create .env.local template**
 
@@ -241,7 +241,7 @@ git add -A && git commit -m "feat: Supabase browser and server client setup"
 
 **Step 1: Install test framework**
 
-Run: `npm install -D vitest`
+Run: `yarn add -D vitest`
 
 Add to `package.json` scripts: `"test": "vitest run", "test:watch": "vitest"`
 
@@ -280,7 +280,7 @@ git add -A && git commit -m "test: Supabase client smoke test"
 | What | How | Detail |
 |------|-----|--------|
 | SQL migration | Manual or Supabase CLI | Run migration against a Supabase project, verify tables created |
-| TypeScript types | Compile-time | `npm run build` catches type errors |
+| TypeScript types | Compile-time | `yarn build` catches type errors |
 | Supabase clients | Unit test | Verify modules export expected functions |
 | Integration | Manual | After setting up `.env.local`, verify a simple query works |
 
@@ -294,4 +294,4 @@ git add -A && git commit -m "test: Supabase client smoke test"
 - [ ] `lib/supabase/server.ts` exports `createServerSupabaseClient()` for server use
 - [ ] `.env.local.example` documents all required env vars
 - [ ] `vitest` installed and test passes
-- [ ] `npm run build` succeeds
+- [ ] `yarn build` succeeds

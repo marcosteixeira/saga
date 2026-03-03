@@ -179,4 +179,4 @@ No unit tests needed — pure static UI with one trivial client interaction (joi
 - [ ] Join input extracts campaign ID from URL or raw ID and navigates to `/campaign/[id]`
 - [ ] "Create Campaign" button links to `/campaign/new`
 - [ ] All route placeholders exist and render without errors
-- [ ] `npm run build` succeeds with no errors
+- [ ] `yarn build` succeeds with no errors

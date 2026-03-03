@@ -16,7 +16,7 @@
 
 **Step 1: Install**
 
-Run: `npm install @google/genai`
+Run: `yarn add @google/genai`
 
 **Step 2: Create Gemini client**
 
@@ -294,4 +294,4 @@ git add -A && git commit -m "feat: display generated images in world preview"
 - [ ] WorldPreview displays images with skeleton placeholders while loading
 - [ ] Images appear in WorldPreview after generation completes
 - [ ] Image generation failure doesn't break campaign creation
-- [ ] `npm run build` succeeds
+- [ ] `yarn build` succeeds

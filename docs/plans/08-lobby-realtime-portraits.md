@@ -271,4 +271,4 @@ git add -A && git commit -m "feat: host start session button with realtime redir
 - [ ] Portrait generation triggered on join when character details provided (2 tests passing)
 - [ ] Host "Start Session" button works, disabled until players join
 - [ ] All lobby clients redirect to game room when session starts
-- [ ] `npm run build` succeeds
+- [ ] `yarn build` succeeds

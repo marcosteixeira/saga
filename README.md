@@ -8,7 +8,7 @@ The AI narrates the story, arbitrates rules (d20-based), generates scene and cha
 
 | Layer          | Technology                         |
 | -------------- | ---------------------------------- |
-| Frontend + API | Next.js 14 (App Router) + TypeScript |
+| Frontend + API | Next.js 16 (App Router) + TypeScript |
 | Styling        | Tailwind CSS + shadcn/ui          |
 | Database       | Supabase (Postgres + Realtime)    |
 | AI — Game Master | Claude Sonnet 4.6 (Anthropic)   |
@@ -38,7 +38,7 @@ The AI narrates the story, arbitrates rules (d20-based), generates scene and cha
 ```bash
 git clone https://github.com/marcosteixeira/saga.git
 cd saga
-npm install
+yarn install
 ```
 
 Create a `.env.local` file:
@@ -52,8 +52,18 @@ GOOGLE_AI_API_KEY=your_google_ai_api_key
 ```
 
 ```bash
-npm run dev
+yarn dev
 ```
+
+### Docker
+
+Alternatively, run with Docker:
+
+```bash
+docker compose up --build
+```
+
+The app will be available at `http://localhost:3000` with hot reloading enabled.
 
 ## License
 
