@@ -102,12 +102,12 @@ git add -A && git commit -m "feat: session summary prompt builder"
 
 `POST /api/campaign/[id]/session/end`
 
-Request headers:
-- `x-session-token: <host_session_token>`
+No special headers — host identified via Supabase auth session.
 
 Behavior:
-1. Validate campaign exists and status is `active`
-2. Verify session token matches host
+1. Get authenticated user via `createServerAuthClient().auth.getUser()` → 401 if missing
+2. Validate campaign exists and status is `active` → 404 / 400
+3. Verify `user.id === campaign.host_user_id` → 403 if not the host
 3. Fetch all messages for the current session
 4. Call Claude to generate session summary
 5. Update session row: `ended_at = now()`, `summary_md = summary`
@@ -122,25 +122,123 @@ Error responses:
 - 403: not the host
 - 400: campaign is not active
 
-**Step 1: Write tests**
+**Step 1: Write the failing tests**
 
 ```typescript
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { NextRequest } from 'next/server'
+import { POST } from '../route'
+
+const mockGetUser = vi.fn()
+const mockFrom = vi.fn()
+
+vi.mock('@/lib/supabase/server', () => ({
+  createServerAuthClient: vi.fn(() => ({ auth: { getUser: mockGetUser } })),
+  createServerSupabaseClient: vi.fn(() => ({ from: mockFrom, channel: vi.fn().mockReturnValue({ send: vi.fn() }) }))
+}))
+vi.mock('@/lib/anthropic', () => ({
+  anthropic: { messages: { create: vi.fn().mockResolvedValue({ content: [{ type: 'text', text: 'Session summary...' }] }) } }
+}))
+vi.mock('@/lib/memory', () => ({
+  upsertCampaignFile: vi.fn().mockResolvedValue(undefined)
+}))
+
+function makeRequest(campaignId: string) {
+  return new NextRequest(`http://localhost/api/campaign/${campaignId}/session/end`, { method: 'POST' })
+}
+
 describe('POST /api/campaign/[id]/session/end', () => {
-  it('returns 404 when campaign not found', ...)
-  it('returns 403 when not the host', ...)
-  it('returns 400 when campaign is not active', ...)
-  it('generates session summary via Claude', ...)
-  it('saves summary to session row and campaign files', ...)
-  it('updates campaign status to paused', ...)
-  it('returns summary text on success', ...)
+  beforeEach(() => { vi.clearAllMocks() })
+
+  it('returns 401 when not authenticated', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: null } })
+    const res = await POST(makeRequest('c1'), { params: { id: 'c1' } })
+    expect(res.status).toBe(401)
+  })
+
+  it('returns 404 when campaign not found', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'host-1' } } })
+    mockFrom.mockReturnValue({ select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: null, error: {} }) }) }) })
+    const res = await POST(makeRequest('c1'), { params: { id: 'c1' } })
+    expect(res.status).toBe(404)
+  })
+
+  it('returns 403 when not the host', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'other-user' } } })
+    mockFrom.mockReturnValue({ select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'c1', status: 'active', host_user_id: 'host-1', current_session_id: 's1' }, error: null }) }) }) })
+    const res = await POST(makeRequest('c1'), { params: { id: 'c1' } })
+    expect(res.status).toBe(403)
+  })
+
+  it('returns 400 when campaign is not active', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'host-1' } } })
+    mockFrom.mockReturnValue({ select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'c1', status: 'paused', host_user_id: 'host-1', current_session_id: 's1' }, error: null }) }) }) })
+    const res = await POST(makeRequest('c1'), { params: { id: 'c1' } })
+    expect(res.status).toBe(400)
+  })
+
+  it('generates session summary via Claude', async () => {
+    // ... full success mock setup
+    // verify anthropic.messages.create is called
+  })
+
+  it('updates campaign status to paused on success', async () => {
+    // ... verify campaign update called with status='paused'
+  })
+
+  it('returns 200 with summary text on success', async () => {
+    // ... verify status 200 and body.summary is present
+  })
 })
 ```
 
 7 test cases.
 
-**Step 2: Run tests — fail**
+**Step 2: Run tests — verify they fail**
 
-**Step 3: Implement**
+```bash
+yarn test app/api/campaign/\[id\]/session/end/__tests__/route
+```
+
+Expected: FAIL — `Cannot find module '../route'`
+
+**Step 3: Implement `app/api/campaign/[id]/session/end/route.ts`**
+
+Key implementation logic:
+```typescript
+import { createServerAuthClient, createServerSupabaseClient } from '@/lib/supabase/server'
+import { anthropic } from '@/lib/anthropic'
+import { buildSessionSummaryPrompt } from '@/lib/prompts/session-summary'
+import { upsertCampaignFile } from '@/lib/memory'
+
+export async function POST(request, { params }) {
+  const { data: { user } } = await createServerAuthClient().auth.getUser()
+  if (!user) return 401
+
+  // fetch campaign, check host_user_id, check status...
+
+  // fetch session messages
+  const { data: messages } = await supabase.from('messages')
+    .select('*').eq('session_id', currentSessionId).order('created_at')
+
+  // generate summary
+  const summary = await anthropic.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 1024,
+    messages: [{ role: 'user', content: buildSessionSummaryPrompt(messages) }]
+  })
+  const summaryText = summary.content.filter(b => b.type === 'text').map(b => b.text).join('')
+
+  // save to session row + campaign files
+  await supabase.from('sessions').update({ summary_md: summaryText, ended_at: new Date() }).eq('id', currentSessionId)
+  await upsertCampaignFile(campaignId, `session-${sessionNumber}.md`, summaryText)
+
+  // update campaign
+  await supabase.from('campaigns').update({ status: 'paused', current_session_id: null }).eq('id', campaignId)
+
+  return 200, { summary: summaryText }
+}
+```
 
 **Step 4: Run tests — pass**
 
@@ -238,8 +336,7 @@ git add -A && git commit -m "feat: host end session control with confirmation"
 
 `PATCH /api/campaign/[id]/status`
 
-Request headers:
-- `x-session-token: <host_session_token>`
+No special headers — host identified via Supabase auth session.
 
 Request body:
 ```json
@@ -252,28 +349,92 @@ Allowed transitions:
 - `paused` → `ended` (host ends the campaign permanently)
 - Only the host can change status via this route
 
-**Step 1: Write tests**
+**Step 1: Write the failing tests**
 
 ```typescript
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { NextRequest } from 'next/server'
+import { PATCH } from '../route'
+
+const mockGetUser = vi.fn()
+const mockFrom = vi.fn()
+
+vi.mock('@/lib/supabase/server', () => ({
+  createServerAuthClient: vi.fn(() => ({ auth: { getUser: mockGetUser } })),
+  createServerSupabaseClient: vi.fn(() => ({ from: mockFrom }))
+}))
+
+function makeRequest(campaignId: string, body = {}) {
+  return new NextRequest(`http://localhost/api/campaign/${campaignId}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+    headers: { 'Content-Type': 'application/json' }
+  })
+}
+
 describe('PATCH /api/campaign/[id]/status', () => {
-  it('returns 403 when not the host', ...)
-  it('returns 400 for invalid status transition', ...)
-  it('updates status on valid transition', ...)
+  beforeEach(() => { vi.clearAllMocks() })
+
+  it('returns 401 when not authenticated', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: null } })
+    const res = await PATCH(makeRequest('c1', { status: 'ended' }), { params: { id: 'c1' } })
+    expect(res.status).toBe(401)
+  })
+
+  it('returns 403 when not the host', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'other' } } })
+    mockFrom.mockReturnValue({ select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'c1', status: 'paused', host_user_id: 'host-1' }, error: null }) }) }) })
+    const res = await PATCH(makeRequest('c1', { status: 'ended' }), { params: { id: 'c1' } })
+    expect(res.status).toBe(403)
+  })
+
+  it('returns 400 for invalid status transition', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'host-1' } } })
+    mockFrom.mockReturnValue({ select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'c1', status: 'active', host_user_id: 'host-1' }, error: null }) }) }) })
+    // active → ended is not allowed (only paused → ended)
+    const res = await PATCH(makeRequest('c1', { status: 'ended' }), { params: { id: 'c1' } })
+    expect(res.status).toBe(400)
+  })
+
+  it('updates status on valid paused → ended transition', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'host-1' } } })
+    mockFrom.mockReturnValueOnce({ select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'c1', status: 'paused', host_user_id: 'host-1' }, error: null }) }) }) })
+    const mockUpdate = vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) })
+    mockFrom.mockReturnValueOnce({ update: mockUpdate })
+    const res = await PATCH(makeRequest('c1', { status: 'ended' }), { params: { id: 'c1' } })
+    expect(res.status).toBe(200)
+    expect(mockUpdate).toHaveBeenCalledWith({ status: 'ended' })
+  })
 })
 ```
 
-3 test cases.
+4 test cases.
 
-**Step 2: Run tests — fail**
+**Step 2: Run tests — verify they fail**
+
+```bash
+yarn test app/api/campaign/\[id\]/status/__tests__/route
+```
+
+Expected: FAIL — `Cannot find module '../route'`
 
 **Step 3: Implement**
 
-**Step 4: Run tests — pass**
+Simple route: get user, fetch campaign, check host, validate transition, update.
+
+**Step 4: Run tests — verify they pass**
+
+```bash
+yarn test app/api/campaign/\[id\]/status/__tests__/route
+```
+
+Expected: PASS (4 tests)
 
 **Step 5: Commit**
 
 ```bash
-git add -A && git commit -m "feat: campaign status transitions"
+git add app/api/campaign/\[id\]/status/
+git commit -m "feat: campaign status transitions via PATCH with auth"
 ```
 
 ---

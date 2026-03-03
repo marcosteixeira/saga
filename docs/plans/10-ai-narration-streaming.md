@@ -126,6 +126,8 @@ git add -A && git commit -m "feat: GM system prompt builder"
 
 `POST /api/campaign/[id]/narrate`
 
+**Auth note:** This route is called internally from `POST /api/campaign/[id]/message` (server-to-server, same process — direct function call or internal fetch). It validates campaign status but does not require user auth, since it's never called directly by the browser. However, add a simple server-to-server secret check via `process.env.INTERNAL_SECRET` header to prevent external abuse.
+
 Request body:
 ```json
 {
@@ -136,7 +138,7 @@ Request body:
 }
 ```
 
-The `messages` array contains the player actions formatted as conversation messages. The route prepends the conversation history from the current session.
+The `messages` array contains the player actions since the last narration. The route prepends the full conversation history from the current session.
 
 Behavior:
 1. Validate campaign exists and status is `active`

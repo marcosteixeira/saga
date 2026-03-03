@@ -67,7 +67,7 @@ The `GameRoom` component receives campaign, players, messages, and current playe
 
 `app/campaign/[id]/page.tsx`:
 - Fetch campaign, players, messages from API on mount
-- Identify current player from session token in localStorage
+- Identify current player via `supabase.auth.getUser()` → match `user.id` against `players[].user_id`
 - If campaign status is `lobby`, redirect to lobby
 - Pass data to `GameRoom` component
 

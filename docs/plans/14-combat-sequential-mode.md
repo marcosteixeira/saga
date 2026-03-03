@@ -77,8 +77,7 @@ git add -A && git commit -m "feat: add turn_state column to campaigns"
 
 `PATCH /api/campaign/[id]/turn-mode`
 
-Request headers:
-- `x-session-token: <host_session_token>`
+No special headers — host identified via Supabase auth session.
 
 Request body:
 ```json
@@ -108,6 +107,7 @@ When entering sequential mode without `turn_order`:
 
 ```typescript
 describe('PATCH /api/campaign/[id]/turn-mode', () => {
+  it('returns 401 when not authenticated', ...)
   it('returns 403 when not the host', ...)
   it('switches to sequential mode with turn order', ...)
   it('defaults turn order to active players by join date', ...)
@@ -116,7 +116,13 @@ describe('PATCH /api/campaign/[id]/turn-mode', () => {
 })
 ```
 
-5 test cases.
+6 test cases. Use the same auth mock pattern as other routes:
+```typescript
+vi.mock('@/lib/supabase/server', () => ({
+  createServerAuthClient: vi.fn(() => ({ auth: { getUser: mockGetUser } })),
+  createServerSupabaseClient: vi.fn(() => ({ from: mockFrom, channel: ... }))
+}))
+```
 
 **Step 2: Run tests — fail**
 

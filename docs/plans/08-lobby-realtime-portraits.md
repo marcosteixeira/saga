@@ -172,47 +172,219 @@ git add -A && git commit -m "feat: character portraits in lobby player list"
 
 `POST /api/campaign/[id]/session/start`
 
-Request headers:
-- `x-session-token: <host_session_token>` — to verify the requester is the host
+No special headers — host is identified via Supabase auth session.
 
 Behavior:
-1. Validate campaign exists and status is `lobby` or `paused`
-2. Verify the session token matches the campaign's `host_session_token`
-3. Create a new `sessions` row (session_number = count of existing sessions + 1)
-4. Set `present_player_ids` to all active players
-5. Update campaign: `status = 'active'`, `current_session_id = new session id`
-6. Return `{ session: { id, session_number } }` with status 200
+1. Get authenticated user via `createServerAuthClient().auth.getUser()` → 401 if missing
+2. Fetch campaign by id → 404 if not found
+3. Verify `user.id === campaign.host_user_id` → 403 if not the host
+4. Validate campaign status is `lobby` or `paused` → 400 if already active
+5. Create a new `sessions` row (`session_number` = existing session count + 1, `present_player_ids` = all active player ids)
+6. Update campaign: `status = 'active'`, `current_session_id = new session id`
+7. Return `{ session: { id, session_number } }` with status 200
 
 Error responses:
+- 401: not authenticated
 - 404: campaign not found
 - 403: not the host
-- 400: campaign not in startable state (not lobby/paused)
+- 400: campaign not in startable state
 
-**Step 1: Write tests**
+**Step 1: Write the failing tests**
 
 ```typescript
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { NextRequest } from 'next/server'
+import { POST } from '../route'
+
+const mockGetUser = vi.fn()
+const mockFrom = vi.fn()
+
+vi.mock('@/lib/supabase/server', () => ({
+  createServerAuthClient: vi.fn(() => ({
+    auth: { getUser: mockGetUser }
+  })),
+  createServerSupabaseClient: vi.fn(() => ({ from: mockFrom }))
+}))
+
+function makeRequest(campaignId: string) {
+  return new NextRequest(`http://localhost/api/campaign/${campaignId}/session/start`, {
+    method: 'POST'
+  })
+}
+
 describe('POST /api/campaign/[id]/session/start', () => {
-  it('returns 404 when campaign not found', ...)
-  it('returns 403 when session token does not match host', ...)
-  it('returns 400 when campaign is already active', ...)
-  it('returns 200 and creates session on success', ...)
-  it('updates campaign status to active', ...)
-  it('sets present_player_ids to all active players', ...)
+  beforeEach(() => { vi.clearAllMocks() })
+
+  it('returns 401 when not authenticated', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: null } })
+    const res = await POST(makeRequest('c1'), { params: { id: 'c1' } })
+    expect(res.status).toBe(401)
+  })
+
+  it('returns 404 when campaign not found', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'host-1' } } })
+    mockFrom.mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({ data: null, error: { code: 'PGRST116' } })
+        })
+      })
+    })
+    const res = await POST(makeRequest('c1'), { params: { id: 'c1' } })
+    expect(res.status).toBe(404)
+  })
+
+  it('returns 403 when user is not the host', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'other-user' } } })
+    mockFrom.mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({ data: { id: 'c1', status: 'lobby', host_user_id: 'host-1' }, error: null })
+        })
+      })
+    })
+    const res = await POST(makeRequest('c1'), { params: { id: 'c1' } })
+    expect(res.status).toBe(403)
+  })
+
+  it('returns 400 when campaign is already active', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'host-1' } } })
+    mockFrom.mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({ data: { id: 'c1', status: 'active', host_user_id: 'host-1' }, error: null })
+        })
+      })
+    })
+    const res = await POST(makeRequest('c1'), { params: { id: 'c1' } })
+    expect(res.status).toBe(400)
+  })
+
+  it('returns 200 and creates session on success', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'host-1' } } })
+    // campaign fetch
+    mockFrom.mockReturnValueOnce({
+      select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'c1', status: 'lobby', host_user_id: 'host-1' }, error: null }) }) })
+    })
+    // existing sessions count
+    mockFrom.mockReturnValueOnce({
+      select: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: [], error: null }) })
+    })
+    // active players
+    mockFrom.mockReturnValueOnce({
+      select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: [{ id: 'p1' }, { id: 'p2' }], error: null }) }) })
+    })
+    // session insert
+    mockFrom.mockReturnValueOnce({
+      insert: vi.fn().mockReturnValue({ select: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'sess-1', session_number: 1 }, error: null }) }) })
+    })
+    // campaign update
+    mockFrom.mockReturnValueOnce({
+      update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) })
+    })
+    const res = await POST(makeRequest('c1'), { params: { id: 'c1' } })
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.session.id).toBe('sess-1')
+  })
+
+  it('sets present_player_ids to all active player ids', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'host-1' } } })
+    mockFrom
+      .mockReturnValueOnce({ select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'c1', status: 'lobby', host_user_id: 'host-1' }, error: null }) }) }) })
+      .mockReturnValueOnce({ select: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: [], error: null }) }) })
+      .mockReturnValueOnce({ select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: [{ id: 'p1' }, { id: 'p2' }], error: null }) }) }) })
+    const mockInsert = vi.fn().mockReturnValue({ select: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'sess-1', session_number: 1 }, error: null }) }) })
+    mockFrom.mockReturnValueOnce({ insert: mockInsert })
+    mockFrom.mockReturnValueOnce({ update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) }) })
+    await POST(makeRequest('c1'), { params: { id: 'c1' } })
+    expect(mockInsert).toHaveBeenCalledWith(
+      expect.objectContaining({ present_player_ids: ['p1', 'p2'] })
+    )
+  })
 })
 ```
 
-6 test cases.
+**Step 2: Run tests — verify they fail**
 
-**Step 2: Run tests — fail**
+```bash
+yarn test app/api/campaign/\[id\]/session/start/__tests__/route
+```
 
-**Step 3: Implement**
+Expected: FAIL — `Cannot find module '../route'`
 
-**Step 4: Run tests — pass**
+**Step 3: Implement `app/api/campaign/[id]/session/start/route.ts`**
+
+```typescript
+import { NextRequest, NextResponse } from 'next/server'
+import { createServerAuthClient, createServerSupabaseClient } from '@/lib/supabase/server'
+
+export async function POST(
+  _request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const authClient = createServerAuthClient()
+  const { data: { user } } = await authClient.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const supabase = createServerSupabaseClient()
+  const campaignId = params.id
+
+  const { data: campaign } = await supabase
+    .from('campaigns')
+    .select('id, status, host_user_id')
+    .eq('id', campaignId)
+    .single()
+  if (!campaign) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (campaign.host_user_id !== user.id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!['lobby', 'paused'].includes(campaign.status)) {
+    return NextResponse.json({ error: 'Campaign already active or ended' }, { status: 400 })
+  }
+
+  // Count existing sessions for session_number
+  const { data: existingSessions } = await supabase
+    .from('sessions')
+    .select('id')
+    .eq('campaign_id', campaignId)
+  const sessionNumber = (existingSessions?.length ?? 0) + 1
+
+  // Get active player ids
+  const { data: activePlayers } = await supabase
+    .from('players')
+    .select('id')
+    .eq('campaign_id', campaignId)
+    .eq('status', 'active')
+  const presentPlayerIds = (activePlayers ?? []).map(p => p.id)
+
+  const { data: session, error: sessionError } = await supabase
+    .from('sessions')
+    .insert({ campaign_id: campaignId, session_number: sessionNumber, present_player_ids: presentPlayerIds })
+    .select()
+    .single()
+  if (sessionError) return NextResponse.json({ error: 'Failed to create session' }, { status: 500 })
+
+  await supabase
+    .from('campaigns')
+    .update({ status: 'active', current_session_id: session.id })
+    .eq('id', campaignId)
+
+  return NextResponse.json({ session }, { status: 200 })
+}
+```
+
+**Step 4: Run tests — verify they pass**
+
+```bash
+yarn test app/api/campaign/\[id\]/session/start/__tests__/route
+```
+
+Expected: PASS (6 tests)
 
 **Step 5: Commit**
 
 ```bash
-git add -A && git commit -m "feat: POST /api/campaign/[id]/session/start"
+git add app/api/campaign/\[id\]/session/start/
+git commit -m "feat: POST /api/campaign/[id]/session/start with auth"
 ```
 
 ---
@@ -225,9 +397,9 @@ git add -A && git commit -m "feat: POST /api/campaign/[id]/session/start"
 **Spec:**
 
 The "Start Session" button:
-1. Only visible to the host (match session token from localStorage with campaign's host_session_token)
+1. Only visible to the host (already determined in PR 07 via `campaign.host_user_id === currentUser.id`)
 2. Disabled until at least 1 non-host player has joined
-3. On click: POST to `/api/campaign/[id]/session/start` with session token in header
+3. On click: POST to `/api/campaign/[id]/session/start` (no special headers — auth cookie sent automatically)
 4. On success: redirect to `/campaign/[id]` (game room)
 
 Also: subscribe to campaign status changes via Supabase Realtime. When status changes to `active`, all lobby clients redirect to the game room.

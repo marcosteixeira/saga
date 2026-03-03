@@ -174,16 +174,89 @@ describe('memory', () => {
 
 **Step 2: Run tests — verify they fail**
 
-Run: `npx vitest run lib/__tests__/memory`
+```bash
+yarn test lib/__tests__/memory
+```
+
+Expected: FAIL — `Cannot find module '../memory'`
 
 **Step 3: Implement `lib/memory.ts`**
 
+```typescript
+import { createServerSupabaseClient } from '@/lib/supabase/server'
+import type { CampaignFile } from '@/types'
+
+export async function getCampaignFile(
+  campaignId: string,
+  filename: string
+): Promise<string | null> {
+  const supabase = createServerSupabaseClient()
+  const { data, error } = await supabase
+    .from('campaign_files')
+    .select('content')
+    .eq('campaign_id', campaignId)
+    .eq('filename', filename)
+    .single()
+  if (error || !data) return null
+  return data.content
+}
+
+export async function getCampaignFiles(campaignId: string): Promise<CampaignFile[]> {
+  const supabase = createServerSupabaseClient()
+  const { data } = await supabase
+    .from('campaign_files')
+    .select('*')
+    .eq('campaign_id', campaignId)
+  return data ?? []
+}
+
+export async function upsertCampaignFile(
+  campaignId: string,
+  filename: string,
+  content: string
+): Promise<void> {
+  const supabase = createServerSupabaseClient()
+  await supabase
+    .from('campaign_files')
+    .upsert(
+      { campaign_id: campaignId, filename, content },
+      { onConflict: 'campaign_id,filename' }
+    )
+}
+
+export async function initializeCampaignFiles(
+  campaignId: string,
+  worldContent: string
+): Promise<void> {
+  const supabase = createServerSupabaseClient()
+  const files = [
+    { campaign_id: campaignId, filename: 'WORLD.md', content: worldContent },
+    { campaign_id: campaignId, filename: 'CHARACTERS.md', content: '' },
+    { campaign_id: campaignId, filename: 'NPCS.md', content: '' },
+    { campaign_id: campaignId, filename: 'LOCATIONS.md', content: '' },
+    { campaign_id: campaignId, filename: 'MEMORY.md', content: 'Campaign just started.' },
+  ]
+  for (const file of files) {
+    await supabase
+      .from('campaign_files')
+      .upsert(file, { onConflict: 'campaign_id,filename' })
+  }
+}
+```
+
 **Step 4: Run tests — verify they pass**
+
+```bash
+yarn test lib/__tests__/memory
+```
+
+Expected: PASS (4 tests)
 
 **Step 5: Commit**
 
 ```bash
-git add -A && git commit -m "feat: campaign memory file CRUD (lib/memory.ts)"
+git add lib/memory.ts lib/__tests__/memory.test.ts
+git commit -m "feat: campaign memory file CRUD (lib/memory.ts)"
 ```
 
 ---
@@ -232,18 +305,50 @@ describe('buildWorldGenPrompt', () => {
 })
 ```
 
-**Step 2: Run test — fail**
+**Step 2: Run test — verify it fails**
 
-**Step 3: Implement**
+```bash
+yarn test lib/prompts/__tests__/world-gen
+```
 
-Pure function that returns a string. No API calls — just prompt construction.
+Expected: FAIL — `Cannot find module '../world-gen'`
 
-**Step 4: Run test — pass**
+**Step 3: Implement `lib/prompts/world-gen.ts`**
+
+```typescript
+export function buildWorldGenPrompt(worldDescription: string): string {
+  return `You are a fantasy world-builder. Based on the description below, generate a rich WORLD.md document for a tabletop RPG campaign.
+
+User's world description:
+"${worldDescription}"
+
+Output a Markdown document with exactly these sections (use ## headings):
+## World Name
+## Overview
+## History
+## Geography
+## Factions
+## Tone
+## Current Situation
+## Starting Hooks
+
+Be evocative and specific. Starting Hooks must list 2-3 adventure hooks players can immediately pursue. Output ONLY the Markdown document, no preamble.`
+}
+```
+
+**Step 4: Run test — verify it passes**
+
+```bash
+yarn test lib/prompts/__tests__/world-gen
+```
+
+Expected: PASS (2 tests)
 
 **Step 5: Commit**
 
 ```bash
-git add -A && git commit -m "feat: world generation prompt builder"
+git add lib/prompts/world-gen.ts lib/prompts/__tests__/world-gen.test.ts
+git commit -m "feat: world generation prompt builder"
 ```
 
 ---
@@ -252,41 +357,93 @@ git add -A && git commit -m "feat: world generation prompt builder"
 
 **Files:**
 - Modify: `app/api/campaign/route.ts`
+- Modify: `app/api/campaign/__tests__/route.test.ts`
 
 **Updated flow for `POST /api/campaign`:**
 
 1. Validate input (existing)
 2. Insert campaign row (existing)
-3. **NEW:** Call Claude with world-gen prompt → get WORLD.md content
+3. **NEW:** Call Claude with `buildWorldGenPrompt(world_description)` → get WORLD.md text
 4. **NEW:** Call `initializeCampaignFiles(campaignId, worldMdContent)`
-5. Return `{ id, host_session_token }` with status 201
+5. Return `{ id }` with status 201
 
-The Claude call is non-streaming (we wait for the full response). This is acceptable because campaign creation is a one-time action and the user sees a loading screen.
+The Claude call is non-streaming — we wait for the full response. Acceptable for campaign creation (one-time action, user sees loading screen).
 
-**Step 1: Update existing tests**
+**Step 1: Add tests for the new behavior**
 
-Add a test that verifies Claude is called and campaign files are initialized:
+Add to the existing test file (with mocks at top):
 
 ```typescript
-it('generates WORLD.md via Claude and initializes campaign files', async () => {
-  // Mock Claude response
-  // Mock initializeCampaignFiles
-  // Verify both are called after campaign insert
+vi.mock('@/lib/anthropic', () => ({
+  anthropic: {
+    messages: {
+      create: vi.fn().mockResolvedValue({
+        content: [{ type: 'text', text: '# World\nGenerated content' }]
+      })
+    }
+  }
+}))
+
+vi.mock('@/lib/memory', () => ({
+  initializeCampaignFiles: vi.fn().mockResolvedValue(undefined)
+}))
+
+it('calls Claude and initializes campaign files on success', async () => {
+  const { anthropic } = await import('@/lib/anthropic')
+  const { initializeCampaignFiles } = await import('@/lib/memory')
+  // ... POST with valid auth and body
+  expect(anthropic.messages.create).toHaveBeenCalledOnce()
+  expect(initializeCampaignFiles).toHaveBeenCalledWith(
+    expect.any(String),
+    '# World\nGenerated content'
+  )
 })
 ```
 
-**Step 2: Run tests — verify new test fails**
+**Step 2: Run new test — verify it fails**
 
-**Step 3: Update the route implementation**
+```bash
+yarn test app/api/campaign/__tests__/route
+```
 
-Add Claude call after DB insert. Pass `world_description` to `buildWorldGenPrompt()`, call `anthropic.messages.create()`, extract the text content, then call `initializeCampaignFiles()`.
+Expected: new test FAIL
 
-**Step 4: Run tests — all pass**
+**Step 3: Update `app/api/campaign/route.ts`**
+
+After the DB insert succeeds, add:
+
+```typescript
+import { anthropic } from '@/lib/anthropic'
+import { buildWorldGenPrompt } from '@/lib/prompts/world-gen'
+import { initializeCampaignFiles } from '@/lib/memory'
+
+// After campaign insert:
+const prompt = buildWorldGenPrompt(world_description)
+const aiResponse = await anthropic.messages.create({
+  model: 'claude-sonnet-4-6',
+  max_tokens: 2048,
+  messages: [{ role: 'user', content: prompt }],
+})
+const worldContent = aiResponse.content
+  .filter((b) => b.type === 'text')
+  .map((b) => b.text)
+  .join('')
+await initializeCampaignFiles(campaign.id, worldContent)
+```
+
+**Step 4: Run all tests — verify all pass**
+
+```bash
+yarn test app/api/campaign/__tests__/route
+```
+
+Expected: all tests PASS
 
 **Step 5: Commit**
 
 ```bash
-git add -A && git commit -m "feat: integrate Claude world generation into campaign creation"
+git add app/api/campaign/route.ts app/api/campaign/__tests__/route.test.ts
+git commit -m "feat: integrate Claude world generation into campaign creation"
 ```
 
 ---
@@ -296,45 +453,86 @@ git add -A && git commit -m "feat: integrate Claude world generation into campai
 **Files:**
 - Create: `components/campaign/WorldPreview.tsx`
 - Modify: `components/campaign/WorldGenForm.tsx`
-- Modify: `app/campaign/new/page.tsx`
 
 **Spec:**
 
-After the campaign is created (and WORLD.md generated), show a preview page before redirecting to the lobby:
-
-1. Form submits → loading spinner with "Generating your world..." message
-2. On success: fetch the campaign data (GET /api/campaign/[id]) including WORLD.md
-3. Display WorldPreview:
-   - Campaign name as heading
-   - WORLD.md content rendered as formatted text (Markdown-ish, but plain rendering is fine for now)
-   - "Enter Lobby" button → navigates to `/campaign/[id]/lobby`
+After form submit:
+1. Show loading: "Generating your world..." (piston animation, `Rokkitt` uppercase `--steam`)
+2. On API response: fetch GET `/api/campaign/[id]` to load world files
+3. Render `WorldPreview`:
+   - Campaign name as H1 (`Rokkitt`, uppercase, `--brass` with glow)
+   - WORLD.md content in scroll area (plain text, preserve line breaks)
+   - "Enter Lobby" button → navigate to `/campaign/[id]/lobby`
 
 **WorldPreview component:**
 - Props: `campaign: Campaign`, `worldContent: string`
-- Renders in a card with dark fantasy styling
-- Scroll area for long world descriptions
+- Iron Plate panel — `--smog` 85% opacity, `--gunmetal` border
+- `ScrollArea` for long content
 
-**Step 1: Add shadcn scroll-area component**
+**Step 1: Install scroll-area shadcn component**
 
-Run: `npx shadcn@latest add scroll-area`
+```bash
+npx shadcn@latest add scroll-area
+```
 
-**Step 2: Implement WorldPreview**
+**Step 2: Implement `components/campaign/WorldPreview.tsx`**
 
-**Step 3: Update WorldGenForm to show preview after creation**
+```typescript
+'use client'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Button } from '@/components/ui/button'
+import { useRouter } from 'next/navigation'
+import type { Campaign } from '@/types'
 
-Add a state: `createdCampaign`. After successful POST, fetch campaign data and set state. Conditionally render either the form or the preview.
+interface Props {
+  campaign: Campaign
+  worldContent: string
+}
+
+export function WorldPreview({ campaign, worldContent }: Props) {
+  const router = useRouter()
+  return (
+    <div className="rounded border border-[--gunmetal] bg-[--smog]/85 p-8 max-w-2xl mx-auto">
+      <h1 className="font-display text-4xl uppercase text-[--brass] mb-6"
+          style={{ textShadow: '0 0 20px rgba(196,148,61,0.4)' }}>
+        {campaign.name}
+      </h1>
+      <ScrollArea className="h-96 mb-6">
+        <pre className="font-body text-[--steam] text-sm leading-relaxed whitespace-pre-wrap">
+          {worldContent}
+        </pre>
+      </ScrollArea>
+      <Button className="w-full" onClick={() => router.push(`/campaign/${campaign.id}/lobby`)}>
+        Enter Lobby
+      </Button>
+    </div>
+  )
+}
+```
+
+**Step 3: Update `WorldGenForm.tsx` to show preview after creation**
+
+Add states: `isGenerating` (bool), `preview` (`{ campaign, worldContent } | null`).
+
+After successful POST response:
+1. Set `isGenerating = true`
+2. Fetch GET `/api/campaign/${id}` to get the world file
+3. Set `preview = { campaign, worldContent }` and `isGenerating = false`
+
+Render: if `preview` → `<WorldPreview />`. If `isGenerating` → loading message. Else → form.
 
 **Step 4: Visual test**
 
 - Fill form → submit → "Generating your world..." spinner
-- After generation: world preview appears with campaign name and WORLD.md content
-- "Enter Lobby" button navigates to lobby
-- Long world descriptions scroll within the card
+- World preview appears with campaign name + WORLD.md content
+- Long descriptions scroll within the card
+- "Enter Lobby" navigates correctly
 
 **Step 5: Commit**
 
 ```bash
-git add -A && git commit -m "feat: world preview after campaign creation"
+git add components/campaign/WorldPreview.tsx components/campaign/WorldGenForm.tsx
+git commit -m "feat: world preview after campaign creation"
 ```
 
 ---
