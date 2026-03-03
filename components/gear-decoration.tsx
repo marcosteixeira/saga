@@ -61,21 +61,22 @@ function GearSVG({
     const angle2 = ((i + 0.35) / teeth) * Math.PI * 2;
     const angle3 = ((i + 0.5) / teeth) * Math.PI * 2;
     const angle4 = ((i + 0.85) / teeth) * Math.PI * 2;
-    points.push(`${cx + r * Math.cos(angle1)},${cy + r * Math.sin(angle1)}`);
-    points.push(`${cx + r * Math.cos(angle2)},${cy + r * Math.sin(angle2)}`);
-    points.push(
-      `${cx + innerR * Math.cos(angle3)},${cy + innerR * Math.sin(angle3)}`
-    );
-    points.push(
-      `${cx + innerR * Math.cos(angle4)},${cy + innerR * Math.sin(angle4)}`
-    );
+    // Round to 4 decimal places for deterministic SSR/client hydration
+    const round = (n: number) => Math.round(n * 10000) / 10000;
+    points.push(`${round(cx + r * Math.cos(angle1))},${round(cy + r * Math.sin(angle1))}`);
+    points.push(`${round(cx + r * Math.cos(angle2))},${round(cy + r * Math.sin(angle2))}`);
+    points.push(`${round(cx + innerR * Math.cos(angle3))},${round(cy + innerR * Math.sin(angle3))}`);
+    points.push(`${round(cx + innerR * Math.cos(angle4))},${round(cy + innerR * Math.sin(angle4))}`);
   }
+
+  const innerHubR = Math.round(innerR * 0.4 * 10000) / 10000;
+  const axleR = Math.round(innerR * 0.15 * 10000) / 10000;
 
   return (
     <g fill="var(--gunmetal)" stroke="var(--ash)" strokeWidth="1">
       <polygon points={points.join(" ")} />
-      <circle cx={cx} cy={cy} r={innerR * 0.4} fill="var(--iron)" stroke="var(--ash)" strokeWidth="1.5" />
-      <circle cx={cx} cy={cy} r={innerR * 0.15} fill="var(--gunmetal)" />
+      <circle cx={cx} cy={cy} r={innerHubR} fill="var(--iron)" stroke="var(--ash)" strokeWidth="1.5" />
+      <circle cx={cx} cy={cy} r={axleR} fill="var(--gunmetal)" />
     </g>
   );
 }
