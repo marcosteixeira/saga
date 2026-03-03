@@ -1,15 +1,20 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
+import { WorldPreview } from './WorldPreview'
+import type { Campaign } from '@/types'
+
+interface PreviewState {
+  campaign: Campaign
+  worldContent: string
+}
 
 export function WorldGenForm() {
-  const router = useRouter()
   const [hostUsername, setHostUsername] = useState('')
 
   useEffect(() => {
@@ -21,13 +26,14 @@ export function WorldGenForm() {
   const [name, setName] = useState('')
   const [worldDescription, setWorldDescription] = useState('')
   const [systemDescription, setSystemDescription] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [preview, setPreview] = useState<PreviewState | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
-    setLoading(true)
+    setIsGenerating(true)
 
     try {
       const res = await fetch('/api/campaign', {
@@ -48,12 +54,39 @@ export function WorldGenForm() {
         return
       }
 
-      router.push(`/campaign/${data.id}/lobby`)
+      const campaignRes = await fetch(`/api/campaign/${data.id}`)
+      const campaignData = await campaignRes.json()
+      const worldFile = campaignData.files?.find(
+        (f: { filename: string; content: string }) => f.filename === 'WORLD.md'
+      )
+
+      setPreview({
+        campaign: campaignData.campaign,
+        worldContent: worldFile?.content ?? '',
+      })
     } catch {
       setError('Connection failure. The pipes are clogged.')
     } finally {
-      setLoading(false)
+      setIsGenerating(false)
     }
+  }
+
+  if (preview) {
+    return <WorldPreview campaign={preview.campaign} worldContent={preview.worldContent} />
+  }
+
+  if (isGenerating) {
+    return (
+      <div className="flex flex-col items-center gap-6 py-12">
+        <div className="piston-loader" aria-label="Generating..." />
+        <p
+          className="text-lg uppercase tracking-[0.15em]"
+          style={{ fontFamily: 'var(--font-display), serif', color: 'var(--steam)' }}
+        >
+          Generating your world...
+        </p>
+      </div>
+    )
   }
 
   return (
@@ -152,19 +185,16 @@ export function WorldGenForm() {
         </p>
       )}
 
-      {/* Piston loader */}
-      {loading && <div className="piston-loader" aria-label="Loading..." />}
-
       {/* Submit */}
       <Button
         type="submit"
-        disabled={loading}
+        disabled={isGenerating}
         className="relative overflow-hidden bg-brass text-soot font-bold uppercase tracking-[0.15em] hover:bg-furnace transition-colors duration-300 disabled:opacity-60"
         style={{
           clipPath: 'polygon(6px 0%, calc(100% - 6px) 0%, 100% 6px, 100% calc(100% - 6px), calc(100% - 6px) 100%, 6px 100%, 0% calc(100% - 6px), 0% 6px)',
         }}
       >
-        {loading ? 'Forging...' : 'Forge Campaign'}
+        Forge Campaign
       </Button>
     </form>
   )
