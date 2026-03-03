@@ -71,3 +71,17 @@ CREATE INDEX idx_players_campaign_id ON players(campaign_id);
 CREATE INDEX idx_messages_campaign_created ON messages(campaign_id, created_at);
 CREATE INDEX idx_campaign_files_campaign_id ON campaign_files(campaign_id);
 CREATE INDEX idx_sessions_campaign_id ON sessions(campaign_id);
+
+-- NOTE: Run this block manually in Supabase SQL Editor if not using Supabase CLI migrations
+-- Auto-update updated_at on campaign_files
+CREATE OR REPLACE FUNCTION set_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER campaign_files_set_updated_at
+BEFORE UPDATE ON campaign_files
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();

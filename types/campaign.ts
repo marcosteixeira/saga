@@ -19,4 +19,6 @@ export type CampaignInsert = Pick<
   'name' | 'host_username' | 'host_session_token' | 'world_description'
 > & {
   system_description?: string
+  cover_image_url?: string
+  map_image_url?: string
 }
