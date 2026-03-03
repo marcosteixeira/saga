@@ -48,6 +48,16 @@ describe('GET /auth/callback', () => {
     expect(res.headers.get('location')).toContain('error=auth_failed')
   })
 
+  it('redirects to / when redirect param is an external URL (open redirect protection)', async () => {
+    mockExchangeCode.mockResolvedValue({ error: null })
+    const { GET } = await import('../route')
+    const req = new Request(
+      'http://localhost/auth/callback?code=test-code&redirect=//evil.com/phish'
+    )
+    const res = await GET(req as any)
+    expect(res.headers.get('location')).toBe('http://localhost/')
+  })
+
   it('redirects to /login?error=auth_failed when no code in URL', async () => {
     const { GET } = await import('../route')
     const req = new Request('http://localhost/auth/callback')

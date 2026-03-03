@@ -6,7 +6,10 @@ import type { NextRequest } from 'next/server'
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
-  const redirect = searchParams.get('redirect') ?? '/'
+  const rawRedirect = searchParams.get('redirect') ?? '/'
+  const redirect = rawRedirect.startsWith('/') && !rawRedirect.startsWith('//')
+    ? rawRedirect
+    : '/'
 
   if (!code) {
     return NextResponse.redirect(`${origin}/login?error=auth_failed`)
