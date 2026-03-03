@@ -1,10 +1,10 @@
-import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { EmberParticles } from "@/components/ember-particles";
 import { AmbientSmoke } from "@/components/ambient-smoke";
 import { GearDecoration } from "@/components/gear-decoration";
 import { JoinCampaignForm } from "@/components/join-campaign-form";
+import { SteamVent } from "@/components/steam-vent";
 
 export default function Home() {
   return (
@@ -12,102 +12,366 @@ export default function Home() {
       {/* === Atmospheric layers === */}
       <GearDecoration />
       <AmbientSmoke />
-      <EmberParticles count={25} />
+      <EmberParticles count={30} />
       <div className="furnace-overlay" />
       <div className="vignette" />
 
-      {/* === Content === */}
-      <div className="relative z-10 mx-auto flex min-h-screen max-w-6xl flex-col items-center justify-center gap-16 px-6 py-16">
-        {/* Hero Section */}
-        <section className="grid w-full items-center gap-10 lg:grid-cols-2 lg:gap-14">
-          {/* Hero Art */}
-          <div
-            className="hero-art animate-entrance order-first lg:order-last"
-            data-delay="2"
-          >
-            <Image
-              src="/images/hero-tavern.png"
-              alt="A candlelit fantasy tavern with adventurers gathered around a quest board"
-              width={800}
-              height={600}
-              className="block h-auto w-full"
-              priority
-            />
+      {/* ═══════════════════════════════════════════
+          SECTION 1 — HERO: Full-viewport cinematic
+          ═══════════════════════════════════════════ */}
+      <section className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-6">
+        {/* Background texture — subtle noise overlay */}
+        <div
+          className="pointer-events-none absolute inset-0 opacity-[0.03]"
+          style={{
+            backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E")`,
+            backgroundSize: "200px 200px",
+          }}
+          aria-hidden="true"
+        />
+
+        {/* Horizontal brass pipe accents */}
+        <div
+          className="pointer-events-none absolute left-0 right-0 top-[15%] h-[1px] opacity-20"
+          style={{
+            background:
+              "linear-gradient(90deg, transparent, var(--brass), transparent)",
+          }}
+          aria-hidden="true"
+        />
+        <div
+          className="pointer-events-none absolute left-0 right-0 bottom-[20%] h-[1px] opacity-15"
+          style={{
+            background:
+              "linear-gradient(90deg, transparent, var(--copper), transparent)",
+          }}
+          aria-hidden="true"
+        />
+
+        {/* Main content */}
+        <div className="relative z-10 flex max-w-5xl flex-col items-center text-center">
+          {/* Nameplate */}
+          <div className="animate-entrance brass-nameplate mb-8" data-delay="1">
+            AI-Powered Tabletop RPG Engine
           </div>
 
-          {/* Iron Plate Card */}
-          <div
-            className="iron-plate animate-entrance p-8 lg:p-10"
+          {/* Title */}
+          <h1
+            className="display-title animate-entrance mb-6 text-[clamp(5rem,15vw,12rem)]"
             data-delay="1"
           >
-            <span className="rivet-bottom-left" />
-            <span className="rivet-bottom-right" />
+            SAGA
+          </h1>
 
-            <h1
-              className="mb-2 text-4xl tracking-[0.15em] text-primary lg:text-5xl"
-              style={{ fontFamily: "var(--font-display), sans-serif" }}
-            >
-              SAGA
-            </h1>
-
-            <div className="iron-seam" />
-
+          {/* Subtitle line with decorative pipes */}
+          <div
+            className="animate-entrance mb-10 flex items-center gap-4"
+            data-delay="2"
+          >
+            <span className="h-[1px] w-12 bg-gradient-to-r from-transparent to-copper" />
             <p
-              className="mb-3 text-sm uppercase tracking-[0.12em] text-ash"
+              className="text-sm uppercase tracking-[0.2em] text-ash"
               style={{ fontFamily: "var(--font-mono), monospace" }}
             >
-              Your table. Your tale. AI Game Master.
+              Your table &middot; Your tale &middot; AI Game Master
             </p>
-            <p className="mb-8 leading-relaxed text-steam/80">
-              Gather your party and embark on adventures through dark fantasy
-              realms. An AI Game Master narrates your story, rolls the dice, and
-              brings the world to life — no preparation needed.
-            </p>
+            <span className="h-[1px] w-12 bg-gradient-to-l from-transparent to-copper" />
+          </div>
 
+          {/* Description */}
+          <p
+            className="animate-entrance mb-12 max-w-xl text-lg leading-relaxed text-steam/70"
+            data-delay="2"
+          >
+            Gather your party and embark on adventures through realms shaped by
+            an AI Game Master. No preparation needed — just imagination and a
+            roll of the dice.
+          </p>
+
+          {/* CTA Buttons */}
+          <div
+            className="animate-entrance flex flex-col items-center gap-4 sm:flex-row"
+            data-delay="3"
+          >
             <Button
               asChild
               size="lg"
-              className="w-full text-base font-semibold uppercase tracking-widest transition-all duration-300 hover:shadow-[0_0_24px_rgba(196,148,61,0.35)] sm:w-auto"
+              className="group relative overflow-hidden px-10 text-base font-bold uppercase tracking-[0.15em] transition-all duration-500 hover:shadow-[0_0_30px_rgba(196,148,61,0.4),0_0_60px_rgba(196,148,61,0.15)]"
             >
-              <Link href="/campaign/new">Create Campaign</Link>
+              <Link href="/campaign/new">
+                <span className="relative z-10">Create Campaign</span>
+                <span
+                  className="absolute inset-0 bg-gradient-to-r from-brass via-amber to-brass opacity-0 transition-opacity duration-500 group-hover:opacity-100"
+                  aria-hidden="true"
+                />
+              </Link>
+            </Button>
+            <span
+              className="hidden text-xs uppercase tracking-widest text-ash sm:block"
+              style={{ fontFamily: "var(--font-mono), monospace" }}
+            >
+              or
+            </span>
+            <Button
+              asChild
+              variant="outline"
+              size="lg"
+              className="border-gunmetal bg-transparent px-10 text-sm uppercase tracking-[0.15em] text-steam/80 transition-all duration-300 hover:border-copper hover:bg-smog/50 hover:text-steam"
+            >
+              <Link href="#join">Join Existing</Link>
             </Button>
           </div>
-        </section>
+        </div>
 
-        {/* I-beam divider */}
+        {/* Steam vent at bottom of hero */}
+        <SteamVent puffs={10} />
+
+        {/* Scroll indicator */}
         <div
-          className="i-beam animate-entrance w-full max-w-xs"
-          data-delay="3"
-        />
+          className="animate-entrance absolute bottom-8 flex flex-col items-center gap-2"
+          data-delay="5"
+        >
+          <span
+            className="text-[0.6rem] uppercase tracking-[0.3em] text-ash/60"
+            style={{ fontFamily: "var(--font-mono), monospace" }}
+          >
+            Scroll
+          </span>
+          <span className="h-8 w-[1px] animate-pulse bg-gradient-to-b from-ash/40 to-transparent" />
+        </div>
+      </section>
 
-        {/* Join Section */}
-        <section className="w-full max-w-lg animate-entrance" data-delay="3">
-          <div className="iron-plate p-6">
-            <span className="rivet-bottom-left" />
-            <span className="rivet-bottom-right" />
+      {/* ═══════════════════════════════════════════
+          SECTION 2 — FEATURES: Overlapping iron plates
+          ═══════════════════════════════════════════ */}
+      <section className="relative px-6 py-32">
+        {/* Section label */}
+        <div className="mx-auto mb-20 max-w-4xl text-center">
+          <div className="brass-nameplate mx-auto mb-6">How It Works</div>
+          <h2
+            className="text-3xl tracking-[0.1em] text-primary lg:text-4xl"
+            style={{ fontFamily: "var(--font-display), sans-serif" }}
+          >
+            THE ENGINE ROOM
+          </h2>
+          <div className="mx-auto mt-4 h-[1px] w-32 bg-gradient-to-r from-transparent via-copper to-transparent" />
+        </div>
 
-            <h2
-              className="mb-4 text-center text-xl tracking-widest text-primary"
-              style={{ fontFamily: "var(--font-heading), serif" }}
-            >
-              Join a Campaign
-            </h2>
-
+        {/* Feature plates — asymmetric grid */}
+        <div className="mx-auto grid max-w-5xl gap-6 md:grid-cols-3 md:gap-4">
+          {/* Feature 1 — slightly rotated */}
+          <div className="feature-plate p-8 transition-transform duration-500 hover:-translate-y-1 md:-rotate-1">
+            <div className="mb-4 flex items-center gap-3">
+              <div className="pressure-gauge !h-14 !w-14 !border-2">
+                <span
+                  className="text-lg font-bold text-brass"
+                  style={{ fontFamily: "var(--font-display), sans-serif" }}
+                >
+                  01
+                </span>
+              </div>
+              <h3
+                className="text-sm tracking-[0.1em] text-brass"
+                style={{ fontFamily: "var(--font-heading), serif" }}
+              >
+                Create
+              </h3>
+            </div>
             <div className="iron-seam mb-4" />
+            <p className="text-sm leading-relaxed text-steam/60">
+              Name your campaign and choose a setting. The AI generates a living
+              world with lore, factions, and a map — ready in seconds.
+            </p>
+          </div>
+
+          {/* Feature 2 — level, elevated */}
+          <div className="feature-plate p-8 transition-transform duration-500 hover:-translate-y-1 md:-translate-y-4">
+            <div className="mb-4 flex items-center gap-3">
+              <div className="pressure-gauge !h-14 !w-14 !border-2">
+                <span
+                  className="text-lg font-bold text-brass"
+                  style={{ fontFamily: "var(--font-display), sans-serif" }}
+                >
+                  02
+                </span>
+              </div>
+              <h3
+                className="text-sm tracking-[0.1em] text-brass"
+                style={{ fontFamily: "var(--font-heading), serif" }}
+              >
+                Gather
+              </h3>
+            </div>
+            <div className="iron-seam mb-4" />
+            <p className="text-sm leading-relaxed text-steam/60">
+              Share an invite link. Players join the lobby, create characters,
+              and get AI-generated portraits. 1 to 6 adventurers.
+            </p>
+          </div>
+
+          {/* Feature 3 — opposite rotation */}
+          <div className="feature-plate p-8 transition-transform duration-500 hover:-translate-y-1 md:rotate-1">
+            <div className="mb-4 flex items-center gap-3">
+              <div className="pressure-gauge !h-14 !w-14 !border-2">
+                <span
+                  className="text-lg font-bold text-brass"
+                  style={{ fontFamily: "var(--font-display), sans-serif" }}
+                >
+                  03
+                </span>
+              </div>
+              <h3
+                className="text-sm tracking-[0.1em] text-brass"
+                style={{ fontFamily: "var(--font-heading), serif" }}
+              >
+                Play
+              </h3>
+            </div>
+            <div className="iron-seam mb-4" />
+            <p className="text-sm leading-relaxed text-steam/60">
+              The AI Game Master narrates in real-time. Explore, fight, and
+              shape the story. Every choice matters. Every die roll counts.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════════
+          SECTION 3 — STATS: Pressure gauge row
+          ═══════════════════════════════════════════ */}
+      <section className="relative overflow-hidden py-20">
+        {/* I-beam top */}
+        <div className="i-beam" />
+
+        <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-center gap-10 py-16 sm:gap-16">
+          <div className="flex flex-col items-center gap-2">
+            <div className="pressure-gauge">
+              <span
+                className="text-2xl font-bold text-amber"
+                style={{ fontFamily: "var(--font-display), sans-serif" }}
+              >
+                d20
+              </span>
+            </div>
+            <span
+              className="mt-2 text-[0.6rem] uppercase tracking-[0.2em] text-ash"
+              style={{ fontFamily: "var(--font-mono), monospace" }}
+            >
+              Dice System
+            </span>
+          </div>
+
+          <div className="flex flex-col items-center gap-2">
+            <div className="pressure-gauge">
+              <span
+                className="text-2xl font-bold text-amber"
+                style={{ fontFamily: "var(--font-display), sans-serif" }}
+              >
+                6
+              </span>
+            </div>
+            <span
+              className="mt-2 text-[0.6rem] uppercase tracking-[0.2em] text-ash"
+              style={{ fontFamily: "var(--font-mono), monospace" }}
+            >
+              Max Players
+            </span>
+          </div>
+
+          <div className="flex flex-col items-center gap-2">
+            <div className="pressure-gauge">
+              <span
+                className="text-2xl font-bold text-amber"
+                style={{ fontFamily: "var(--font-display), sans-serif" }}
+              >
+                AI
+              </span>
+            </div>
+            <span
+              className="mt-2 text-[0.6rem] uppercase tracking-[0.2em] text-ash"
+              style={{ fontFamily: "var(--font-mono), monospace" }}
+            >
+              Game Master
+            </span>
+          </div>
+
+          <div className="flex flex-col items-center gap-2">
+            <div className="pressure-gauge">
+              <span
+                className="text-2xl font-bold text-amber"
+                style={{ fontFamily: "var(--font-display), sans-serif" }}
+              >
+                &infin;
+              </span>
+            </div>
+            <span
+              className="mt-2 text-[0.6rem] uppercase tracking-[0.2em] text-ash"
+              style={{ fontFamily: "var(--font-mono), monospace" }}
+            >
+              Worlds
+            </span>
+          </div>
+        </div>
+
+        {/* I-beam bottom */}
+        <div className="i-beam" />
+      </section>
+
+      {/* ═══════════════════════════════════════════
+          SECTION 4 — JOIN: Copper gauge panel
+          ═══════════════════════════════════════════ */}
+      <section id="join" className="relative px-6 py-32">
+        <div className="mx-auto max-w-lg">
+          <div className="gauge-panel p-8">
+            <div className="mb-6 text-center">
+              <div className="brass-nameplate mx-auto mb-4">
+                Join Campaign
+              </div>
+              <h2
+                className="text-2xl tracking-[0.1em] text-primary"
+                style={{ fontFamily: "var(--font-display), sans-serif" }}
+              >
+                ENTER THE FRAY
+              </h2>
+            </div>
+
+            <div className="iron-seam mb-6" />
+
+            <p
+              className="mb-6 text-center text-xs uppercase tracking-widest text-ash"
+              style={{ fontFamily: "var(--font-mono), monospace" }}
+            >
+              Paste an invite link or campaign ID to join
+            </p>
 
             <JoinCampaignForm />
           </div>
-        </section>
+        </div>
+      </section>
 
-        {/* Footer */}
-        <footer
-          className="animate-entrance text-xs uppercase tracking-[0.12em] text-ash"
-          style={{ fontFamily: "var(--font-mono), monospace" }}
-          data-delay="4"
-        >
-          Powered by Claude
-        </footer>
-      </div>
+      {/* ═══════════════════════════════════════════
+          FOOTER
+          ═══════════════════════════════════════════ */}
+      <footer className="relative border-t border-gunmetal/50 px-6 py-10">
+        <div className="mx-auto flex max-w-5xl flex-col items-center gap-4">
+          <div className="flex items-center gap-3">
+            <div className="brass-pipe w-8" />
+            <span
+              className="text-[0.6rem] uppercase tracking-[0.3em] text-ash/60"
+              style={{ fontFamily: "var(--font-mono), monospace" }}
+            >
+              Powered by Claude
+            </span>
+            <div className="brass-pipe w-8" />
+          </div>
+          <p
+            className="text-[0.55rem] uppercase tracking-[0.2em] text-ash/30"
+            style={{ fontFamily: "var(--font-mono), monospace" }}
+          >
+            &copy; 2026 Saga &mdash; All systems operational
+          </p>
+        </div>
+      </footer>
     </main>
   );
 }
