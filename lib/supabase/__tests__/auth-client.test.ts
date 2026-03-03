@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const mockCreateServerClient = vi.fn(() => ({ auth: { getUser: vi.fn() } }))
 
@@ -14,12 +14,14 @@ vi.mock('next/headers', () => ({
 }))
 
 describe('createAuthServerClient', () => {
-  it('calls createServerClient with url, key, and cookie handlers', async () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('calls createServerClient with correct url, key, and cookie handlers', async () => {
     const { createAuthServerClient } = await import('../server')
     await createAuthServerClient()
     expect(mockCreateServerClient).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.any(String),
+      'https://test.supabase.co',
+      'test-anon-key',
       expect.objectContaining({ cookies: expect.any(Object) })
     )
   })
