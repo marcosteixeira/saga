@@ -1,32 +1,58 @@
-import { describe, expect, it } from 'vitest'
-import { getMissingRequiredSections, hasAllRequiredSections } from '../world-content'
+import { describe, it, expect } from 'vitest'
+import { REQUIRED_WORLD_SECTIONS, getMissingRequiredSections, hasAllRequiredSections } from '../world-content'
 
-describe('world content section validation', () => {
-  it('reports missing required sections for incomplete WORLD.md', () => {
-    const content = `## World Name\n\n## Overview\n\n## History\n\n## Geography`
+const VALID_WORLD_MD = `
+## World Name
+Ironhold
 
-    expect(getMissingRequiredSections(content)).toEqual([
-      '## Factions',
-      '## Tone',
-      '## Current Situation',
-      '## Starting Hooks',
-    ])
-    expect(hasAllRequiredSections(content)).toBe(false)
+## Overview
+A dying empire...
+
+## History
+Once great...
+
+## Geography
+Mountains and fog...
+
+## Factions
+The Guild controls...
+
+## Tone
+Dark, industrial, hopeless.
+`
+
+describe('REQUIRED_WORLD_SECTIONS', () => {
+  it('contains exactly 6 sections', () => {
+    expect(REQUIRED_WORLD_SECTIONS).toHaveLength(6)
   })
 
-  it('passes when all required sections are present', () => {
-    const content = [
-      '## World Name',
-      '## Overview',
-      '## History',
-      '## Geography',
-      '## Factions',
-      '## Tone',
-      '## Current Situation',
-      '## Starting Hooks',
-    ].join('\n\n')
+  it('does not include Current Situation', () => {
+    expect(REQUIRED_WORLD_SECTIONS).not.toContain('## Current Situation')
+  })
 
-    expect(getMissingRequiredSections(content)).toEqual([])
-    expect(hasAllRequiredSections(content)).toBe(true)
+  it('does not include Starting Hooks', () => {
+    expect(REQUIRED_WORLD_SECTIONS).not.toContain('## Starting Hooks')
+  })
+})
+
+describe('hasAllRequiredSections', () => {
+  it('returns true when all 6 sections are present', () => {
+    expect(hasAllRequiredSections(VALID_WORLD_MD)).toBe(true)
+  })
+
+  it('returns false when a required section is missing', () => {
+    const incomplete = VALID_WORLD_MD.replace('## Factions', '')
+    expect(hasAllRequiredSections(incomplete)).toBe(false)
+  })
+})
+
+describe('getMissingRequiredSections', () => {
+  it('returns empty array when all sections present', () => {
+    expect(getMissingRequiredSections(VALID_WORLD_MD)).toEqual([])
+  })
+
+  it('returns missing section names', () => {
+    const incomplete = VALID_WORLD_MD.replace('## Tone', '')
+    expect(getMissingRequiredSections(incomplete)).toEqual(['## Tone'])
   })
 })
