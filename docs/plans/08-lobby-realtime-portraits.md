@@ -89,7 +89,7 @@ git add -A && git commit -m "feat: realtime player list in lobby via Supabase"
 ### Task 2: Generate Character Portraits on Join
 
 **Files:**
-- Modify: `app/api/campaign/[id]/join/route.ts`
+- Modify: `app/api/campaign/[id]/player/route.ts`
 
 **Spec:**
 

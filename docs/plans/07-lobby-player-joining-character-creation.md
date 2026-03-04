@@ -185,7 +185,7 @@ All animations respect `prefers-reduced-motion`.
 
 - Supabase data fetching (campaign, players)
 - Real-time player join/leave events
-- Character save API call (`POST /api/campaign/[id]/join`)
+- Character save API call (`POST /api/campaign/[id]/player`)
 - Host "Start Game" API call
 - Character portrait generation (Gemini)
 - Auth guard (redirect to login if unauthenticated)

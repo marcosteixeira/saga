@@ -69,26 +69,26 @@ git commit -m "feat: add is_ready column to players and update Player type"
 
 ---
 
-## Task 2: POST /api/campaign/[id]/join — Upsert player row
+## Task 2: POST /api/campaign/[id]/player — Upsert player row
 
 **Files:**
-- Create: `app/api/campaign/[id]/join/__tests__/route.test.ts`
-- Create: `app/api/campaign/[id]/join/route.ts`
+- Modify: `app/api/campaign/[id]/player/__tests__/route.test.ts`
+- Modify: `app/api/campaign/[id]/player/route.ts`
 
 **What it does:** Creates a player row for the authenticated user in the campaign. Idempotent — if the user is already a player, returns the existing row. Validates the campaign exists. Does NOT allow joining a campaign that has already started (status !== 'lobby').
 
 **Step 1: Write the failing tests**
 
-Create `app/api/campaign/[id]/join/__tests__/route.test.ts`:
+Modify existing `app/api/campaign/[id]/player/__tests__/route.test.ts`:
 
 ```ts
 import { POST } from '../route'
 import { NextResponse } from 'next/server'
 
 // Mock Supabase clients
-jest.mock('@/lib/supabase/server', () => ({
-  createServerSupabaseClient: jest.fn(),
-  createAuthServerClient: jest.fn(),
+vi.mock('@/lib/supabase/server', () => ({
+  createServerSupabaseClient: vi.fn(),
+  createAuthServerClient: vi.fn(),
 }))
 
 import { createServerSupabaseClient, createAuthServerClient } from '@/lib/supabase/server'
@@ -99,14 +99,14 @@ function makeParams(id: string) {
   return { params: Promise.resolve({ id }) }
 }
 
-describe('POST /api/campaign/[id]/join', () => {
-  beforeEach(() => jest.clearAllMocks())
+describe('POST /api/campaign/[id]/player', () => {
+  beforeEach(() => vi.clearAllMocks())
 
   it('returns 401 when not authenticated', async () => {
-    ;(createAuthServerClient as jest.Mock).mockResolvedValue({
+    ;(createAuthServerClient as ReturnType<typeof vi.fn>).mockResolvedValue({
       auth: { getUser: async () => ({ data: { user: null } }) },
     })
-    const req = new Request('http://localhost/api/campaign/abc/join', {
+    const req = new Request('http://localhost/api/campaign//player', {
       method: 'POST',
       body: JSON.stringify({ username: 'testuser' }),
     })
@@ -115,10 +115,10 @@ describe('POST /api/campaign/[id]/join', () => {
   })
 
   it('returns 400 when username is missing', async () => {
-    ;(createAuthServerClient as jest.Mock).mockResolvedValue({
+    ;(createAuthServerClient as ReturnType<typeof vi.fn>).mockResolvedValue({
       auth: { getUser: async () => ({ data: { user: mockUser } }) },
     })
-    const req = new Request('http://localhost/api/campaign/abc/join', {
+    const req = new Request('http://localhost/api/campaign//player', {
       method: 'POST',
       body: JSON.stringify({}),
     })
@@ -127,17 +127,17 @@ describe('POST /api/campaign/[id]/join', () => {
   })
 
   it('returns 404 when campaign does not exist', async () => {
-    ;(createAuthServerClient as jest.Mock).mockResolvedValue({
+    ;(createAuthServerClient as ReturnType<typeof vi.fn>).mockResolvedValue({
       auth: { getUser: async () => ({ data: { user: mockUser } }) },
     })
     const mockDb = {
-      from: jest.fn().mockReturnThis(),
-      select: jest.fn().mockReturnThis(),
-      eq: jest.fn().mockReturnThis(),
-      single: jest.fn().mockResolvedValue({ data: null, error: { message: 'not found' } }),
+      from: vi.fn().mockReturnThis(),
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      single: vi.fn().mockResolvedValue({ data: null, error: { message: 'not found' } }),
     }
-    ;(createServerSupabaseClient as jest.Mock).mockReturnValue(mockDb)
-    const req = new Request('http://localhost/api/campaign/abc/join', {
+    ;(createServerSupabaseClient as ReturnType<typeof vi.fn>).mockReturnValue(mockDb)
+    const req = new Request('http://localhost/api/campaign//player', {
       method: 'POST',
       body: JSON.stringify({ username: 'testuser' }),
     })
@@ -146,17 +146,17 @@ describe('POST /api/campaign/[id]/join', () => {
   })
 
   it('returns 409 when campaign is not in lobby status', async () => {
-    ;(createAuthServerClient as jest.Mock).mockResolvedValue({
+    ;(createAuthServerClient as ReturnType<typeof vi.fn>).mockResolvedValue({
       auth: { getUser: async () => ({ data: { user: mockUser } }) },
     })
     const mockDb = {
-      from: jest.fn().mockReturnThis(),
-      select: jest.fn().mockReturnThis(),
-      eq: jest.fn().mockReturnThis(),
-      single: jest.fn().mockResolvedValue({ data: { id: 'camp-1', status: 'active' }, error: null }),
+      from: vi.fn().mockReturnThis(),
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      single: vi.fn().mockResolvedValue({ data: { id: 'camp-1', status: 'active' }, error: null }),
     }
-    ;(createServerSupabaseClient as jest.Mock).mockReturnValue(mockDb)
-    const req = new Request('http://localhost/api/campaign/abc/join', {
+    ;(createServerSupabaseClient as ReturnType<typeof vi.fn>).mockReturnValue(mockDb)
+    const req = new Request('http://localhost/api/campaign//player', {
       method: 'POST',
       body: JSON.stringify({ username: 'testuser' }),
     })
@@ -165,7 +165,7 @@ describe('POST /api/campaign/[id]/join', () => {
   })
 
   it('returns 200 with existing player if already joined', async () => {
-    ;(createAuthServerClient as jest.Mock).mockResolvedValue({
+    ;(createAuthServerClient as ReturnType<typeof vi.fn>).mockResolvedValue({
       auth: { getUser: async () => ({ data: { user: mockUser } }) },
     })
     const existingPlayer = { id: 'player-1', user_id: 'user-123', campaign_id: 'camp-1', username: 'testuser' }
@@ -177,13 +177,13 @@ describe('POST /api/campaign/[id]/join', () => {
     ]
     let callCount = 0
     const mockDb = {
-      from: jest.fn().mockReturnThis(),
-      select: jest.fn().mockReturnThis(),
-      eq: jest.fn().mockReturnThis(),
-      single: jest.fn().mockImplementation(() => Promise.resolve(singleResponses[callCount++])),
+      from: vi.fn().mockReturnThis(),
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      single: vi.fn().mockImplementation(() => Promise.resolve(singleResponses[callCount++])),
     }
-    ;(createServerSupabaseClient as jest.Mock).mockReturnValue(mockDb)
-    const req = new Request('http://localhost/api/campaign/camp-1/join', {
+    ;(createServerSupabaseClient as ReturnType<typeof vi.fn>).mockReturnValue(mockDb)
+    const req = new Request('http://localhost/api/campaign//player', {
       method: 'POST',
       body: JSON.stringify({ username: 'testuser' }),
     })
@@ -194,7 +194,7 @@ describe('POST /api/campaign/[id]/join', () => {
   })
 
   it('creates a new player and returns 201', async () => {
-    ;(createAuthServerClient as jest.Mock).mockResolvedValue({
+    ;(createAuthServerClient as ReturnType<typeof vi.fn>).mockResolvedValue({
       auth: { getUser: async () => ({ data: { user: mockUser } }) },
     })
     const newPlayer = { id: 'player-new', user_id: 'user-123', campaign_id: 'camp-1', username: 'testuser' }
@@ -206,21 +206,21 @@ describe('POST /api/campaign/[id]/join', () => {
       { data: newPlayer, error: null },              // insert
     ]
     const mockInsert = {
-      select: jest.fn().mockReturnThis(),
-      single: jest.fn().mockResolvedValue(singleResponses[2]),
+      select: vi.fn().mockReturnThis(),
+      single: vi.fn().mockResolvedValue(singleResponses[2]),
     }
     const mockDb = {
-      from: jest.fn().mockReturnThis(),
-      select: jest.fn().mockReturnThis(),
-      eq: jest.fn().mockReturnThis(),
-      single: jest.fn().mockImplementation(() => {
+      from: vi.fn().mockReturnThis(),
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      single: vi.fn().mockImplementation(() => {
         const r = singleResponses[callCount++]
         return Promise.resolve(r)
       }),
-      insert: jest.fn().mockReturnValue(mockInsert),
+      insert: vi.fn().mockReturnValue(mockInsert),
     }
-    ;(createServerSupabaseClient as jest.Mock).mockReturnValue(mockDb)
-    const req = new Request('http://localhost/api/campaign/camp-1/join', {
+    ;(createServerSupabaseClient as ReturnType<typeof vi.fn>).mockReturnValue(mockDb)
+    const req = new Request('http://localhost/api/campaign//player', {
       method: 'POST',
       body: JSON.stringify({ username: 'testuser' }),
     })
@@ -235,14 +235,14 @@ describe('POST /api/campaign/[id]/join', () => {
 **Step 2: Run tests to see them fail**
 
 ```bash
-yarn test app/api/campaign/\\[id\\]/join/__tests__/route.test.ts
+yarn vitest app/api/campaign/\\[id\\]/player/__tests__/route.test.ts --run
 ```
 
-Expected: FAIL — module not found
+Expected: FAIL — assertions should fail until the route logic is updated.
 
 **Step 3: Implement the route**
 
-Create `app/api/campaign/[id]/join/route.ts`:
+Modify `app/api/campaign/[id]/player/route.ts`:
 
 ```ts
 import { NextResponse } from 'next/server'
@@ -320,7 +320,7 @@ export async function POST(
 **Step 4: Run tests to verify they pass**
 
 ```bash
-yarn test app/api/campaign/\\[id\\]/join/__tests__/route.test.ts
+yarn vitest app/api/campaign/\\[id\\]/player/__tests__/route.test.ts --run
 ```
 
 Expected: PASS (5 tests)
@@ -328,8 +328,8 @@ Expected: PASS (5 tests)
 **Step 5: Commit**
 
 ```bash
-git add app/api/campaign/\[id\]/join/
-git commit -m "feat: add POST /api/campaign/[id]/join endpoint"
+git add app/api/campaign/\[id\]/player/
+git commit -m "feat: add POST /api/campaign/[id]/player endpoint"
 ```
 
 ---
@@ -337,21 +337,21 @@ git commit -m "feat: add POST /api/campaign/[id]/join endpoint"
 ## Task 3: PATCH /api/campaign/[id]/player — Save character fields
 
 **Files:**
-- Create: `app/api/campaign/[id]/player/__tests__/route.test.ts`
-- Create: `app/api/campaign/[id]/player/route.ts`
+- Modify: `app/api/campaign/[id]/player/__tests__/route.test.ts`
+- Modify: `app/api/campaign/[id]/player/route.ts`
 
 **What it does:** Updates `character_name`, `character_class`, `character_backstory` for the authenticated user's player row in this campaign. Requires the user to already be a player. Validates inputs.
 
 **Step 1: Write the failing tests**
 
-Create `app/api/campaign/[id]/player/__tests__/route.test.ts`:
+Modify existing `app/api/campaign/[id]/player/__tests__/route.test.ts`:
 
 ```ts
 import { PATCH } from '../route'
 
-jest.mock('@/lib/supabase/server', () => ({
-  createServerSupabaseClient: jest.fn(),
-  createAuthServerClient: jest.fn(),
+vi.mock('@/lib/supabase/server', () => ({
+  createServerSupabaseClient: vi.fn(),
+  createAuthServerClient: vi.fn(),
 }))
 
 import { createServerSupabaseClient, createAuthServerClient } from '@/lib/supabase/server'
@@ -363,10 +363,10 @@ function makeParams(id: string) {
 }
 
 describe('PATCH /api/campaign/[id]/player', () => {
-  beforeEach(() => jest.clearAllMocks())
+  beforeEach(() => vi.clearAllMocks())
 
   it('returns 401 when not authenticated', async () => {
-    ;(createAuthServerClient as jest.Mock).mockResolvedValue({
+    ;(createAuthServerClient as ReturnType<typeof vi.fn>).mockResolvedValue({
       auth: { getUser: async () => ({ data: { user: null } }) },
     })
     const req = new Request('http://localhost/api/campaign/abc/player', {
@@ -378,7 +378,7 @@ describe('PATCH /api/campaign/[id]/player', () => {
   })
 
   it('returns 400 when character_name is missing', async () => {
-    ;(createAuthServerClient as jest.Mock).mockResolvedValue({
+    ;(createAuthServerClient as ReturnType<typeof vi.fn>).mockResolvedValue({
       auth: { getUser: async () => ({ data: { user: mockUser } }) },
     })
     const req = new Request('http://localhost/api/campaign/abc/player', {
@@ -390,7 +390,7 @@ describe('PATCH /api/campaign/[id]/player', () => {
   })
 
   it('returns 400 when character_class is missing', async () => {
-    ;(createAuthServerClient as jest.Mock).mockResolvedValue({
+    ;(createAuthServerClient as ReturnType<typeof vi.fn>).mockResolvedValue({
       auth: { getUser: async () => ({ data: { user: mockUser } }) },
     })
     const req = new Request('http://localhost/api/campaign/abc/player', {
@@ -402,17 +402,17 @@ describe('PATCH /api/campaign/[id]/player', () => {
   })
 
   it('returns 404 when player row does not exist', async () => {
-    ;(createAuthServerClient as jest.Mock).mockResolvedValue({
+    ;(createAuthServerClient as ReturnType<typeof vi.fn>).mockResolvedValue({
       auth: { getUser: async () => ({ data: { user: mockUser } }) },
     })
     const mockDb = {
-      from: jest.fn().mockReturnThis(),
-      update: jest.fn().mockReturnThis(),
-      eq: jest.fn().mockReturnThis(),
-      select: jest.fn().mockReturnThis(),
-      single: jest.fn().mockResolvedValue({ data: null, error: { code: 'PGRST116' } }),
+      from: vi.fn().mockReturnThis(),
+      update: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      select: vi.fn().mockReturnThis(),
+      single: vi.fn().mockResolvedValue({ data: null, error: { code: 'PGRST116' } }),
     }
-    ;(createServerSupabaseClient as jest.Mock).mockReturnValue(mockDb)
+    ;(createServerSupabaseClient as ReturnType<typeof vi.fn>).mockReturnValue(mockDb)
     const req = new Request('http://localhost/api/campaign/camp-1/player', {
       method: 'PATCH',
       body: JSON.stringify({ character_name: 'Aldric', character_class: 'Warrior' }),
@@ -422,7 +422,7 @@ describe('PATCH /api/campaign/[id]/player', () => {
   })
 
   it('updates character and returns 200 with updated player', async () => {
-    ;(createAuthServerClient as jest.Mock).mockResolvedValue({
+    ;(createAuthServerClient as ReturnType<typeof vi.fn>).mockResolvedValue({
       auth: { getUser: async () => ({ data: { user: mockUser } }) },
     })
     const updatedPlayer = {
@@ -434,13 +434,13 @@ describe('PATCH /api/campaign/[id]/player', () => {
       character_backstory: 'A wanderer',
     }
     const mockDb = {
-      from: jest.fn().mockReturnThis(),
-      update: jest.fn().mockReturnThis(),
-      eq: jest.fn().mockReturnThis(),
-      select: jest.fn().mockReturnThis(),
-      single: jest.fn().mockResolvedValue({ data: updatedPlayer, error: null }),
+      from: vi.fn().mockReturnThis(),
+      update: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      select: vi.fn().mockReturnThis(),
+      single: vi.fn().mockResolvedValue({ data: updatedPlayer, error: null }),
     }
-    ;(createServerSupabaseClient as jest.Mock).mockReturnValue(mockDb)
+    ;(createServerSupabaseClient as ReturnType<typeof vi.fn>).mockReturnValue(mockDb)
     const req = new Request('http://localhost/api/campaign/camp-1/player', {
       method: 'PATCH',
       body: JSON.stringify({ character_name: 'Aldric', character_class: 'Warrior', character_backstory: 'A wanderer' }),
@@ -456,14 +456,14 @@ describe('PATCH /api/campaign/[id]/player', () => {
 **Step 2: Run tests to see them fail**
 
 ```bash
-yarn test app/api/campaign/\\[id\\]/player/__tests__/route.test.ts
+yarn vitest app/api/campaign/\\[id\\]/player/__tests__/route.test.ts --run
 ```
 
-Expected: FAIL — module not found
+Expected: FAIL — assertions should fail until the route logic is updated.
 
 **Step 3: Implement the route**
 
-Create `app/api/campaign/[id]/player/route.ts`:
+Modify `app/api/campaign/[id]/player/route.ts`:
 
 ```ts
 import { NextResponse } from 'next/server'
@@ -515,7 +515,7 @@ export async function PATCH(
 **Step 4: Run tests to verify they pass**
 
 ```bash
-yarn test app/api/campaign/\\[id\\]/player/__tests__/route.test.ts
+yarn vitest app/api/campaign/\\[id\\]/player/__tests__/route.test.ts --run
 ```
 
 Expected: PASS (5 tests)
@@ -532,21 +532,21 @@ git commit -m "feat: add PATCH /api/campaign/[id]/player endpoint"
 ## Task 4: PATCH /api/campaign/[id]/ready — Toggle ready status
 
 **Files:**
-- Create: `app/api/campaign/[id]/ready/__tests__/route.test.ts`
-- Create: `app/api/campaign/[id]/ready/route.ts`
+- Modify: `app/api/campaign/[id]/ready/__tests__/route.test.ts`
+- Modify: `app/api/campaign/[id]/ready/route.ts`
 
 **What it does:** Sets `is_ready` for the authenticated user's player row. Body: `{ is_ready: boolean }`. Requires character to be saved (character_name and character_class non-null) before allowing is_ready=true.
 
 **Step 1: Write the failing tests**
 
-Create `app/api/campaign/[id]/ready/__tests__/route.test.ts`:
+Modify existing `app/api/campaign/[id]/ready/__tests__/route.test.ts`:
 
 ```ts
 import { PATCH } from '../route'
 
-jest.mock('@/lib/supabase/server', () => ({
-  createServerSupabaseClient: jest.fn(),
-  createAuthServerClient: jest.fn(),
+vi.mock('@/lib/supabase/server', () => ({
+  createServerSupabaseClient: vi.fn(),
+  createAuthServerClient: vi.fn(),
 }))
 
 import { createServerSupabaseClient, createAuthServerClient } from '@/lib/supabase/server'
@@ -558,10 +558,10 @@ function makeParams(id: string) {
 }
 
 describe('PATCH /api/campaign/[id]/ready', () => {
-  beforeEach(() => jest.clearAllMocks())
+  beforeEach(() => vi.clearAllMocks())
 
   it('returns 401 when not authenticated', async () => {
-    ;(createAuthServerClient as jest.Mock).mockResolvedValue({
+    ;(createAuthServerClient as ReturnType<typeof vi.fn>).mockResolvedValue({
       auth: { getUser: async () => ({ data: { user: null } }) },
     })
     const req = new Request('http://localhost/api/campaign/abc/ready', {
@@ -573,7 +573,7 @@ describe('PATCH /api/campaign/[id]/ready', () => {
   })
 
   it('returns 400 when is_ready is not a boolean', async () => {
-    ;(createAuthServerClient as jest.Mock).mockResolvedValue({
+    ;(createAuthServerClient as ReturnType<typeof vi.fn>).mockResolvedValue({
       auth: { getUser: async () => ({ data: { user: mockUser } }) },
     })
     const req = new Request('http://localhost/api/campaign/abc/ready', {
@@ -585,18 +585,18 @@ describe('PATCH /api/campaign/[id]/ready', () => {
   })
 
   it('returns 422 when trying to mark ready without a character saved', async () => {
-    ;(createAuthServerClient as jest.Mock).mockResolvedValue({
+    ;(createAuthServerClient as ReturnType<typeof vi.fn>).mockResolvedValue({
       auth: { getUser: async () => ({ data: { user: mockUser } }) },
     })
     const playerWithoutChar = { id: 'player-1', character_name: null, character_class: null }
     const mockDb = {
-      from: jest.fn().mockReturnThis(),
-      select: jest.fn().mockReturnThis(),
-      eq: jest.fn().mockReturnThis(),
-      single: jest.fn().mockResolvedValue({ data: playerWithoutChar, error: null }),
-      update: jest.fn().mockReturnThis(),
+      from: vi.fn().mockReturnThis(),
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      single: vi.fn().mockResolvedValue({ data: playerWithoutChar, error: null }),
+      update: vi.fn().mockReturnThis(),
     }
-    ;(createServerSupabaseClient as jest.Mock).mockReturnValue(mockDb)
+    ;(createServerSupabaseClient as ReturnType<typeof vi.fn>).mockReturnValue(mockDb)
     const req = new Request('http://localhost/api/campaign/camp-1/ready', {
       method: 'PATCH',
       body: JSON.stringify({ is_ready: true }),
@@ -606,17 +606,17 @@ describe('PATCH /api/campaign/[id]/ready', () => {
   })
 
   it('returns 404 when player not found', async () => {
-    ;(createAuthServerClient as jest.Mock).mockResolvedValue({
+    ;(createAuthServerClient as ReturnType<typeof vi.fn>).mockResolvedValue({
       auth: { getUser: async () => ({ data: { user: mockUser } }) },
     })
     const mockDb = {
-      from: jest.fn().mockReturnThis(),
-      select: jest.fn().mockReturnThis(),
-      eq: jest.fn().mockReturnThis(),
-      single: jest.fn().mockResolvedValue({ data: null, error: { code: 'PGRST116' } }),
-      update: jest.fn().mockReturnThis(),
+      from: vi.fn().mockReturnThis(),
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      single: vi.fn().mockResolvedValue({ data: null, error: { code: 'PGRST116' } }),
+      update: vi.fn().mockReturnThis(),
     }
-    ;(createServerSupabaseClient as jest.Mock).mockReturnValue(mockDb)
+    ;(createServerSupabaseClient as ReturnType<typeof vi.fn>).mockReturnValue(mockDb)
     const req = new Request('http://localhost/api/campaign/camp-1/ready', {
       method: 'PATCH',
       body: JSON.stringify({ is_ready: true }),
@@ -626,7 +626,7 @@ describe('PATCH /api/campaign/[id]/ready', () => {
   })
 
   it('sets is_ready and returns 200', async () => {
-    ;(createAuthServerClient as jest.Mock).mockResolvedValue({
+    ;(createAuthServerClient as ReturnType<typeof vi.fn>).mockResolvedValue({
       auth: { getUser: async () => ({ data: { user: mockUser } }) },
     })
     const playerWithChar = { id: 'player-1', character_name: 'Aldric', character_class: 'Warrior' }
@@ -637,13 +637,13 @@ describe('PATCH /api/campaign/[id]/ready', () => {
       { data: updatedPlayer, error: null },  // update
     ]
     const mockDb = {
-      from: jest.fn().mockReturnThis(),
-      select: jest.fn().mockReturnThis(),
-      eq: jest.fn().mockReturnThis(),
-      update: jest.fn().mockReturnThis(),
-      single: jest.fn().mockImplementation(() => Promise.resolve(singleResponses[callCount++])),
+      from: vi.fn().mockReturnThis(),
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      update: vi.fn().mockReturnThis(),
+      single: vi.fn().mockImplementation(() => Promise.resolve(singleResponses[callCount++])),
     }
-    ;(createServerSupabaseClient as jest.Mock).mockReturnValue(mockDb)
+    ;(createServerSupabaseClient as ReturnType<typeof vi.fn>).mockReturnValue(mockDb)
     const req = new Request('http://localhost/api/campaign/camp-1/ready', {
       method: 'PATCH',
       body: JSON.stringify({ is_ready: true }),
@@ -659,14 +659,14 @@ describe('PATCH /api/campaign/[id]/ready', () => {
 **Step 2: Run tests to see them fail**
 
 ```bash
-yarn test app/api/campaign/\\[id\\]/ready/__tests__/route.test.ts
+yarn vitest app/api/campaign/\\[id\\]/ready/__tests__/route.test.ts --run
 ```
 
-Expected: FAIL — module not found
+Expected: FAIL — assertions should fail until the route logic is updated.
 
 **Step 3: Implement the route**
 
-Create `app/api/campaign/[id]/ready/route.ts`:
+Modify `app/api/campaign/[id]/ready/route.ts`:
 
 ```ts
 import { NextResponse } from 'next/server'
@@ -732,7 +732,7 @@ export async function PATCH(
 **Step 4: Run tests to verify they pass**
 
 ```bash
-yarn test app/api/campaign/\\[id\\]/ready/__tests__/route.test.ts
+yarn vitest app/api/campaign/\\[id\\]/ready/__tests__/route.test.ts --run
 ```
 
 Expected: PASS (5 tests)
