@@ -39,13 +39,9 @@ export async function upsertCampaignFile(
     )
 }
 
-export async function initializeCampaignFiles(
-  campaignId: string,
-  worldContent: string
-): Promise<void> {
+export async function initializeCampaignFiles(campaignId: string): Promise<void> {
   const supabase = createServerSupabaseClient()
   const files = [
-    { campaign_id: campaignId, filename: 'WORLD.md', content: worldContent },
     { campaign_id: campaignId, filename: 'CHARACTERS.md', content: '' },
     { campaign_id: campaignId, filename: 'NPCS.md', content: '' },
     { campaign_id: campaignId, filename: 'LOCATIONS.md', content: '' },
