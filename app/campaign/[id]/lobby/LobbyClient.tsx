@@ -508,12 +508,14 @@ export default function LobbyClient({
   }
 
   async function handleEditCharacter() {
-    await fetch(`/api/campaign/${campaign.id}/ready`, {
+    const res = await fetch(`/api/campaign/${campaign.id}/ready`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ is_ready: false }),
     });
+    if (!res.ok) return;
     setIsReady(false);
+    setSaveError(null);
     setPlayers((prev) =>
       prev.map((p) => (p.isCurrentUser ? { ...p, status: 'not_ready' } : p))
     );
