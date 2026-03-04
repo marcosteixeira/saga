@@ -54,6 +54,11 @@ Deno.serve(async (req: Request) => {
   })
 
   try {
+    // Broadcast that generation has started so the UI can show immediate feedback
+    await broadcastToChannel(supabaseUrl, serviceRoleKey, campaign.id, "world:started", {
+      status: "generating",
+    })
+
     // Prompt injection defense: user content in user message, never in system
     const systemPrompt = `You are a fantasy world-builder. Generate a rich WORLD.md document for a tabletop RPG campaign based on the player's description.
 
