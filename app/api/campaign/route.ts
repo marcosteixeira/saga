@@ -43,11 +43,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Failed to create campaign' }, { status: 500 })
   }
 
-  const prompt = buildWorldGenPrompt(world_description)
+  const { system, user } = buildWorldGenPrompt(world_description)
   const aiResponse = await anthropic.messages.create({
     model: 'claude-sonnet-4-6',
     max_tokens: 2048,
-    messages: [{ role: 'user', content: prompt }],
+    system,
+    messages: [{ role: 'user', content: user }],
   })
   const worldContent = aiResponse.content
     .filter((b) => b.type === 'text')
