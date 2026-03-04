@@ -246,8 +246,8 @@ function DraftPlayerCard({
     <div
       className="relative p-4 flex items-start gap-4 transition-all duration-300"
       style={{
-        border: '1px dashed rgba(196,148,61,0.25)',
-        background: 'rgba(26,24,20,0.4)',
+        border: '1px dashed rgba(196,148,61,0.5)',
+        background: 'rgba(30,27,22,0.95)',
         animation: 'fadeInUp 0.5s ease-out both'
       }}
     >
@@ -256,7 +256,7 @@ function DraftPlayerCard({
         className="absolute left-0 top-0 bottom-0 w-0.5 rounded-l"
         style={{
           background:
-            'linear-gradient(to bottom, transparent, rgba(196,148,61,0.35), transparent)'
+            'linear-gradient(to bottom, transparent, var(--brass), transparent)'
         }}
       />
 
@@ -265,10 +265,9 @@ function DraftPlayerCard({
         <div
           className="w-12 h-12 rounded flex items-center justify-center text-lg font-heading tracking-wider"
           style={{
-            background: 'var(--smog)',
-            border: '1px dashed rgba(196,148,61,0.2)',
-            color: 'var(--ash)',
-            opacity: 0.7
+            background: 'rgba(61,54,48,0.8)',
+            border: '1px dashed rgba(196,148,61,0.5)',
+            color: 'var(--steam)'
           }}
         >
           {avatarLetter}
@@ -278,7 +277,7 @@ function DraftPlayerCard({
             className="absolute -bottom-1.5 -right-1.5 w-6 h-5 rounded-sm flex items-center justify-center"
             style={{
               background: 'var(--iron)',
-              border: '1px dashed rgba(196,148,61,0.2)'
+              border: '1px solid rgba(196,148,61,0.4)'
             }}
           >
             <ClassInitial name={charClass} />
@@ -290,63 +289,59 @@ function DraftPlayerCard({
       <div className="flex-1 min-w-0">
         <div className="flex items-baseline gap-2 flex-wrap">
           <span
-            className="font-heading text-sm tracking-wide"
+            className="font-heading text-base tracking-wide"
             style={{
-              color: charName ? 'var(--steam)' : 'var(--ash)',
-              fontStyle: charName ? 'normal' : 'italic',
-              opacity: charName ? 1 : 0.5
+              color: charName ? 'var(--steam)' : 'rgba(154,138,122,0.6)',
+              fontStyle: charName ? 'normal' : 'italic'
             }}
           >
             {charName || 'Unnamed'}
           </span>
           <span
-            className="text-xs px-1.5 py-0 font-mono rounded"
+            className="text-xs px-1.5 py-0.5 font-mono rounded"
             style={{
-              background: 'rgba(196,148,61,0.12)',
+              background: 'rgba(196,148,61,0.18)',
               color: 'var(--brass)',
-              border: '1px solid rgba(196,148,61,0.2)'
+              border: '1px solid rgba(196,148,61,0.4)'
             }}
           >
             You
           </span>
           {isHost && (
             <span
-              className="text-xs px-1.5 py-0 font-mono rounded"
+              className="text-xs px-1.5 py-0.5 font-mono rounded"
               style={{
-                background: 'rgba(90,122,109,0.12)',
+                background: 'rgba(90,122,109,0.2)',
                 color: 'var(--patina)',
-                border: '1px solid rgba(90,122,109,0.2)'
+                border: '1px solid rgba(90,122,109,0.4)'
               }}
             >
               Host
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+        <div className="flex items-center gap-2 mt-1 flex-wrap">
           <span
             className="font-mono text-xs uppercase tracking-widest"
             style={{
-              color: charClass ? 'var(--ash)' : 'var(--gunmetal)',
+              color: charClass ? 'var(--brass)' : 'rgba(154,138,122,0.5)',
               fontStyle: charClass ? 'normal' : 'italic'
             }}
           >
             {charClass || 'No class selected'}
           </span>
-          <span className="text-xs" style={{ color: 'var(--gunmetal)' }}>
-            ·
-          </span>
-          <span className="text-xs" style={{ color: 'var(--ash)' }}>
+          <span style={{ color: 'rgba(154,138,122,0.4)' }}>·</span>
+          <span className="text-xs" style={{ color: 'rgba(154,138,122,0.7)' }}>
             @{charName || username}
           </span>
         </div>
         <div className="mt-2">
-          {/* Building badge */}
           <span
             className="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-heading tracking-widest uppercase"
             style={{
-              color: 'rgba(196,148,61,0.5)',
-              border: '1px dashed rgba(196,148,61,0.2)',
-              background: 'transparent'
+              color: 'var(--brass)',
+              border: '1px dashed rgba(196,148,61,0.45)',
+              background: 'rgba(196,148,61,0.06)'
             }}
           >
             Building…
@@ -536,24 +531,14 @@ export default function LobbyClient({
       <AmbientSmoke />
       <GearDecoration />
 
-      {/* Background image */}
+      {/* Background atmosphere (no image — texture via gradients only) */}
       <div className="absolute inset-0 pointer-events-none">
-        <img
-          src="/images/lobby-bg.png"
-          alt=""
-          aria-hidden="true"
-          className="absolute inset-0 h-full w-full object-cover object-center"
-          style={{ opacity: 0.35 }}
-          onError={(e) => {
-            (e.target as HTMLImageElement).style.display = 'none';
-          }}
-        />
-        {/* Vignette */}
+        {/* Furnace underglow */}
         <div
           className="absolute inset-0"
           style={{
             background:
-              'radial-gradient(ellipse at 50% 100%, rgba(212,98,42,0.06) 0%, transparent 60%)'
+              'radial-gradient(ellipse at 50% 100%, rgba(212,98,42,0.08) 0%, transparent 55%)'
           }}
         />
         <div
@@ -707,7 +692,7 @@ export default function LobbyClient({
 
           {/* ── RIGHT: Character Form ─────────────────────────────────── */}
           <div
-            className="w-full lg:w-[460px] xl:w-[500px] flex-shrink-0 px-6 py-8 lg:px-8 lg:py-10 overflow-y-auto"
+            className="w-full lg:w-[460px] xl:w-[500px] flex-shrink-0 flex flex-col"
             style={{
               borderLeft: '1px solid rgba(61,54,48,0.4)',
               background: 'rgba(13,12,10,0.7)',
@@ -716,14 +701,15 @@ export default function LobbyClient({
               animation: 'fadeInUp 0.6s ease-out 0.2s both'
             }}
           >
-            {/* Section heading */}
-            <div className="mb-6">
+            {/* Section heading — always visible */}
+            <div className="px-6 pt-8 pb-4 lg:px-8 lg:pt-10 flex-shrink-0">
               <div className="brass-nameplate text-xs mb-3">Your Character</div>
               <div className="brass-pipe w-12" />
             </div>
 
             {isReady ? (
               /* ── Ready State ── */
+              <div className="px-6 pb-8 lg:px-8 lg:pb-10 overflow-y-auto flex-1">
               <div className="gauge-panel p-6 flex flex-col gap-4">
                 <div className="flex items-center gap-3">
                   <div
@@ -812,15 +798,19 @@ export default function LobbyClient({
                   Edit Character
                 </button>
               </div>
+              </div>
             ) : (
               /* ── Edit Form ── */
               <form
-                className="flex flex-col gap-5"
+                className="flex flex-col flex-1 min-h-0"
                 onSubmit={(e) => {
                   e.preventDefault();
                   saveCharacter();
                 }}
               >
+                {/* Scrollable fields */}
+                <div className="flex-1 overflow-y-auto px-6 lg:px-8 flex flex-col gap-5 pb-4">
+
                 {/* Character Name */}
                 <div className="flex flex-col gap-1.5">
                   <label
@@ -932,41 +922,64 @@ export default function LobbyClient({
                   </span>
                 </div>
 
-                {/* Actions */}
-                <div className="flex flex-col gap-2.5 pt-1">
-                  <Button
-                    type="submit"
-                    className="w-full"
-                    disabled={!charName.trim() || !charClass || saving}
-                    variant={charSaved && !formDirty ? 'outline' : 'default'}
-                  >
-                    {saving ? 'Saving…' : charSaved && !formDirty ? 'Character Saved ✓' : 'Save Character'}
-                  </Button>
+                </div>{/* end scrollable fields */}
+
+                {/* Actions — pinned to bottom, always visible */}
+                <div
+                  className="flex-shrink-0 px-6 lg:px-8 pb-8 lg:pb-10 pt-4 flex flex-col gap-2.5"
+                  style={{ borderTop: '1px solid rgba(61,54,48,0.4)' }}
+                >
+                  {charSaved && !formDirty ? (
+                    <div
+                      className="w-full flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium"
+                      style={{
+                        border: '1px solid rgba(154,138,122,0.35)',
+                        color: 'var(--ash)',
+                        background: 'transparent',
+                        cursor: 'default',
+                      }}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}>
+                        <circle cx="7" cy="7" r="6.5" stroke="currentColor" strokeOpacity="0.6" />
+                        <path d="M4 7l2 2 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                      Character Saved
+                    </div>
+                  ) : (
+                    <Button
+                      type="submit"
+                      className="w-full"
+                      disabled={!charName.trim() || !charClass || saving}
+                    >
+                      {saving ? 'Saving…' : 'Save Character'}
+                    </Button>
+                  )}
 
                   {charSaved && !formDirty && (
                     <Button type="button" className="w-full" onClick={handleReady} disabled={readying}>
                       {readying ? 'Updating…' : "I'm Ready"}
                     </Button>
                   )}
-                </div>
-                {saveError && (
-                  <p className="text-xs text-center" style={{ color: 'var(--furnace)' }}>
-                    {saveError}
-                  </p>
-                )}
 
-                {charSaved && !formDirty && (
-                  <p
-                    className="text-xs text-center leading-relaxed"
-                    style={{ color: 'var(--gunmetal)' }}
-                  >
-                    Click{' '}
-                    <span style={{ color: 'var(--ash)' }}>
-                      &ldquo;I&apos;m Ready&rdquo;
-                    </span>{' '}
-                    when you&apos;re set to go.
-                  </p>
-                )}
+                  {saveError && (
+                    <p className="text-xs text-center" style={{ color: 'var(--furnace)' }}>
+                      {saveError}
+                    </p>
+                  )}
+
+                  {charSaved && !formDirty && (
+                    <p
+                      className="text-xs text-center leading-relaxed"
+                      style={{ color: 'var(--gunmetal)' }}
+                    >
+                      Click{' '}
+                      <span style={{ color: 'var(--ash)' }}>
+                        &ldquo;I&apos;m Ready&rdquo;
+                      </span>{' '}
+                      when you&apos;re set to go.
+                    </p>
+                  )}
+                </div>
               </form>
             )}
           </div>

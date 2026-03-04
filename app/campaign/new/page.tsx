@@ -13,7 +13,7 @@ export default function NewCampaignPage() {
       {/* Full-bleed background image */}
       <div className="absolute inset-0">
         <img
-          src="/images/world-forge-bg.png"
+          src="/images/world-forge-bg.webp"
           alt=""
           aria-hidden="true"
           className="absolute inset-0 h-full w-full object-cover object-left"

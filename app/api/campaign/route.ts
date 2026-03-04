@@ -55,5 +55,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Failed to create campaign' }, { status: 500 })
   }
 
+  // Create the host player row so they can save their character in the lobby
+  await supabase.from('players').insert({
+    campaign_id: data.id,
+    user_id: user.id,
+    username: host_username,
+    is_host: true,
+  })
+
   return NextResponse.json({ id: data.id }, { status: 201 })
 }
