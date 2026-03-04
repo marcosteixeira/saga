@@ -225,28 +225,30 @@ export default function LobbyClient({ campaign, world, players: dbPlayers, curre
     status: 'not_ready' as PlayerStatus,
   }))
 
-  const [players, setPlayers] = useState<(Player | null)[]>(uiPlayers)
+  const [players, setPlayers] = useState<Player[]>(uiPlayers)
   const [isReady, setIsReady] = useState(false)
 
   // Own character form state
-  const currentUser = (players.find(p => p?.isCurrentUser) ?? players[0]) as Player
-  const [charName, setCharName] = useState(currentUser.characterName)
-  const [charClass, setCharClass] = useState<string>(currentUser.characterClass)
-  const [backstory, setBackstory] = useState(currentUser.backstory)
+  const currentUser: Player | null = players.find((p): p is Player => p !== null && p.isCurrentUser)
+    ?? players.find((p): p is Player => p !== null)
+    ?? null
+  const [charName, setCharName] = useState(currentUser?.characterName ?? '')
+  const [charClass, setCharClass] = useState<string>(currentUser?.characterClass ?? '')
+  const [backstory, setBackstory] = useState(currentUser?.backstory ?? '')
   const [formDirty, setFormDirty] = useState(false)
-  const [charSaved, setCharSaved] = useState(!!currentUser.characterName)
+  const [charSaved, setCharSaved] = useState(!!(currentUser?.characterName))
 
   // Derived
-  const readyCount = players.filter(p => p?.status === 'ready').length
-  const allReady = players.length > 0 && players.every(p => p?.status === 'ready')
+  const readyCount = players.filter(p => p.status === 'ready').length
+  const allReady = players.length > 0 && players.every(p => p.status === 'ready')
 
-  const isHost = currentUser.isHost
+  const isHost = currentUser?.isHost ?? false
 
   function saveCharacter() {
     if (!charName.trim() || !charClass) return
     setPlayers(prev =>
       prev.map(p =>
-        p?.isCurrentUser
+        p.isCurrentUser
           ? { ...p, characterName: charName.trim(), characterClass: charClass, backstory, status: 'not_ready' }
           : p
       )
@@ -259,14 +261,14 @@ export default function LobbyClient({ campaign, world, players: dbPlayers, curre
   function handleReady() {
     setIsReady(true)
     setPlayers(prev =>
-      prev.map(p => (p?.isCurrentUser ? { ...p, status: 'ready' } : p))
+      prev.map(p => (p.isCurrentUser ? { ...p, status: 'ready' } : p))
     )
   }
 
   function handleEditCharacter() {
     setIsReady(false)
     setPlayers(prev =>
-      prev.map(p => (p?.isCurrentUser ? { ...p, status: 'not_ready' } : p))
+      prev.map(p => (p.isCurrentUser ? { ...p, status: 'not_ready' } : p))
     )
   }
 
@@ -355,7 +357,7 @@ export default function LobbyClient({ campaign, world, players: dbPlayers, curre
 
             {/* Roster */}
             <div className="flex flex-col gap-3 max-w-xl">
-              {players.filter((p): p is Player => p !== null).map(player => (
+              {players.map(player => (
                 <PlayerCard
                   key={player.id}
                   player={player}
