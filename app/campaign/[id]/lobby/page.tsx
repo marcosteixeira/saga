@@ -22,6 +22,10 @@ export default async function LobbyPage({ params }: Props) {
     notFound()
   }
 
+  if (playersResult.error) {
+    notFound()
+  }
+
   const { worlds: world, ...campaign } = campaignResult.data
   const players = playersResult.data ?? []
 
