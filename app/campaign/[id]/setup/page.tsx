@@ -35,6 +35,7 @@ export default function CampaignSetupPage() {
   const [campaign, setCampaign] = useState<Campaign | null>(null)
   const [statusText, setStatusText] = useState('Loading campaign setup...')
   const [error, setError] = useState<string | null>(null)
+  const [pageLoading, setPageLoading] = useState(true)
   const [busy, setBusy] = useState(true)
   const [isRetrying, setIsRetrying] = useState(false)
   const [coverImageUrl, setCoverImageUrl] = useState<string | null>(null)
@@ -124,10 +125,12 @@ export default function CampaignSetupPage() {
         if (data.campaign.status === 'error') {
           setError('World generation failed. You can retry from this setup page.')
         }
+        setPageLoading(false)
       } catch (err) {
         if (!mounted) return
         setError(err instanceof Error ? err.message : 'Failed to load campaign setup.')
         setBusy(false)
+        setPageLoading(false)
       }
     })()
 
@@ -171,12 +174,14 @@ export default function CampaignSetupPage() {
       {/* Full-bleed background image */}
       <div className="absolute inset-0">
         {/* Placeholder image shown while cover art is not yet ready */}
-        <img
-          src="/images/placeholder-cover.png"
-          alt=""
-          aria-hidden="true"
-          className={`absolute inset-0 h-full w-full object-cover object-left transition-opacity duration-700 ${hasImage && imageLoaded ? 'opacity-0' : 'opacity-100'}`}
-        />
+        {!pageLoading && (
+          <img
+            src="/images/placeholder-cover.png"
+            alt=""
+            aria-hidden="true"
+            className={`absolute inset-0 h-full w-full object-cover object-left transition-opacity duration-700 ${hasImage && imageLoaded ? 'opacity-0' : 'opacity-100'}`}
+          />
+        )}
 
         {/* Cover image — full bleed, contain so nothing is cropped */}
         {coverImageUrl && (
@@ -246,7 +251,6 @@ export default function CampaignSetupPage() {
       {/* Campaign name at bottom-left over image */}
       {campaign?.name && imageLoaded && (
         <div className="absolute bottom-0 left-0 p-8 lg:p-12 z-10 max-w-xl">
-          <p className="font-heading text-sm tracking-[0.3em] text-brass/90 uppercase mb-2">Campaign</p>
           <h2
             className="font-heading text-3xl lg:text-5xl text-steam leading-tight"
             style={{ textShadow: '0 2px 20px rgba(0,0,0,0.9), 0 0 60px rgba(0,0,0,0.8)' }}
@@ -303,16 +307,14 @@ export default function CampaignSetupPage() {
               </p>
 
               {/* Cover image status */}
-              {(busy || isComplete) && (
+              {!pageLoading && (busy || isComplete) && !hasImage && (
                 <div className="mt-4 pt-4 border-t border-white/5">
                   <div className="flex items-center gap-2">
                     <span
-                      className={`h-1.5 w-1.5 rounded-full ${hasImage ? 'bg-brass' : 'bg-white/20'}`}
-                      style={!hasImage ? { animation: 'pulse 2s ease-in-out infinite' } : undefined}
+                      className="h-1.5 w-1.5 rounded-full bg-white/20"
+                      style={{ animation: 'pulse 2s ease-in-out infinite' }}
                     />
-                    <span className="text-sm text-steam/80">
-                      {hasImage ? 'Cover art ready' : 'Cover art being forged in the background...'}
-                    </span>
+                    <span className="text-sm text-steam/80">Cover art being forged in the background...</span>
                   </div>
                 </div>
               )}

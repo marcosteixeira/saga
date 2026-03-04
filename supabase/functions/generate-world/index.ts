@@ -172,9 +172,10 @@ Be evocative and specific. Starting Hooks must list 2-3 adventure hooks players 
       status: "lobby",
     })
 
-    // Fire-and-forget image generation so world generation response is not blocked.
+    // Trigger image generation in the background without blocking the response.
+    // Use waitUntil so the runtime stays alive until the fetch completes.
     const imageWebhookSecret = Deno.env.get("GENERATE_IMAGE_WEBHOOK_SECRET")
-    fetch(`${supabaseUrl}/functions/v1/generate-image`, {
+    const imagePromise = fetch(`${supabaseUrl}/functions/v1/generate-image`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -184,6 +185,19 @@ Be evocative and specific. Starting Hooks must list 2-3 adventure hooks players 
         campaign_id: campaign.id,
         type: "cover",
       }),
+    }).then((res) => {
+      if (!res.ok) {
+        logError(
+          "generate_world.image_trigger_failed",
+          { requestId, campaignId: campaign.id, status: res.status },
+          new Error(`generate-image responded with ${res.status}`),
+        )
+      } else {
+        logInfo("generate_world.image_trigger_succeeded", {
+          requestId,
+          campaignId: campaign.id,
+        })
+      }
     }).catch((err) => {
       logError(
         "generate_world.image_trigger_failed",
@@ -191,6 +205,8 @@ Be evocative and specific. Starting Hooks must list 2-3 adventure hooks players 
         err,
       )
     })
+    // @ts-ignore — EdgeRuntime is available in Supabase edge function environments
+    EdgeRuntime.waitUntil(imagePromise)
 
     logInfo("generate_world.completed", {
       requestId,
