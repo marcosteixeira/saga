@@ -1,4 +1,116 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+# Campaign Creation Fire-and-Forget Plan
+
+> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+
+**Goal:** Update `POST /api/campaign` to fire-and-forget the Supabase edge function after campaign creation, instead of waiting for it (or ignoring it entirely as currently).
+
+**Architecture:** After inserting the campaign row with `status: 'generating'`, we call the `generate-world` edge function without `await` and immediately return `{ id }`. The Supabase edge function runs independently; the client navigates to `/campaign/{id}/setup` and polls via Realtime for the status to flip to `'lobby'`.
+
+**Tech Stack:** Next.js App Router API routes, Supabase edge functions, Vitest
+
+---
+
+### Task 1: Update `POST /api/campaign` to fire-and-forget the edge function
+
+**Files:**
+- Modify: `app/api/campaign/route.ts`
+
+**Step 1: Read current file**
+
+Open `app/api/campaign/route.ts` and understand the current flow (creates campaign, returns id — no edge function call).
+
+**Step 2: Add fire-and-forget edge function call**
+
+Replace the file content with:
+
+```typescript
+import { NextResponse } from 'next/server'
+import { createServerSupabaseClient, createAuthServerClient } from '@/lib/supabase/server'
+
+export async function POST(req: Request) {
+  const authClient = await createAuthServerClient()
+  const { data: { user } } = await authClient.auth.getUser()
+
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const body = await req.json()
+  const { name, world_description, system_description } = body
+  const host_username: string =
+    body.host_username?.trim() ||
+    user.user_metadata?.display_name ||
+    user.email ||
+    'Unknown Host'
+
+  if (!name || !world_description) {
+    return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+  }
+
+  const supabase = createServerSupabaseClient()
+
+  const { data, error } = await supabase
+    .from('campaigns')
+    .insert({
+      name,
+      host_username,
+      host_user_id: user.id,
+      world_description,
+      system_description: system_description || null,
+      status: 'generating',
+    })
+    .select('id')
+    .single()
+
+  if (error || !data) {
+    return NextResponse.json({ error: 'Failed to create campaign' }, { status: 500 })
+  }
+
+  const functionUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/generate-world`
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (process.env.GENERATE_WORLD_WEBHOOK_SECRET) {
+    headers.authorization = `Bearer ${process.env.GENERATE_WORLD_WEBHOOK_SECRET}`
+  }
+
+  // Fire-and-forget: do not await — return campaign id immediately
+  fetch(functionUrl, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      record: { id: data.id, world_description },
+    }),
+  }).catch(() => {
+    // Intentionally swallowed — edge function failures are tracked via campaign status
+  })
+
+  return NextResponse.json({ id: data.id }, { status: 201 })
+}
+```
+
+**Step 3: Verify the file looks correct**
+
+Read `app/api/campaign/route.ts` and confirm:
+- Campaign is inserted with `status: 'generating'`
+- Edge function is called with `fetch(...)` (no `await`)
+- Response returns `{ id }` with status 201 immediately
+
+---
+
+### Task 2: Update tests for `POST /api/campaign`
+
+**Files:**
+- Modify: `app/api/campaign/__tests__/route.test.ts`
+
+**Step 1: Read the current test file**
+
+Open `app/api/campaign/__tests__/route.test.ts`.
+
+**Step 2: Add `fetch` mock and edge function assertion**
+
+Replace the full test file with:
+
+```typescript
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const mockInsert = vi.fn()
 const mockSelect = vi.fn()
@@ -28,13 +140,7 @@ vi.mock('@/lib/supabase/server', () => ({
 describe('POST /api/campaign', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.resetModules()
     mockFetch.mockResolvedValue({ ok: true })
-  })
-
-  afterEach(() => {
-    delete process.env.NEXT_PUBLIC_SUPABASE_URL
-    delete process.env.GENERATE_WORLD_WEBHOOK_SECRET
   })
 
   it('returns 401 when user is not authenticated', async () => {
@@ -147,7 +253,7 @@ describe('POST /api/campaign', () => {
     })
     const res = await POST(req)
 
-    // Response returns 201 and fetch was called with correct args
+    // Response returns immediately with 201 — does not wait for edge function
     expect(res.status).toBe(201)
 
     // Edge function is called (fire-and-forget)
@@ -195,3 +301,48 @@ describe('POST /api/campaign', () => {
     expect(mockFetch).not.toHaveBeenCalled()
   })
 })
+```
+
+**Step 3: Run the tests**
+
+```bash
+yarn test app/api/campaign/__tests__/route.test.ts
+```
+
+Expected: All tests pass including the two new ones about edge function firing.
+
+**Step 4: Commit**
+
+```bash
+git add app/api/campaign/route.ts app/api/campaign/__tests__/route.test.ts
+git commit -m "feat: fire-and-forget edge function on campaign creation"
+```
+
+---
+
+### Task 3: Verify existing regenerate tests still pass
+
+The `/regenerate` route is unchanged. Just confirm its tests still pass.
+
+**Step 1: Run regenerate tests**
+
+```bash
+yarn test app/api/campaign/[id]/regenerate
+```
+
+Expected: All existing tests pass (no changes to that route).
+
+---
+
+### Task 4: Manual smoke test
+
+**Step 1:** Start dev server: `yarn dev`
+
+**Step 2:** Create a new campaign via the form
+
+**Step 3:** Observe:
+- Form submits and navigates quickly to `/campaign/{id}/setup` (no long wait)
+- The setup page shows "generating" state
+- After ~10-30s, Supabase Realtime updates status to `'lobby'`
+
+**Step 4:** Check Supabase edge function logs to confirm `generate-world` was invoked

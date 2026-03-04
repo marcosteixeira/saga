@@ -21,13 +21,13 @@ export function WorldGenForm() {
   const [name, setName] = useState('')
   const [worldDescription, setWorldDescription] = useState('')
   const [systemDescription, setSystemDescription] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [isGenerating, setIsGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
-    setLoading(true)
+    setIsGenerating(true)
 
     try {
       const res = await fetch('/api/campaign', {
@@ -45,15 +45,33 @@ export function WorldGenForm() {
 
       if (!res.ok) {
         setError(data.error ?? 'Something went wrong. Check the gauges.')
+        setIsGenerating(false)
         return
       }
-
-      router.push(`/campaign/${data.id}/lobby`)
-    } catch {
-      setError('Connection failure. The pipes are clogged.')
-    } finally {
-      setLoading(false)
+      router.push(`/campaign/${data.id}/setup`)
+      // keep isGenerating=true so the loader stays until the page unmounts
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : 'World generation failed in the background. Please try forging again.'
+      setError(message)
+      setIsGenerating(false)
     }
+  }
+
+  if (isGenerating) {
+    return (
+      <div className="flex flex-col items-center gap-6 py-12">
+        <div className="piston-loader" aria-label="Generating..." />
+        <p
+          className="text-lg uppercase tracking-[0.15em]"
+          style={{ fontFamily: 'var(--font-display), serif', color: 'var(--steam)' }}
+        >
+          Generating your world...
+        </p>
+      </div>
+    )
   }
 
   return (
@@ -152,19 +170,16 @@ export function WorldGenForm() {
         </p>
       )}
 
-      {/* Piston loader */}
-      {loading && <div className="piston-loader" aria-label="Loading..." />}
-
       {/* Submit */}
       <Button
         type="submit"
-        disabled={loading}
+        disabled={isGenerating}
         className="relative overflow-hidden bg-brass text-soot font-bold uppercase tracking-[0.15em] hover:bg-furnace transition-colors duration-300 disabled:opacity-60"
         style={{
           clipPath: 'polygon(6px 0%, calc(100% - 6px) 0%, 100% 6px, 100% calc(100% - 6px), calc(100% - 6px) 100%, 6px 100%, 0% calc(100% - 6px), 0% 6px)',
         }}
       >
-        {loading ? 'Forging...' : 'Forge Campaign'}
+        Forge Campaign
       </Button>
     </form>
   )

@@ -47,6 +47,8 @@ buildGMSystemPrompt(params: {
 
 Returns the full GM system prompt as defined in DESIGN.md, with all memory files injected into their respective XML tags.
 
+**Prompt injection defense:** This function only embeds campaign memory files (server-controlled content). Player-submitted content (actions, character names entered at runtime) must NEVER be injected into the system prompt — it goes in the `messages` array as `user` turns. The call site must pass this string as the `system:` parameter to `anthropic.messages.stream()`, not as a message.
+
 **Step 1: Write tests**
 
 ```typescript
@@ -187,6 +189,8 @@ describe('POST /api/campaign/[id]/narrate', () => {
 
 Key implementation details:
 - Use `anthropic.messages.stream()` for streaming
+- **Prompt injection defense:** Pass `buildGMSystemPrompt(...)` as the `system:` parameter, never in the `messages` array. All user-supplied content (player actions, character names, world descriptions) must come through `messages`, not the system prompt.
+- Message structure: `{ system: gmSystemPrompt, messages: [...history, ...newActions] }`
 - Buffer tokens: accumulate text for 100ms, then broadcast the batch
 - Use `supabase.channel().send()` for broadcast (not Postgres changes — this is pure broadcast)
 - After stream completes, save to DB

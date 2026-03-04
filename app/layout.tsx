@@ -5,6 +5,7 @@ import {
   Barlow_Condensed,
   Share_Tech_Mono,
 } from "next/font/google";
+import { ProfileLink } from "@/components/profile-link";
 import "./globals.css";
 
 const pragatiNarrow = Pragati_Narrow({
@@ -56,6 +57,7 @@ export default function RootLayout({
       <body
         className={`${pragatiNarrow.variable} ${rokkitt.variable} ${barlowCondensed.variable} ${shareTechMono.variable} antialiased`}
       >
+        <ProfileLink />
         {children}
       </body>
     </html>
