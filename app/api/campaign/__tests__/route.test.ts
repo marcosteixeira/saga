@@ -1,26 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-// Mock service-role client (unchanged)
 const mockInsert = vi.fn()
 const mockSelect = vi.fn()
 const mockSingle = vi.fn()
-
-// Mock auth client
 const mockGetUser = vi.fn()
-
-vi.mock('@/lib/anthropic', () => ({
-  anthropic: {
-    messages: {
-      create: vi.fn().mockResolvedValue({
-        content: [{ type: 'text', text: '# World\nGenerated content' }]
-      })
-    }
-  }
-}))
-
-vi.mock('@/lib/memory', () => ({
-  initializeCampaignFiles: vi.fn().mockResolvedValue(undefined)
-}))
 
 vi.mock('@/lib/supabase/server', () => ({
   createServerSupabaseClient: vi.fn(() => ({
@@ -78,7 +61,7 @@ describe('POST /api/campaign', () => {
     expect(res.status).toBe(400)
   })
 
-  it('returns 201 with campaign id on success, uses provided host_username', async () => {
+  it('returns 201 with campaign id and uses provided host_username', async () => {
     mockGetUser.mockResolvedValue({
       data: { user: { id: 'user-1', email: 'gm@saga.com' } },
     })
@@ -98,7 +81,6 @@ describe('POST /api/campaign', () => {
     expect(res.status).toBe(201)
     const data = await res.json()
     expect(data.id).toBe('campaign-123')
-    expect(data).not.toHaveProperty('host_session_token')
   })
 
   it('falls back to email as host_username when not provided', async () => {
@@ -113,10 +95,27 @@ describe('POST /api/campaign', () => {
       body: JSON.stringify({ name: 'Test', world_description: 'World' }),
       headers: { 'Content-Type': 'application/json' },
     })
-    const res = await POST(req)
-    expect(res.status).toBe(201)
+    await POST(req)
     expect(mockInsert).toHaveBeenCalledWith(
       expect.objectContaining({ host_username: 'gm@saga.com' })
+    )
+  })
+
+  it('inserts campaign with status generating — no Claude call in this route', async () => {
+    mockGetUser.mockResolvedValue({
+      data: { user: { id: 'user-1', email: 'gm@saga.com' } },
+    })
+    mockSingle.mockResolvedValue({ data: { id: 'campaign-123' }, error: null })
+
+    const { POST } = await import('../route')
+    const req = new Request('http://localhost/api/campaign', {
+      method: 'POST',
+      body: JSON.stringify({ name: 'Test', world_description: 'A dark world' }),
+      headers: { 'Content-Type': 'application/json' },
+    })
+    await POST(req)
+    expect(mockInsert).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'generating' })
     )
   })
 
@@ -134,32 +133,5 @@ describe('POST /api/campaign', () => {
     })
     const res = await POST(req)
     expect(res.status).toBe(500)
-  })
-
-  it('calls Claude and initializes campaign files on success', async () => {
-    mockGetUser.mockResolvedValue({
-      data: { user: { id: 'user-1', email: 'gm@saga.com' } },
-    })
-    mockSingle.mockResolvedValue({ data: { id: 'campaign-123' }, error: null })
-
-    const { anthropic } = await import('@/lib/anthropic')
-    const { initializeCampaignFiles } = await import('@/lib/memory')
-
-    const { POST } = await import('../route')
-    const req = new Request('http://localhost/api/campaign', {
-      method: 'POST',
-      body: JSON.stringify({
-        name: 'Test Campaign',
-        world_description: 'A dark world...',
-      }),
-      headers: { 'Content-Type': 'application/json' },
-    })
-    const res = await POST(req)
-    expect(res.status).toBe(201)
-    expect(anthropic.messages.create).toHaveBeenCalledOnce()
-    expect(initializeCampaignFiles).toHaveBeenCalledWith(
-      expect.any(String),
-      '# World\nGenerated content'
-    )
   })
 })

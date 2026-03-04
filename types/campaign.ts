@@ -7,7 +7,7 @@ export type Campaign = {
   system_description: string | null
   cover_image_url: string | null
   map_image_url: string | null
-  status: 'lobby' | 'active' | 'paused' | 'ended'
+  status: 'generating' | 'lobby' | 'active' | 'paused' | 'ended'
   turn_mode: 'free' | 'sequential'
   turn_timer_seconds: number
   current_session_id: string | null
