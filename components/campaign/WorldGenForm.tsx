@@ -1,8 +1,7 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
@@ -14,7 +13,6 @@ type WorldMode = 'new' | 'existing'
 
 export function WorldGenForm() {
   const router = useRouter()
-  const [hostUsername, setHostUsername] = useState('')
   const [worldMode, setWorldMode] = useState<WorldMode>('new')
   const [worlds, setWorlds] = useState<World[]>([])
   const [totalWorldCount, setTotalWorldCount] = useState(0)
@@ -27,13 +25,6 @@ export function WorldGenForm() {
   const [isGenerating, setIsGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const worldsFetched = useRef(false)
-
-  useEffect(() => {
-    createClient().auth.getUser().then(({ data }) => {
-      const displayName = data.user?.user_metadata?.display_name
-      if (displayName) setHostUsername(displayName)
-    })
-  }, [])
 
   async function fetchWorlds() {
     if (worldsFetched.current) return
@@ -100,7 +91,6 @@ export function WorldGenForm() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name,
-          host_username: hostUsername || undefined,
           world_id: worldId,
           system_description: systemDescription || undefined,
         }),
@@ -124,28 +114,6 @@ export function WorldGenForm() {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-
-      {/* ── Host Name ───────────────────────────────── */}
-      <div className="flex flex-col gap-2">
-        <Label
-          htmlFor="host_username"
-          className="text-sm uppercase tracking-[0.1em]"
-          style={{ fontFamily: 'var(--font-mono), monospace', color: 'var(--copper)' }}
-        >
-          Your Name{' '}
-          <span className="text-ash/80 normal-case tracking-normal" style={{ fontFamily: 'var(--font-body), sans-serif' }}>
-            (optional)
-          </span>
-        </Label>
-        <Input
-          id="host_username"
-          type="text"
-          value={hostUsername}
-          onChange={e => setHostUsername(e.target.value)}
-          placeholder="DungeonMaster42"
-          className="border-gunmetal bg-iron text-steam placeholder:text-ash/60 focus-visible:border-brass focus-visible:ring-0 focus-visible:shadow-[0_0_12px_rgba(196,148,61,0.25)]"
-        />
-      </div>
 
       {/* ── Campaign Name ───────────────────────────── */}
       <div className="flex flex-col gap-2">
