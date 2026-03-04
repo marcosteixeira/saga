@@ -81,11 +81,57 @@ describe('PATCH /api/campaign/[id]/player', () => {
       update: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
       select: vi.fn().mockReturnThis(),
-      single: vi.fn().mockResolvedValue({ data: null, error: { message: 'not found' } }),
+      single: vi.fn().mockResolvedValue({ data: null, error: { code: 'PGRST116', message: 'not found' } }),
     }
     ;(createServerSupabaseClient as ReturnType<typeof vi.fn>).mockReturnValue(mockDb)
     const res = await PATCH(makeRequest({ character_name: 'Arwen', character_class: 'Mage' }), makeParams('abc'))
     expect(res.status).toBe(404)
+    const body = await res.json()
+    expect(body.error).toContain('Player not found')
+  })
+
+  it('returns 500 on unexpected DB error', async () => {
+    ;(createAuthServerClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      auth: { getUser: async () => ({ data: { user: mockUser } }) },
+    })
+    const mockDb = {
+      from: vi.fn().mockReturnThis(),
+      update: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      select: vi.fn().mockReturnThis(),
+      single: vi.fn().mockResolvedValue({ data: null, error: { code: 'SOME_DB_ERROR', message: 'connection failed' } }),
+    }
+    ;(createServerSupabaseClient as ReturnType<typeof vi.fn>).mockReturnValue(mockDb)
+    const req = new Request('http://localhost/api/campaign/camp-1/player', {
+      method: 'PATCH',
+      body: JSON.stringify({ character_name: 'Aldric', character_class: 'Warrior' }),
+    })
+    const res = await PATCH(req, makeParams('camp-1'))
+    expect(res.status).toBe(500)
+  })
+
+  it('returns 400 when character_name is not a string', async () => {
+    ;(createAuthServerClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      auth: { getUser: async () => ({ data: { user: mockUser } }) },
+    })
+    const req = new Request('http://localhost/api/campaign/abc/player', {
+      method: 'PATCH',
+      body: JSON.stringify({ character_name: 42, character_class: 'Mage' }),
+    })
+    const res = await PATCH(req, makeParams('abc'))
+    expect(res.status).toBe(400)
+  })
+
+  it('returns 400 on invalid JSON body', async () => {
+    ;(createAuthServerClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      auth: { getUser: async () => ({ data: { user: mockUser } }) },
+    })
+    const req = new Request('http://localhost/api/campaign/abc/player', {
+      method: 'PATCH',
+      body: 'not-valid-json',
+    })
+    const res = await PATCH(req, makeParams('abc'))
+    expect(res.status).toBe(400)
   })
 
   it('returns 200 with updated player when all fields provided including backstory', async () => {
