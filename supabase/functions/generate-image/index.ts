@@ -134,7 +134,7 @@ Deno.serve(async (req: Request) => {
       contents: [{ role: "user", parts: [{ text: userPrompt }] }],
       generationConfig: {
         // responseModalities currently missing from some TS type definitions
-        // @ts-ignore
+        // @ts-expect-error — responseModalities missing from some TS type definitions
         responseModalities: ["IMAGE"],
       },
     })

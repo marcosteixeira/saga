@@ -203,7 +203,7 @@ Be evocative and specific. Output ONLY the Markdown document, no preamble.`
         err,
       )
     })
-    // @ts-ignore — EdgeRuntime is available in Supabase edge function environments
+    // @ts-expect-error — EdgeRuntime is available in Supabase edge function environments
     EdgeRuntime.waitUntil(imagePromise)
 
     logInfo("generate_world.completed", {

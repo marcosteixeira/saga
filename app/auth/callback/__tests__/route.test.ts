@@ -28,7 +28,7 @@ describe('GET /auth/callback', () => {
     const req = new Request(
       'http://localhost/auth/callback?code=test-code&redirect=/campaign/new'
     )
-    const res = await GET(req as any)
+    const res = await GET(req as Request)
     expect(mockExchangeCode).toHaveBeenCalledWith('test-code')
     expect(res.status).toBe(307)
     expect(res.headers.get('location')).toBe('http://localhost/campaign/new')
@@ -40,7 +40,7 @@ describe('GET /auth/callback', () => {
     const req = new Request(
       'http://localhost/auth/callback?code=test-code&redirect=/campaign/new'
     )
-    const res = await GET(req as any)
+    const res = await GET(req as Request)
     expect(res.status).toBe(307)
     expect(res.headers.get('location')).toContain('/setup')
     expect(res.headers.get('location')).toContain('redirect=')
@@ -50,7 +50,7 @@ describe('GET /auth/callback', () => {
     mockExchangeCode.mockResolvedValue({ data: { user: userWithoutName }, error: null })
     const { GET } = await import('../route')
     const req = new Request('http://localhost/auth/callback?code=test-code')
-    const res = await GET(req as any)
+    const res = await GET(req as Request)
     expect(res.headers.get('location')).toContain('/setup')
   })
 
@@ -58,7 +58,7 @@ describe('GET /auth/callback', () => {
     mockExchangeCode.mockResolvedValue({ data: { user: userWithName }, error: null })
     const { GET } = await import('../route')
     const req = new Request('http://localhost/auth/callback?code=test-code')
-    const res = await GET(req as any)
+    const res = await GET(req as Request)
     expect(res.headers.get('location')).toBe('http://localhost/')
   })
 
@@ -66,7 +66,7 @@ describe('GET /auth/callback', () => {
     mockExchangeCode.mockResolvedValue({ data: null, error: { message: 'invalid code' } })
     const { GET } = await import('../route')
     const req = new Request('http://localhost/auth/callback?code=bad-code')
-    const res = await GET(req as any)
+    const res = await GET(req as Request)
     expect(res.headers.get('location')).toContain('/login')
     expect(res.headers.get('location')).toContain('error=auth_failed')
   })
@@ -77,14 +77,14 @@ describe('GET /auth/callback', () => {
     const req = new Request(
       'http://localhost/auth/callback?code=test-code&redirect=//evil.com/phish'
     )
-    const res = await GET(req as any)
+    const res = await GET(req as Request)
     expect(res.headers.get('location')).toBe('http://localhost/')
   })
 
   it('redirects to /login?error=auth_failed when no code in URL', async () => {
     const { GET } = await import('../route')
     const req = new Request('http://localhost/auth/callback')
-    const res = await GET(req as any)
+    const res = await GET(req as Request)
     expect(res.headers.get('location')).toContain('/login')
     expect(res.headers.get('location')).toContain('error=auth_failed')
     expect(mockExchangeCode).not.toHaveBeenCalled()

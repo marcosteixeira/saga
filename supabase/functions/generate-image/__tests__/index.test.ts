@@ -17,7 +17,7 @@ describe('extractImageBytes', () => {
         }
       ]
     };
-    expect(extractImageBytes(fakeResponse as any)).toBe('abc123base64');
+    expect(extractImageBytes(fakeResponse as unknown as Parameters<typeof extractImageBytes>[0])).toBe('abc123base64');
   });
 
   it('throws when no image data in response', async () => {
@@ -25,7 +25,7 @@ describe('extractImageBytes', () => {
     const fakeResponse = {
       candidates: [{ content: { parts: [{ text: 'No image' }] } }]
     };
-    expect(() => extractImageBytes(fakeResponse as any)).toThrow('No image data');
+    expect(() => extractImageBytes(fakeResponse as unknown as Parameters<typeof extractImageBytes>[0])).toThrow('No image data');
   });
 });
 
