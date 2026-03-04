@@ -113,6 +113,42 @@ describe('PATCH /api/campaign/[id]/ready', () => {
     expect(body.error).toContain('Player not found')
   })
 
+  it('returns 500 on unexpected DB error during fetch', async () => {
+    ;(createAuthServerClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      auth: { getUser: async () => ({ data: { user: mockUser } }) },
+    })
+    const mockDb = {
+      from: vi.fn().mockReturnThis(),
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      single: vi.fn().mockResolvedValue({ data: null, error: { code: 'CONNECTION_ERROR', message: 'db exploded' } }),
+    }
+    ;(createServerSupabaseClient as ReturnType<typeof vi.fn>).mockReturnValue(mockDb)
+    const res = await PATCH(makeRequest({ is_ready: true }), makeParams('abc'))
+    expect(res.status).toBe(500)
+  })
+
+  it('returns 500 when update fails', async () => {
+    ;(createAuthServerClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      auth: { getUser: async () => ({ data: { user: mockUser } }) },
+    })
+    let callCount = 0
+    const mockDb = {
+      from: vi.fn().mockReturnThis(),
+      select: vi.fn().mockReturnThis(),
+      update: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      single: vi.fn().mockImplementation(() => {
+        callCount++
+        if (callCount === 1) return Promise.resolve({ data: playerWithCharacter, error: null })
+        return Promise.resolve({ data: null, error: { code: 'WRITE_ERROR', message: 'update failed' } })
+      }),
+    }
+    ;(createServerSupabaseClient as ReturnType<typeof vi.fn>).mockReturnValue(mockDb)
+    const res = await PATCH(makeRequest({ is_ready: true }), makeParams('abc'))
+    expect(res.status).toBe(500)
+  })
+
   it('returns 422 when marking ready=true but character_name is null', async () => {
     ;(createAuthServerClient as ReturnType<typeof vi.fn>).mockResolvedValue({
       auth: { getUser: async () => ({ data: { user: mockUser } }) },
