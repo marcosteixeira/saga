@@ -27,7 +27,6 @@ Deno.serve(async (req: Request) => {
     path: new URL(req.url).pathname,
   })
 
-  // Validate webhook secret — prevents anyone from calling this directly
   const webhookSecret = Deno.env.get("GENERATE_WORLD_WEBHOOK_SECRET")
   const authHeader = req.headers.get("authorization")
   if (webhookSecret && authHeader !== `Bearer ${webhookSecret}`) {
@@ -37,29 +36,36 @@ Deno.serve(async (req: Request) => {
   logInfo("generate_world.auth_validated", { requestId })
 
   const payload = await req.json()
-  const campaign = payload.record
+  const world = payload.record
 
-  if (!campaign?.id || !campaign?.world_description) {
+  if (!world?.id || !world?.description) {
     logInfo("generate_world.payload_invalid", {
       requestId,
-      hasCampaignId: Boolean(campaign?.id),
-      hasWorldDescription: Boolean(campaign?.world_description),
+      hasWorldId: Boolean(world?.id),
+      hasDescription: Boolean(world?.description),
     })
     return new Response("Invalid payload", { status: 400 })
   }
   logInfo("generate_world.payload_validated", {
     requestId,
-    campaignId: campaign.id,
-    worldDescriptionLength: campaign.world_description.length,
+    worldId: world.id,
+    descriptionLength: world.description.length,
   })
 
+  // Find the campaign linked to this world (needed to initialize campaign files)
+  const { data: campaign } = await supabase
+    .from("campaigns")
+    .select("id")
+    .eq("world_id", world.id)
+    .single()
+
+  const worldChannel = `world:${world.id}`
+
   try {
-    // Broadcast that generation has started so the UI can show immediate feedback
-    await broadcastToChannel(supabaseUrl, serviceRoleKey, campaign.id, "world:started", {
+    await broadcastToChannel(supabaseUrl, serviceRoleKey, worldChannel, "world:started", {
       status: "generating",
     })
 
-    // Prompt injection defense: user content in user message, never in system
     const systemPrompt = `You are a world-builder for tabletop RPG campaigns. Generate a rich WORLD.md document faithful to the genre, tone, and setting described by the player. Do NOT impose a fantasy genre — if the player describes a sci-fi, horror, Western, crime, or any other setting, match it exactly.
 
 Output a Markdown document with exactly these sections (use ## headings):
@@ -84,17 +90,17 @@ Be evocative and specific. Output ONLY the Markdown document, no preamble.`
 
       logInfo("generate_world.ai_attempt_started", {
         requestId,
-        campaignId: campaign.id,
+        worldId: world.id,
         attempt,
         maxAttempts: WORLD_GEN_MAX_ATTEMPTS,
         retryMissingSections: missingSections,
       })
 
       const aiResponse = await anthropic.messages.create({
-        model: "claude-sonnet-4-6",
+        model: "claude-haiku-4-5-20251001",
         max_tokens: WORLD_GEN_MAX_TOKENS,
         system: systemPrompt,
-        messages: [{ role: "user", content: `${campaign.world_description}${retryInstruction}` }],
+        messages: [{ role: "user", content: `${world.description}${retryInstruction}` }],
       })
 
       worldContent = aiResponse.content
@@ -105,7 +111,7 @@ Be evocative and specific. Output ONLY the Markdown document, no preamble.`
       missingSections = getMissingRequiredSections(worldContent)
       logInfo("generate_world.ai_attempt_finished", {
         requestId,
-        campaignId: campaign.id,
+        worldId: world.id,
         attempt,
         durationMs: Date.now() - attemptStartedAt,
         outputLength: worldContent.length,
@@ -114,8 +120,7 @@ Be evocative and specific. Output ONLY the Markdown document, no preamble.`
       })
 
       if (missingSections.length > 0 && attempt < WORLD_GEN_MAX_ATTEMPTS) {
-        // Broadcast progress on retry so UI can show attempt info
-        await broadcastToChannel(supabaseUrl, serviceRoleKey, campaign.id, "world:progress", {
+        await broadcastToChannel(supabaseUrl, serviceRoleKey, worldChannel, "world:progress", {
           attempt,
           maxAttempts: WORLD_GEN_MAX_ATTEMPTS,
         })
@@ -125,53 +130,41 @@ Be evocative and specific. Output ONLY the Markdown document, no preamble.`
     }
 
     if (missingSections.length > 0) {
-      logInfo("generate_world.ai_validation_failed", {
-        requestId,
-        campaignId: campaign.id,
-        missingSectionsCount: missingSections.length,
-        missingSections,
-      })
       throw new Error(`World generation incomplete after retries. Missing sections: ${missingSections.join(", ")}`)
     }
 
-    // Initialize all 5 campaign memory files
-    const files = [
-      { campaign_id: campaign.id, filename: "WORLD.md", content: worldContent },
-      { campaign_id: campaign.id, filename: "CHARACTERS.md", content: "" },
-      { campaign_id: campaign.id, filename: "NPCS.md", content: "" },
-      { campaign_id: campaign.id, filename: "LOCATIONS.md", content: "" },
-      { campaign_id: campaign.id, filename: "MEMORY.md", content: "Campaign just started." },
-    ]
-    for (const file of files) {
-      await supabase
-        .from("campaign_files")
-        .upsert(file, { onConflict: "campaign_id,filename" })
-      logInfo("generate_world.db_file_upserted", {
-        requestId,
-        campaignId: campaign.id,
-        filename: file.filename,
-        contentLength: file.content.length,
-      })
+    // Save generated content to worlds table
+    await supabase
+      .from("worlds")
+      .update({ world_content: worldContent, status: "ready" })
+      .eq("id", world.id)
+    logInfo("generate_world.world_content_saved", { requestId, worldId: world.id })
+
+    // Initialize campaign memory files (4 files — WORLD.md is now on the world record)
+    if (campaign?.id) {
+      const files = [
+        { campaign_id: campaign.id, filename: "CHARACTERS.md", content: "" },
+        { campaign_id: campaign.id, filename: "NPCS.md", content: "" },
+        { campaign_id: campaign.id, filename: "LOCATIONS.md", content: "" },
+        { campaign_id: campaign.id, filename: "MEMORY.md", content: "Campaign just started." },
+      ]
+      for (const file of files) {
+        await supabase
+          .from("campaign_files")
+          .upsert(file, { onConflict: "campaign_id,filename" })
+        logInfo("generate_world.db_file_upserted", {
+          requestId,
+          campaignId: campaign.id,
+          filename: file.filename,
+        })
+      }
     }
 
-    // Update DB status → 'lobby' (for page reload state)
-    await supabase
-      .from("campaigns")
-      .update({ status: "lobby" })
-      .eq("id", campaign.id)
-    logInfo("generate_world.status_updated", {
-      requestId,
-      campaignId: campaign.id,
-      status: "lobby",
+    await broadcastToChannel(supabaseUrl, serviceRoleKey, worldChannel, "world:complete", {
+      status: "ready",
     })
 
-    // Broadcast completion event so the UI updates without a full page reload
-    await broadcastToChannel(supabaseUrl, serviceRoleKey, campaign.id, "world:complete", {
-      status: "lobby",
-    })
-
-    // Trigger image generation in the background without blocking the response.
-    // Use waitUntil so the runtime stays alive until the fetch completes.
+    // Trigger image generation
     const imageWebhookSecret = Deno.env.get("GENERATE_IMAGE_WEBHOOK_SECRET")
     const imagePromise = fetch(`${supabaseUrl}/functions/v1/generate-image`, {
       method: "POST",
@@ -180,26 +173,26 @@ Be evocative and specific. Output ONLY the Markdown document, no preamble.`
         Authorization: `Bearer ${imageWebhookSecret}`,
       },
       body: JSON.stringify({
-        campaign_id: campaign.id,
+        world_id: world.id,
         type: "cover",
       }),
     }).then((res) => {
       if (!res.ok) {
         logError(
           "generate_world.image_trigger_failed",
-          { requestId, campaignId: campaign.id, status: res.status },
+          { requestId, worldId: world.id, status: res.status },
           new Error(`generate-image responded with ${res.status}`),
         )
       } else {
         logInfo("generate_world.image_trigger_succeeded", {
           requestId,
-          campaignId: campaign.id,
+          worldId: world.id,
         })
       }
     }).catch((err) => {
       logError(
         "generate_world.image_trigger_failed",
-        { requestId, campaignId: campaign.id },
+        { requestId, worldId: world.id },
         err,
       )
     })
@@ -208,7 +201,7 @@ Be evocative and specific. Output ONLY the Markdown document, no preamble.`
 
     logInfo("generate_world.completed", {
       requestId,
-      campaignId: campaign.id,
+      worldId: world.id,
       durationMs: Date.now() - requestStartedAt,
     })
 
@@ -220,25 +213,15 @@ Be evocative and specific. Output ONLY the Markdown document, no preamble.`
       "generate_world.failed",
       {
         requestId,
-        campaignId: campaign.id,
+        worldId: world.id,
         durationMs: Date.now() - requestStartedAt,
       },
       err,
     )
 
-    // Update DB status → 'error' (for page reload state)
-    await supabase
-      .from("campaigns")
-      .update({ status: "error" })
-      .eq("id", campaign.id)
-    logInfo("generate_world.status_updated", {
-      requestId,
-      campaignId: campaign.id,
-      status: "error",
-    })
+    await supabase.from("worlds").update({ status: "error" }).eq("id", world.id)
 
-    // Broadcast error event so the UI can immediately show the error state
-    await broadcastToChannel(supabaseUrl, serviceRoleKey, campaign.id, "world:error", {
+    await broadcastToChannel(supabaseUrl, serviceRoleKey, worldChannel, "world:error", {
       status: "error",
     })
 

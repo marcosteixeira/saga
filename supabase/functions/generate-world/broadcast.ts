@@ -3,7 +3,7 @@ export type BroadcastPayload = Record<string, unknown>
 export async function broadcastToChannel(
   supabaseUrl: string,
   serviceRoleKey: string,
-  campaignId: string,
+  channel: string,
   event: string,
   payload: BroadcastPayload,
 ): Promise<void> {
@@ -17,7 +17,7 @@ export async function broadcastToChannel(
       },
       body: JSON.stringify({
         messages: [{
-          topic: `campaign:${campaignId}`,
+          topic: channel,
           event,
           payload,
         }],
@@ -25,12 +25,12 @@ export async function broadcastToChannel(
     })
     if (!response.ok) {
       console.error(
-        `[broadcastToChannel] HTTP ${response.status} for campaign:${campaignId} event:${event}`
+        `[broadcastToChannel] HTTP ${response.status} for ${channel} event:${event}`
       )
     }
   } catch (err) {
     console.error(
-      `[broadcastToChannel] fetch threw for campaign:${campaignId} event:${event}`,
+      `[broadcastToChannel] fetch threw for ${channel} event:${event}`,
       err,
     )
   }
