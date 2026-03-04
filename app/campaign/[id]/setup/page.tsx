@@ -7,19 +7,12 @@ import { Button } from '@/components/ui/button'
 import { EmberParticles } from '@/components/ember-particles'
 import { AmbientSmoke } from '@/components/ambient-smoke'
 import { GearDecoration } from '@/components/gear-decoration'
-import { WorldPreview } from '@/components/campaign/WorldPreview'
 import type { Campaign } from '@/types'
 
 const SETUP_ELIGIBLE_STATUSES: Array<Campaign['status']> = ['generating', 'error', 'lobby']
 
-type CampaignFile = {
-  filename: string
-  content: string
-}
-
 type CampaignPayload = {
   campaign: Campaign
-  files: CampaignFile[]
 }
 
 function statusMessage(status: Campaign['status']): string {
@@ -42,8 +35,7 @@ export default function CampaignSetupPage() {
 
   const supabase = useMemo(() => createClient(), [])
   const [campaign, setCampaign] = useState<Campaign | null>(null)
-  const [worldContent, setWorldContent] = useState('')
-  const [statusText, setStatusText] = useState('Loading campaign setup...')
+const [statusText, setStatusText] = useState('Loading campaign setup...')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(true)
   const [isRetrying, setIsRetrying] = useState(false)
@@ -55,10 +47,7 @@ export default function CampaignSetupPage() {
     }
 
     const data = (await res.json()) as CampaignPayload
-    const worldFile = data.files?.find((file) => file.filename === 'WORLD.md')
-
     setCampaign(data.campaign)
-    setWorldContent(worldFile?.content ?? '')
     setStatusText(statusMessage(data.campaign.status))
 
     return data
@@ -227,8 +216,15 @@ export default function CampaignSetupPage() {
             )}
           </div>
 
-          {campaign?.status === 'lobby' && campaign && (
-            <WorldPreview campaign={campaign} worldContent={worldContent} />
+          {campaign?.status === 'lobby' && (
+            <div className="iron-plate p-8 md:p-10 mt-6 text-center">
+              <div className="rivet-bottom-left" />
+              <div className="rivet-bottom-right" />
+              <p className="font-heading text-xl text-gold mb-6 tracking-widest">YOUR WORLD IS READY</p>
+              <Button className="w-full max-w-sm" onClick={() => router.push(`/campaign/${campaign.id}/lobby`)}>
+                Enter Lobby
+              </Button>
+            </div>
           )}
         </div>
       </div>

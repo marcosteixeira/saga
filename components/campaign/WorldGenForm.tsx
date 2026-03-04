@@ -1,20 +1,15 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import { WorldPreview } from './WorldPreview'
-import type { Campaign } from '@/types'
-
-interface PreviewState {
-  campaign: Campaign
-  worldContent: string
-}
 
 export function WorldGenForm() {
+  const router = useRouter()
   const [hostUsername, setHostUsername] = useState('')
 
   useEffect(() => {
@@ -27,7 +22,6 @@ export function WorldGenForm() {
   const [worldDescription, setWorldDescription] = useState('')
   const [systemDescription, setSystemDescription] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
-  const [preview, setPreview] = useState<PreviewState | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   async function handleSubmit(e: React.FormEvent) {
@@ -51,28 +45,19 @@ export function WorldGenForm() {
 
       if (!res.ok) {
         setError(data.error ?? 'Something went wrong. Check the gauges.')
+        setIsGenerating(false)
         return
       }
-
-      const campaignRes = await fetch(`/api/campaign/${data.id}`)
-      const campaignData = await campaignRes.json()
-      const worldFile = campaignData.files?.find(
-        (f: { filename: string; content: string }) => f.filename === 'WORLD.md'
-      )
-
-      setPreview({
-        campaign: campaignData.campaign,
-        worldContent: worldFile?.content ?? '',
-      })
-    } catch {
-      setError('Connection failure. The pipes are clogged.')
-    } finally {
+      router.push(`/campaign/${data.id}/setup`)
+      // keep isGenerating=true so the loader stays until the page unmounts
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : 'World generation failed in the background. Please try forging again.'
+      setError(message)
       setIsGenerating(false)
     }
-  }
-
-  if (preview) {
-    return <WorldPreview campaign={preview.campaign} worldContent={preview.worldContent} />
   }
 
   if (isGenerating) {
