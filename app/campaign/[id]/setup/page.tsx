@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
@@ -47,7 +47,6 @@ export default function CampaignSetupPage() {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(true)
   const [isRetrying, setIsRetrying] = useState(false)
-  const mountedRef = useRef(true)
 
   const loadCampaign = useCallback(async (): Promise<CampaignPayload> => {
     const res = await fetch(`/api/campaign/${campaignId}`)
@@ -145,13 +144,6 @@ export default function CampaignSetupPage() {
     }
   }, [campaignId, loadCampaign, router, supabase])
 
-  useEffect(() => {
-    mountedRef.current = true
-    return () => {
-      mountedRef.current = false
-    }
-  }, [])
-
   async function handleRetryGeneration() {
     setError(null)
     setIsRetrying(true)
@@ -166,21 +158,13 @@ export default function CampaignSetupPage() {
         throw new Error(data.error ?? 'Failed to retry world generation.')
       }
 
-      if (mountedRef.current) {
-        setBusy(true)
-        setStatusText('Retry triggered. World forge is active in the background...')
-      }
+      setBusy(true)
+      setStatusText('Retry triggered. World forge is active in the background...')
     } catch (err) {
-      if (mountedRef.current) {
-        setError(
-          err instanceof Error ? err.message : 'Failed to retry world generation.'
-        )
-        setBusy(false)
-      }
+      setError(err instanceof Error ? err.message : 'Failed to retry world generation.')
+      setBusy(false)
     } finally {
-      if (mountedRef.current) {
-        setIsRetrying(false)
-      }
+      setIsRetrying(false)
     }
   }
 
