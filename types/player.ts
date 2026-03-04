@@ -11,6 +11,7 @@ export type Player = {
   status: 'active' | 'dead' | 'incapacitated' | 'absent'
   absence_mode: 'skip' | 'npc' | 'auto_act'
   is_host: boolean
+  is_ready: boolean
   last_seen_at: string
   joined_at: string
 }
