@@ -32,11 +32,11 @@ describe('extractImageBytes', () => {
 describe('getStoragePath', () => {
   it('returns correct path for cover type', async () => {
     const { getStoragePath } = await import('../index.ts');
-    expect(getStoragePath('campaign-123', 'cover')).toBe('campaign-123/cover.png');
+    expect(getStoragePath('campaign-123', 'cover')).toBe('worlds/campaign-123/cover.png');
   });
 
   it('returns correct path for map type', async () => {
     const { getStoragePath } = await import('../index.ts');
-    expect(getStoragePath('campaign-123', 'map')).toBe('campaign-123/map.png');
+    expect(getStoragePath('campaign-123', 'map')).toBe('worlds/campaign-123/map.png');
   });
 });

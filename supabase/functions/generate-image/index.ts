@@ -10,7 +10,7 @@ type GeminiResponse = {
 }
 
 // System prompt is fixed and never contains user-controlled content.
-// User content (WORLD.md) goes only in the user message.
+// User content (worlds.world_content) goes only in the user message.
 const IMAGE_SYSTEM_PROMPT = `You are a tabletop RPG background art generator. Generate a single widescreen (16:9 landscape) cinematic scene that will be used as a full-bleed UI background for a web application.
 
 CRITICAL COMPOSITION RULES:
@@ -38,8 +38,8 @@ export function extractImageBytes(response: GeminiResponse): string {
   throw new Error("No image data returned from Gemini")
 }
 
-export function getStoragePath(campaignId: string, type: string): string {
-  return `${campaignId}/${type}.png`
+export function getStoragePath(worldId: string, type: string): string {
+  return `worlds/${worldId}/${type}.png`
 }
 
 async function createSupabaseClient() {
@@ -57,7 +57,7 @@ async function createSupabaseClient() {
 async function broadcastImageReady(
   supabaseUrl: string,
   serviceRoleKey: string,
-  campaignId: string,
+  worldId: string,
   type: string,
   url: string,
 ): Promise<void> {
@@ -72,7 +72,7 @@ async function broadcastImageReady(
       body: JSON.stringify({
         messages: [
           {
-            topic: `campaign:${campaignId}`,
+            topic: `world:${worldId}`,
             event: "world:image_ready",
             payload: { type, url },
           },
@@ -95,33 +95,32 @@ Deno.serve(async (req: Request) => {
     return new Response("Unauthorized", { status: 401 })
   }
 
-  let body: { campaign_id?: string; type?: string }
+  let body: { world_id?: string; type?: string }
   try {
     body = await req.json()
   } catch {
     return new Response("Invalid JSON", { status: 400 })
   }
 
-  const { campaign_id, type = "cover" } = body
-  if (!campaign_id) {
-    return new Response("Missing campaign_id", { status: 400 })
+  const { world_id, type = "cover" } = body
+  if (!world_id) {
+    return new Response("Missing world_id", { status: 400 })
   }
 
   try {
     const { supabaseUrl, serviceRoleKey, supabase } = await createSupabaseClient()
 
-    const { data: fileRow, error: fileError } = await supabase
-      .from("campaign_files")
-      .select("content")
-      .eq("campaign_id", campaign_id)
-      .eq("filename", "WORLD.md")
+    const { data: worldRow, error: worldError } = await supabase
+      .from("worlds")
+      .select("world_content")
+      .eq("id", world_id)
       .single()
 
-    if (fileError || !fileRow?.content) {
-      throw new Error(`WORLD.md not found for campaign ${campaign_id}`)
+    if (worldError || !worldRow?.world_content) {
+      throw new Error(`world_content not found for world ${world_id}`)
     }
 
-    const userPrompt = fileRow.content as string
+    const userPrompt = worldRow.world_content as string
 
     const { GoogleGenerativeAI } = await import("npm:@google/generative-ai")
     const genai = new GoogleGenerativeAI(Deno.env.get("GEMINI_API_KEY")!)
@@ -141,7 +140,7 @@ Deno.serve(async (req: Request) => {
 
     const base64Data = extractImageBytes(result.response as GeminiResponse)
     const imageBytes = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0))
-    const storagePath = getStoragePath(campaign_id, type)
+    const storagePath = getStoragePath(world_id, type)
 
     const { error: uploadError } = await supabase.storage
       .from("campaign-images")
@@ -157,11 +156,11 @@ Deno.serve(async (req: Request) => {
     const column = type === "map" ? "map_image_url" : "cover_image_url"
 
     await supabase
-      .from("campaigns")
+      .from("worlds")
       .update({ [column]: publicUrl })
-      .eq("id", campaign_id)
+      .eq("id", world_id)
 
-    await broadcastImageReady(supabaseUrl, serviceRoleKey, campaign_id, type, publicUrl)
+    await broadcastImageReady(supabaseUrl, serviceRoleKey, world_id, type, publicUrl)
 
     return new Response(JSON.stringify({ ok: true, url: publicUrl }), {
       headers: { "Content-Type": "application/json" },

@@ -20,7 +20,7 @@ export async function POST(
 
   const { data: campaign, error: campaignError } = await supabase
     .from('campaigns')
-    .select('id,host_user_id,world_description')
+    .select('id, host_user_id, world_id, worlds(id, description)')
     .eq('id', id)
     .single()
 
@@ -32,23 +32,20 @@ export async function POST(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
+  const worldRaw = campaign.worlds
+  const world = (Array.isArray(worldRaw) ? worldRaw[0] : worldRaw) as { id: string; description: string }
+
   const { error: updateError } = await supabase
-    .from('campaigns')
-    .update({ status: 'generating' })
-    .eq('id', id)
+    .from('worlds')
+    .update({ status: 'generating', world_content: null })
+    .eq('id', world.id)
 
   if (updateError) {
-    return NextResponse.json(
-      { error: 'Failed to update campaign status' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to update world status' }, { status: 500 })
   }
 
   const functionUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/generate-world`
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  }
-
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (process.env.GENERATE_WORLD_WEBHOOK_SECRET) {
     headers.authorization = `Bearer ${process.env.GENERATE_WORLD_WEBHOOK_SECRET}`
   }
@@ -57,10 +54,7 @@ export async function POST(
     method: 'POST',
     headers,
     body: JSON.stringify({
-      record: {
-        id: campaign.id,
-        world_description: campaign.world_description,
-      },
+      record: { id: world.id, description: world.description },
     }),
   }).catch((err) => {
     console.error('[generate-world] fire-and-forget fetch failed:', err)
