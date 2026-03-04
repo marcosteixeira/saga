@@ -41,6 +41,18 @@ describe('POST /api/campaign/[id]/join', () => {
     expect(res.status).toBe(400)
   })
 
+  it('returns 400 when username is blank whitespace', async () => {
+    ;(createAuthServerClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      auth: { getUser: async () => ({ data: { user: mockUser } }) },
+    })
+    const req = new Request('http://localhost/api/campaign/abc/join', {
+      method: 'POST',
+      body: JSON.stringify({ username: '   ' }),
+    })
+    const res = await POST(req, makeParams('abc'))
+    expect(res.status).toBe(400)
+  })
+
   it('returns 404 when campaign does not exist', async () => {
     ;(createAuthServerClient as ReturnType<typeof vi.fn>).mockResolvedValue({
       auth: { getUser: async () => ({ data: { user: mockUser } }) },
