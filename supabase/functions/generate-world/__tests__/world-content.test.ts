@@ -1,6 +1,15 @@
 import { describe, it, expect } from 'vitest'
 import { REQUIRED_WORLD_SECTIONS, getMissingRequiredSections, hasAllRequiredSections, parseClassesFromContent, stripClassesFromContent, validateClasses } from '../world-content'
 
+const VALID_CLASSES_JSON = JSON.stringify([
+  { name: "Shadow Warden", description: "Protectors of the veil." },
+  { name: "Ashen Knight", description: "Warriors of cursed flame." },
+  { name: "Veil Dancer", description: "Illusionists of the mist." },
+  { name: "Iron Cleric", description: "Faith hammered into steel." },
+  { name: "Hollow Scout", description: "Rangers who feel no fear." },
+  { name: "Dusk Mage", description: "Scholars of dying light." },
+])
+
 const VALID_WORLD_MD = `
 ## World Name
 Ironhold
@@ -19,11 +28,16 @@ The Guild controls...
 
 ## Tone
 Dark, industrial, hopeless.
+
+## Classes
+\`\`\`json
+${VALID_CLASSES_JSON}
+\`\`\`
 `
 
 describe('REQUIRED_WORLD_SECTIONS', () => {
-  it('contains exactly 6 sections', () => {
-    expect(REQUIRED_WORLD_SECTIONS).toHaveLength(6)
+  it('contains exactly 7 sections', () => {
+    expect(REQUIRED_WORLD_SECTIONS).toHaveLength(7)
   })
 
   it('does not include Current Situation', () => {
@@ -57,16 +71,27 @@ describe('getMissingRequiredSections', () => {
   })
 })
 
-// --- parseClassesFromContent ---
+const VALID_WORLD_MD_NO_CLASSES = `
+## World Name
+Ironhold
 
-const VALID_CLASSES_JSON = JSON.stringify([
-  { name: "Shadow Warden", description: "Protectors of the veil." },
-  { name: "Ashen Knight", description: "Warriors of cursed flame." },
-  { name: "Veil Dancer", description: "Illusionists of the mist." },
-  { name: "Iron Cleric", description: "Faith hammered into steel." },
-  { name: "Hollow Scout", description: "Rangers who feel no fear." },
-  { name: "Dusk Mage", description: "Scholars of dying light." },
-])
+## Overview
+A dying empire...
+
+## History
+Once great...
+
+## Geography
+Mountains and fog...
+
+## Factions
+The Guild controls...
+
+## Tone
+Dark, industrial, hopeless.
+`
+
+// --- parseClassesFromContent ---
 
 const VALID_CONTENT_WITH_CLASSES = `
 ## World Name
@@ -101,7 +126,7 @@ describe('parseClassesFromContent', () => {
   })
 
   it('returns empty array when ## Classes section is missing', () => {
-    expect(parseClassesFromContent(VALID_WORLD_MD)).toEqual([])
+    expect(parseClassesFromContent(VALID_WORLD_MD_NO_CLASSES)).toEqual([])
   })
 
   it('returns empty array when JSON block is malformed', () => {
@@ -119,8 +144,8 @@ describe('stripClassesFromContent', () => {
   })
 
   it('returns original content unchanged when no ## Classes section exists', () => {
-    const result = stripClassesFromContent(VALID_WORLD_MD)
-    expect(result).toBe(VALID_WORLD_MD)
+    const result = stripClassesFromContent(VALID_WORLD_MD_NO_CLASSES)
+    expect(result).toBe(VALID_WORLD_MD_NO_CLASSES)
   })
 })
 
