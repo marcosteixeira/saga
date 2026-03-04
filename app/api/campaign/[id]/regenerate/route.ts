@@ -53,7 +53,7 @@ export async function POST(
     headers.authorization = `Bearer ${process.env.GENERATE_WORLD_WEBHOOK_SECRET}`
   }
 
-  void fetch(functionUrl, {
+  fetch(functionUrl, {
     method: 'POST',
     headers,
     body: JSON.stringify({
@@ -62,6 +62,8 @@ export async function POST(
         world_description: campaign.world_description,
       },
     }),
+  }).catch((err) => {
+    console.error('[generate-world] fire-and-forget fetch failed:', err)
   })
 
   return NextResponse.json({ ok: true }, { status: 202 })

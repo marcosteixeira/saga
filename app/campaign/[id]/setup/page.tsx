@@ -35,7 +35,7 @@ export default function CampaignSetupPage() {
 
   const supabase = useMemo(() => createClient(), [])
   const [campaign, setCampaign] = useState<Campaign | null>(null)
-const [statusText, setStatusText] = useState('Loading campaign setup...')
+  const [statusText, setStatusText] = useState('Loading campaign setup...')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(true)
   const [isRetrying, setIsRetrying] = useState(false)
@@ -63,12 +63,6 @@ const [statusText, setStatusText] = useState('Loading campaign setup...')
         setError(null)
         setBusy(true)
         setStatusText('World forge is active. This page updates automatically...')
-      })
-      .on('broadcast', { event: 'world:progress' }, ({ payload }) => {
-        if (!mounted) return
-        const attempt = typeof payload.attempt === 'number' ? payload.attempt : '?'
-        const max = typeof payload.maxAttempts === 'number' ? payload.maxAttempts : '?'
-        setStatusText(`Generating world... (attempt ${attempt}/${max})`)
       })
       .on('broadcast', { event: 'world:complete' }, async () => {
         if (!mounted) return
@@ -182,7 +176,7 @@ const [statusText, setStatusText] = useState('Loading campaign setup...')
               <div className="brass-pipe mx-auto mt-4 w-24" />
             </div>
 
-            {!(campaign?.status === 'lobby' && campaign) && (
+            {campaign?.status !== 'lobby' && (
               <div className="flex flex-col items-center gap-6 py-6">
                 {busy && <div className="piston-loader" aria-label="Generating..." />}
 

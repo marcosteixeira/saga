@@ -10,19 +10,11 @@ export function ProfileLink() {
   const [user, setUser] = useState<User | null>(null)
 
   useEffect(() => {
-    let mounted = true
-
-    supabase.auth.getUser().then(({ data }) => {
-      if (!mounted) return
-      setUser(data.user ?? null)
-    })
-
     const { data } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null)
     })
 
     return () => {
-      mounted = false
       data.subscription.unsubscribe()
     }
   }, [supabase])
