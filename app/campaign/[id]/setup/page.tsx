@@ -178,22 +178,16 @@ export default function CampaignSetupPage() {
 
       <div className="relative z-10 flex min-h-screen items-center justify-center px-6 py-16">
         <div className="w-full max-w-3xl animate-entrance" data-delay="1">
-          <div
-            className="iron-plate p-8 md:p-10"
-            style={{ background: 'rgba(42, 37, 32, 0.85)' }}
-          >
+          <div className="iron-plate p-8 md:p-10">
             <div className="rivet-bottom-left" />
             <div className="rivet-bottom-right" />
 
             <div className="mb-8 text-center">
               <div className="brass-nameplate mx-auto mb-4">Campaign Setup</div>
-              <h1
-                className="text-2xl tracking-[0.08em] text-steam"
-                style={{ fontFamily: 'var(--font-heading), serif' }}
-              >
+              <h1 className="font-heading text-2xl text-steam">
                 WORLD GENERATION
               </h1>
-              <p className="mt-2 text-sm" style={{ color: 'var(--ash)' }}>
+              <p className="mt-2 text-sm text-muted-foreground">
                 {statusText}
               </p>
               <div className="brass-pipe mx-auto mt-4 w-24" />
@@ -206,7 +200,7 @@ export default function CampaignSetupPage() {
                 {busy && <div className="piston-loader" aria-label="Generating..." />}
 
                 {error && (
-                  <p className="text-sm" style={{ color: '#a63d2a' }}>
+                  <p className="text-sm text-destructive">
                     {error}
                   </p>
                 )}

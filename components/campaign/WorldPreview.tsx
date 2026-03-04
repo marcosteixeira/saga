@@ -12,13 +12,15 @@ interface Props {
 export function WorldPreview({ campaign, worldContent }: Props) {
   const router = useRouter()
   return (
-    <div className="rounded border border-[--gunmetal] bg-[--smog]/85 p-8 max-w-2xl mx-auto">
-      <h1 className="font-display text-4xl uppercase text-[--brass] mb-6"
-          style={{ textShadow: '0 0 20px rgba(196,148,61,0.4)' }}>
+    <div className="iron-plate p-8 max-w-2xl mx-auto">
+      <div className="rivet-bottom-left" />
+      <div className="rivet-bottom-right" />
+      <h1 className="display-title text-4xl mb-4">
         {campaign.name}
       </h1>
+      <div className="brass-pipe mx-auto mb-6 w-24" />
       <ScrollArea className="h-96 mb-6">
-        <pre className="font-body text-[--steam] text-sm leading-relaxed whitespace-pre-wrap">
+        <pre className="text-steam text-sm leading-relaxed whitespace-pre-wrap">
           {worldContent}
         </pre>
       </ScrollArea>
