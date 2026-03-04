@@ -40,5 +40,22 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Failed to create campaign' }, { status: 500 })
   }
 
+  const functionUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/generate-world`
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (process.env.GENERATE_WORLD_WEBHOOK_SECRET) {
+    headers.authorization = `Bearer ${process.env.GENERATE_WORLD_WEBHOOK_SECRET}`
+  }
+
+  // Fire-and-forget: do not await — return campaign id immediately
+  fetch(functionUrl, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      record: { id: data.id, world_description },
+    }),
+  }).catch((err) => {
+    console.error('[generate-world] fire-and-forget fetch failed:', err)
+  })
+
   return NextResponse.json({ id: data.id }, { status: 201 })
 }
