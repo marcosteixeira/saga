@@ -229,9 +229,7 @@ export default function LobbyClient({ campaign, world, players: dbPlayers, curre
   const [isReady, setIsReady] = useState(false)
 
   // Own character form state
-  const currentUser: Player | null = players.find((p): p is Player => p !== null && p.isCurrentUser)
-    ?? players.find((p): p is Player => p !== null)
-    ?? null
+  const currentUser: Player | null = players.find(p => p.isCurrentUser) ?? null
   const [charName, setCharName] = useState(currentUser?.characterName ?? '')
   const [charClass, setCharClass] = useState<string>(currentUser?.characterClass ?? '')
   const [backstory, setBackstory] = useState(currentUser?.backstory ?? '')
