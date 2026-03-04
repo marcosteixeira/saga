@@ -12,6 +12,7 @@ function makeWorld(overrides: Partial<World> = {}): World {
     cover_image_url: overrides.cover_image_url ?? null,
     map_image_url: overrides.map_image_url ?? null,
     status: overrides.status ?? 'ready',
+    classes: overrides.classes ?? [],
     created_at: overrides.created_at ?? '2026-03-04T00:00:00.000Z',
   }
 }
