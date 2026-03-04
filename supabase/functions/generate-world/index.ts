@@ -172,6 +172,26 @@ Be evocative and specific. Starting Hooks must list 2-3 adventure hooks players 
       status: "lobby",
     })
 
+    // Fire-and-forget image generation so world generation response is not blocked.
+    const imageWebhookSecret = Deno.env.get("GENERATE_IMAGE_WEBHOOK_SECRET")
+    fetch(`${supabaseUrl}/functions/v1/generate-image`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${imageWebhookSecret}`,
+      },
+      body: JSON.stringify({
+        campaign_id: campaign.id,
+        type: "cover",
+      }),
+    }).catch((err) => {
+      logError(
+        "generate_world.image_trigger_failed",
+        { requestId, campaignId: campaign.id },
+        err,
+      )
+    })
+
     logInfo("generate_world.completed", {
       requestId,
       campaignId: campaign.id,
