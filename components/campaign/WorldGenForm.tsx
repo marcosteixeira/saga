@@ -60,31 +60,17 @@ export function WorldGenForm() {
     }
   }
 
-  if (isGenerating) {
-    return (
-      <div className="flex flex-col items-center gap-6 py-12">
-        <div className="piston-loader" aria-label="Generating..." />
-        <p
-          className="text-lg uppercase tracking-[0.15em]"
-          style={{ fontFamily: 'var(--font-display), serif', color: 'var(--steam)' }}
-        >
-          Generating your world...
-        </p>
-      </div>
-    )
-  }
-
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-6">
       {/* Display Name */}
       <div className="flex flex-col gap-2">
         <Label
           htmlFor="host_username"
-          className="text-xs uppercase tracking-[0.15em]"
+          className="text-sm uppercase tracking-[0.1em]"
           style={{ fontFamily: 'var(--font-mono), monospace', color: 'var(--copper)' }}
         >
           Your Name{' '}
-          <span className="text-ash/60 normal-case tracking-normal" style={{ fontFamily: 'var(--font-body), sans-serif' }}>
+          <span className="text-ash/80 normal-case tracking-normal" style={{ fontFamily: 'var(--font-body), sans-serif' }}>
             (optional — defaults to your email)
           </span>
         </Label>
@@ -102,7 +88,7 @@ export function WorldGenForm() {
       <div className="flex flex-col gap-2">
         <Label
           htmlFor="name"
-          className="text-xs uppercase tracking-[0.15em]"
+          className="text-sm uppercase tracking-[0.1em]"
           style={{ fontFamily: 'var(--font-mono), monospace', color: 'var(--copper)' }}
         >
           Campaign Name
@@ -122,7 +108,7 @@ export function WorldGenForm() {
       <div className="flex flex-col gap-2">
         <Label
           htmlFor="world_description"
-          className="text-xs uppercase tracking-[0.15em]"
+          className="text-sm uppercase tracking-[0.1em]"
           style={{ fontFamily: 'var(--font-mono), monospace', color: 'var(--copper)' }}
         >
           Describe Your World
@@ -142,11 +128,11 @@ export function WorldGenForm() {
       <div className="flex flex-col gap-2">
         <Label
           htmlFor="system_description"
-          className="text-xs uppercase tracking-[0.15em]"
+          className="text-sm uppercase tracking-[0.1em]"
           style={{ fontFamily: 'var(--font-mono), monospace', color: 'var(--copper)' }}
         >
           Custom Rules{' '}
-          <span className="text-ash/60 normal-case tracking-normal" style={{ fontFamily: 'var(--font-body), sans-serif' }}>
+          <span className="text-ash/80 normal-case tracking-normal" style={{ fontFamily: 'var(--font-body), sans-serif' }}>
             (optional)
           </span>
         </Label>
@@ -162,10 +148,7 @@ export function WorldGenForm() {
 
       {/* Error */}
       {error && (
-        <p
-          className="text-sm small-caps"
-          style={{ color: '#a63d2a', fontVariant: 'small-caps' }}
-        >
+        <p className="text-sm text-destructive">
           {error}
         </p>
       )}
@@ -179,7 +162,7 @@ export function WorldGenForm() {
           clipPath: 'polygon(6px 0%, calc(100% - 6px) 0%, 100% 6px, 100% calc(100% - 6px), calc(100% - 6px) 100%, 6px 100%, 0% calc(100% - 6px), 0% 6px)',
         }}
       >
-        Forge Campaign
+        {isGenerating ? 'Forging...' : 'Forge Campaign'}
       </Button>
     </form>
   )

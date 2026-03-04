@@ -80,7 +80,7 @@ export default function Home() {
             >
               <span className="h-[1px] w-8 bg-gradient-to-r from-transparent to-copper" />
               <p
-                className="text-sm uppercase tracking-[0.2em] text-ash"
+                className="text-sm uppercase tracking-[0.2em] text-steam/80"
                 style={{ fontFamily: "var(--font-mono), monospace" }}
               >
                 Your table &middot; Your tale &middot; AI Game Master
@@ -89,7 +89,7 @@ export default function Home() {
 
             {/* Description */}
             <p
-              className="animate-entrance mb-10 text-base leading-relaxed text-steam/70 lg:text-lg"
+              className="animate-entrance mb-10 text-base leading-relaxed text-steam/90 lg:text-lg"
               data-delay="2"
             >
               Gather your party and embark on adventures through realms shaped by
@@ -136,7 +136,7 @@ export default function Home() {
           data-delay="5"
         >
           <span
-            className="text-[0.6rem] uppercase tracking-[0.3em] text-ash/60"
+            className="text-xs uppercase tracking-[0.2em] text-ash/80"
             style={{ fontFamily: "var(--font-mono), monospace" }}
           >
             Scroll
@@ -175,14 +175,14 @@ export default function Home() {
                 </span>
               </div>
               <h3
-                className="text-sm tracking-[0.1em] text-brass"
+                className="text-base tracking-[0.08em] text-brass"
                 style={{ fontFamily: "var(--font-heading), serif" }}
               >
                 Create
               </h3>
             </div>
             <div className="iron-seam mb-4" />
-            <p className="text-sm leading-relaxed text-steam/60">
+            <p className="text-sm leading-relaxed text-steam/80">
               Name your campaign and choose a setting. The AI generates a living
               world with lore, factions, and a map — ready in seconds.
             </p>
@@ -200,14 +200,14 @@ export default function Home() {
                 </span>
               </div>
               <h3
-                className="text-sm tracking-[0.1em] text-brass"
+                className="text-base tracking-[0.08em] text-brass"
                 style={{ fontFamily: "var(--font-heading), serif" }}
               >
                 Gather
               </h3>
             </div>
             <div className="iron-seam mb-4" />
-            <p className="text-sm leading-relaxed text-steam/60">
+            <p className="text-sm leading-relaxed text-steam/80">
               Share an invite link. Players join the lobby, create characters,
               and get AI-generated portraits. 1 to 6 adventurers.
             </p>
@@ -225,14 +225,14 @@ export default function Home() {
                 </span>
               </div>
               <h3
-                className="text-sm tracking-[0.1em] text-brass"
+                className="text-base tracking-[0.08em] text-brass"
                 style={{ fontFamily: "var(--font-heading), serif" }}
               >
                 Play
               </h3>
             </div>
             <div className="iron-seam mb-4" />
-            <p className="text-sm leading-relaxed text-steam/60">
+            <p className="text-sm leading-relaxed text-steam/80">
               The AI Game Master narrates in real-time. Explore, fight, and
               shape the story. Every choice matters. Every die roll counts.
             </p>
@@ -258,7 +258,7 @@ export default function Home() {
               </span>
             </div>
             <span
-              className="mt-2 text-[0.6rem] uppercase tracking-[0.2em] text-ash"
+              className="mt-2 text-sm uppercase tracking-[0.12em] text-ash"
               style={{ fontFamily: "var(--font-mono), monospace" }}
             >
               Dice System
@@ -275,7 +275,7 @@ export default function Home() {
               </span>
             </div>
             <span
-              className="mt-2 text-[0.6rem] uppercase tracking-[0.2em] text-ash"
+              className="mt-2 text-sm uppercase tracking-[0.12em] text-ash"
               style={{ fontFamily: "var(--font-mono), monospace" }}
             >
               Max Players
@@ -292,7 +292,7 @@ export default function Home() {
               </span>
             </div>
             <span
-              className="mt-2 text-[0.6rem] uppercase tracking-[0.2em] text-ash"
+              className="mt-2 text-sm uppercase tracking-[0.12em] text-ash"
               style={{ fontFamily: "var(--font-mono), monospace" }}
             >
               Game Master
@@ -309,7 +309,7 @@ export default function Home() {
               </span>
             </div>
             <span
-              className="mt-2 text-[0.6rem] uppercase tracking-[0.2em] text-ash"
+              className="mt-2 text-sm uppercase tracking-[0.12em] text-ash"
               style={{ fontFamily: "var(--font-mono), monospace" }}
             >
               Worlds
@@ -342,7 +342,7 @@ export default function Home() {
             <div className="iron-seam mb-6" />
 
             <p
-              className="mb-6 text-center text-xs uppercase tracking-widest text-ash"
+              className="mb-6 text-center text-sm uppercase tracking-[0.15em] text-ash"
               style={{ fontFamily: "var(--font-mono), monospace" }}
             >
               Paste an invite link or campaign ID to join
@@ -361,7 +361,7 @@ export default function Home() {
           <div className="flex items-center gap-3">
             <div className="brass-pipe w-8" />
             <span
-              className="text-[0.6rem] uppercase tracking-[0.3em] text-ash/60"
+              className="text-xs uppercase tracking-[0.2em] text-ash/80"
               style={{ fontFamily: "var(--font-mono), monospace" }}
             >
               Powered by Claude
@@ -369,7 +369,7 @@ export default function Home() {
             <div className="brass-pipe w-8" />
           </div>
           <p
-            className="text-[0.55rem] uppercase tracking-[0.2em] text-ash/30"
+            className="text-xs uppercase tracking-[0.15em] text-ash/60"
             style={{ fontFamily: "var(--font-mono), monospace" }}
           >
             &copy; 2026 Saga &mdash; All systems operational

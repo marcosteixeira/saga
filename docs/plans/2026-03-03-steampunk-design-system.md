@@ -19,7 +19,7 @@ Visual direction drawn from a golden-hour industrial steampunk cityscape: dense 
 | `--iron`     | `#1a1814` | Dark machinery surfaces, near-black with warmth   |
 | `--smog`     | `#2a2520` | Smoky mid-dark, hazy background buildings         |
 | `--gunmetal` | `#3d3630` | Weathered metal panels, tarnished surfaces        |
-| `--ash`      | `#6b5d52` | Oxidized metal, muted mid-tones                   |
+| `--ash`      | `#9a8a7a` | Oxidized metal, muted mid-tones (≥7:1 on soot)    |
 | `--brass`    | `#c4943d` | Primary accent — polished brass fittings          |
 | `--copper`   | `#b87333` | Secondary accent — burnished copper machinery     |
 | `--amber`    | `#e8a835` | Furnace glow, lantern light, golden hour sun      |
@@ -39,7 +39,7 @@ Visual direction drawn from a golden-hour industrial steampunk cityscape: dense 
 | Muted text      | `--ash`                            |
 | Primary action  | `--brass`                          |
 | Hover / active  | `--furnace`                        |
-| Destructive     | `#a63d2a` (rusted red)             |
+| Destructive     | `#e05555` (readable warm red)      |
 | Success         | `--patina`                         |
 | Links           | `--amber`                          |
 
@@ -72,7 +72,7 @@ All fonts available on Google Fonts.
 | H1             | `2.5rem`                      | Uppercase, `letter-spacing: 0.08em`                  |
 | H2             | `1.75rem`                     | Uppercase, `letter-spacing: 0.05em`                  |
 | Body           | `1rem`                        | `line-height: 1.6`                                   |
-| Caption/Small  | `0.8rem`                      | Uppercase, `letter-spacing: 0.12em`, `--ash`         |
+| Caption/Small  | `0.875rem` (text-sm)          | Uppercase, `letter-spacing: 0.12em`, `--ash`         |
 
 **All headings uppercase** — industrial stamped feel.
 
@@ -194,5 +194,5 @@ All fonts available on Google Fonts.
 ### Accessibility
 
 - All animations respect `prefers-reduced-motion` — static fallbacks for every effect
-- Contrast: `--steam` on `--smog` ≈ 7:1, `--brass` on `--soot` ≈ 6.5:1
+- Contrast: `--steam` on `--smog` ≈ 7:1, `--brass` on `--soot` ≈ 6.5:1, `--ash` on `--soot` ≈ 7:1
 - Focus indicators: bright `--amber` outline (high visibility against dark surfaces)
