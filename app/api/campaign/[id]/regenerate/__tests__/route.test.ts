@@ -2,10 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockGetUser = vi.fn()
 const mockCampaignSingle = vi.fn()
-const mockCampaignUpdateEq = vi.fn()
-const mockCampaignUpdate = vi.fn()
-const mockCampaignSelectEq = vi.fn()
-const mockCampaignSelect = vi.fn()
+const mockWorldUpdateEq = vi.fn()
+const mockWorldUpdate = vi.fn()
 const mockFetch = vi.fn()
 
 vi.stubGlobal('fetch', mockFetch)
@@ -18,20 +16,26 @@ vi.mock('@/lib/supabase/server', () => ({
   ),
   createServerSupabaseClient: vi.fn(() => ({
     from: (table: string) => {
-      if (table !== 'campaigns') {
-        throw new Error(`Unexpected table: ${table}`)
+      if (table === 'campaigns') {
+        return {
+          select: () => ({
+            eq: () => ({
+              single: mockCampaignSingle,
+            }),
+          }),
+        }
       }
 
-      return {
-        select: (...args: unknown[]) => {
-          mockCampaignSelect(...args)
-          return { eq: mockCampaignSelectEq }
-        },
-        update: (...args: unknown[]) => {
-          mockCampaignUpdate(...args)
-          return { eq: mockCampaignUpdateEq }
-        },
+      if (table === 'worlds') {
+        return {
+          update: (...args: unknown[]) => {
+            mockWorldUpdate(...args)
+            return { eq: mockWorldUpdateEq }
+          },
+        }
       }
+
+      throw new Error(`Unexpected table: ${table}`)
     },
   })),
 }))
@@ -42,8 +46,7 @@ describe('POST /api/campaign/[id]/regenerate', () => {
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co'
     process.env.GENERATE_WORLD_WEBHOOK_SECRET = 'secret-1'
 
-    mockCampaignSelectEq.mockReturnValue({ single: mockCampaignSingle })
-    mockCampaignUpdateEq.mockResolvedValue({ error: null })
+    mockWorldUpdateEq.mockResolvedValue({ error: null })
     mockFetch.mockResolvedValue({ ok: true })
   })
 
@@ -73,7 +76,7 @@ describe('POST /api/campaign/[id]/regenerate', () => {
   it('returns 403 when user is not the host', async () => {
     mockGetUser.mockResolvedValue({ data: { user: { id: 'user-1' } } })
     mockCampaignSingle.mockResolvedValue({
-      data: { id: 'campaign-1', host_user_id: 'user-2', world_description: 'desc' },
+      data: { id: 'campaign-1', host_user_id: 'user-2', world_id: 'world-1', worlds: { id: 'world-1', description: 'desc' } },
       error: null,
     })
 
@@ -85,10 +88,15 @@ describe('POST /api/campaign/[id]/regenerate', () => {
     expect(res.status).toBe(403)
   })
 
-  it('returns 202 immediately and fires edge function without awaiting', async () => {
+  it('returns 202 and fires generate-world on the world record', async () => {
     mockGetUser.mockResolvedValue({ data: { user: { id: 'user-1' } } })
     mockCampaignSingle.mockResolvedValue({
-      data: { id: 'campaign-1', host_user_id: 'user-1', world_description: 'desc' },
+      data: {
+        id: 'campaign-1',
+        host_user_id: 'user-1',
+        world_id: 'world-1',
+        worlds: { id: 'world-1', description: 'A dark world' },
+      },
       error: null,
     })
 
@@ -98,12 +106,15 @@ describe('POST /api/campaign/[id]/regenerate', () => {
     })
 
     expect(res.status).toBe(202)
-    expect(mockCampaignUpdate).toHaveBeenCalledWith({ status: 'generating' })
+    expect(mockWorldUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'generating', world_content: null })
+    )
     expect(mockFetch).toHaveBeenCalledWith(
       'https://example.supabase.co/functions/v1/generate-world',
       expect.objectContaining({
         method: 'POST',
         headers: expect.objectContaining({ authorization: 'Bearer secret-1' }),
+        body: expect.stringContaining('world-1'),
       })
     )
   })

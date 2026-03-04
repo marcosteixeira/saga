@@ -48,7 +48,7 @@ describe('broadcastToChannel', () => {
     expect(body).toEqual({
       messages: [
         {
-          topic: 'campaign:campaign-123',
+          topic: 'campaign-123',
           event: 'world:error',
           payload: { status: 'error' },
         },
