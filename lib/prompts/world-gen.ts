@@ -14,10 +14,8 @@ Output a Markdown document with exactly these sections (use ## headings):
 ## Geography
 ## Factions
 ## Tone
-## Current Situation
-## Starting Hooks
 
-Be evocative and specific. Starting Hooks must list 2-3 adventure hooks players can immediately pursue. Output ONLY the Markdown document, no preamble.`,
+Be evocative and specific. Output ONLY the Markdown document, no preamble.`,
     user: worldDescription,
   }
 }
