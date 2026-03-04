@@ -183,7 +183,7 @@ export default function CampaignSetupPage() {
         {/* Placeholder image shown while cover art is not yet ready */}
         {!pageLoading && (
           <img
-            src="/images/placeholder-cover.png"
+            src="/images/placeholder-cover.webp"
             alt=""
             aria-hidden="true"
             className={`absolute inset-0 h-full w-full object-cover object-left transition-opacity duration-700 ${hasImage && imageLoaded ? 'opacity-0' : 'opacity-100'}`}

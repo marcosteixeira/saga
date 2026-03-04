@@ -8,6 +8,7 @@ const mockWorldSelect = vi.fn()
 const mockWorldSingle = vi.fn()
 const mockWorldEq1 = vi.fn()
 const mockWorldEq2 = vi.fn()
+const mockPlayersInsert = vi.fn().mockResolvedValue({ error: null })
 
 vi.mock('@/lib/supabase/server', () => ({
   createServerSupabaseClient: vi.fn(() => ({
@@ -22,6 +23,9 @@ vi.mock('@/lib/supabase/server', () => ({
             }),
           }),
         }
+      }
+      if (table === 'players') {
+        return { insert: mockPlayersInsert }
       }
       // campaigns table
       return {
@@ -164,6 +168,29 @@ describe('POST /api/campaign', () => {
     await POST(req)
     expect(mockFetch).not.toHaveBeenCalled()
     vi.unstubAllGlobals()
+  })
+
+  it('creates a host player row after campaign is created', async () => {
+    mockGetUser.mockResolvedValue({
+      data: { user: { id: 'user-1', email: 'gm@saga.com' } },
+    })
+    mockSingle.mockResolvedValue({ data: { id: 'campaign-123' }, error: null })
+
+    const { POST } = await import('../route')
+    const req = new Request('http://localhost/api/campaign', {
+      method: 'POST',
+      body: JSON.stringify({ name: 'Test', host_username: 'GM', world_id: 'world-123' }),
+      headers: { 'Content-Type': 'application/json' },
+    })
+    await POST(req)
+    expect(mockPlayersInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        campaign_id: 'campaign-123',
+        user_id: 'user-1',
+        username: 'GM',
+        is_host: true,
+      })
+    )
   })
 
   it('returns 500 when DB insert fails', async () => {

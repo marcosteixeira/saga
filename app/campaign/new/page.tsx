@@ -13,7 +13,7 @@ export default function NewCampaignPage() {
       {/* Full-bleed background image */}
       <div className="absolute inset-0">
         <img
-          src="/images/world-forge-bg.png"
+          src="/images/world-forge-bg.webp"
           alt=""
           aria-hidden="true"
           className="absolute inset-0 h-full w-full object-cover object-left"
@@ -48,7 +48,7 @@ export default function NewCampaignPage() {
             <div className="mb-8">
               <div className="brass-nameplate mb-4 inline-block">New Campaign</div>
               <h1 className="font-heading text-2xl text-steam tracking-widest mb-3">
-                FORGE YOUR WORLD
+                FORGE YOUR CAMPAIGN
               </h1>
               <div className="brass-pipe w-16 mb-1" />
             </div>

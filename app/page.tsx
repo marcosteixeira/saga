@@ -26,7 +26,7 @@ export default function Home() {
         <div className="pointer-events-none absolute inset-0" aria-hidden="true">
           <div className="hero-image-container absolute inset-0">
             <Image
-              src="/images/hero-steampunk.png"
+              src="/images/hero-steampunk.webp"
               alt=""
               fill
               priority
