@@ -387,6 +387,8 @@ git add app/api/campaign/\[id\]/session/start/
 git commit -m "feat: POST /api/campaign/[id]/session/start with auth"
 ```
 
+**Note on future work:** When the session starts, the game needs to generate "Current Situation", "Starting Hooks", and initial "Areas" tailored to the players who joined. This generation should be triggered from this API route (or a webhook) in a future PR. It reads WORLD.md + joined player characters → appends Current Situation and Starting Hooks to WORLD.md → writes initial Areas to LOCATIONS.md.
+
 ---
 
 ### Task 5: Wire Up Host "Start Session" Button

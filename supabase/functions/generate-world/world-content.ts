@@ -5,8 +5,6 @@ export const REQUIRED_WORLD_SECTIONS = [
   '## Geography',
   '## Factions',
   '## Tone',
-  '## Current Situation',
-  '## Starting Hooks',
 ] as const
 
 export function getMissingRequiredSections(content: string): string[] {
