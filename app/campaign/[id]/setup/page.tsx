@@ -39,6 +39,7 @@ export default function CampaignSetupPage() {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(true)
   const [isRetrying, setIsRetrying] = useState(false)
+  const [coverImageUrl, setCoverImageUrl] = useState<string | null>(null)
 
   const loadCampaign = useCallback(async (): Promise<CampaignPayload> => {
     const res = await fetch(`/api/campaign/${campaignId}`)
@@ -48,6 +49,9 @@ export default function CampaignSetupPage() {
 
     const data = (await res.json()) as CampaignPayload
     setCampaign(data.campaign)
+    if (data.campaign.cover_image_url) {
+      setCoverImageUrl(data.campaign.cover_image_url)
+    }
     setStatusText(statusMessage(data.campaign.status))
 
     return data
@@ -83,6 +87,12 @@ export default function CampaignSetupPage() {
         setBusy(false)
         setError('World generation failed. You can retry from this setup page.')
         setStatusText(statusMessage('error'))
+      })
+      .on('broadcast', { event: 'world:image_ready' }, (message: { payload: { type: string; url: string } }) => {
+        if (!mounted) return
+        if (message.payload.type === 'cover') {
+          setCoverImageUrl(message.payload.url)
+        }
       })
       .subscribe()
 
@@ -153,6 +163,16 @@ export default function CampaignSetupPage() {
 
   return (
     <main className="relative min-h-screen bg-soot">
+      {coverImageUrl && (
+        <div className="absolute inset-0 z-0 transition-opacity duration-1000">
+          <img
+            src={coverImageUrl}
+            alt="Campaign world cover art"
+            className="h-full w-full object-cover opacity-20"
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-soot/60 via-transparent to-soot/80" />
+        </div>
+      )}
       <GearDecoration />
       <AmbientSmoke />
       <EmberParticles count={15} />
