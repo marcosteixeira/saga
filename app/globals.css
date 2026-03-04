@@ -89,7 +89,7 @@
   --iron: #1a1814;
   --smog: #2a2520;
   --gunmetal: #3d3630;
-  --ash: #6b5d52;
+  --ash: #9a8a7a;
   --brass: #c4943d;
   --copper: #b87333;
   --amber-glow: #e8a835;
@@ -97,7 +97,7 @@
   --steam: #d4cabb;
   --patina: #5a7a6d;
   --sky-slate: #4a5568;
-  --rust: #a63d2a;
+  --rust: #e05555;
 
   /* shadcn semantic mapping */
   --background: var(--soot);
@@ -677,7 +677,7 @@
   color: var(--soot);
   padding: 0.2em 1em;
   font-family: var(--font-mono), monospace;
-  font-size: 0.65rem;
+  font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.2em;
   box-shadow:

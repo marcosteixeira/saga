@@ -1,12 +1,14 @@
-# PR 06: Image Generation (Gemini — Cover Art + World Map)
+# PR 06: Image Generation (Gemini — Cover Art via generate-world)
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Integrate Gemini image generation to produce cover art and world maps during campaign creation. Establish the image generation API route that will also be used later for scene images and character portraits.
+**Goal:** After `generate-world` produces world content from Claude, call Gemini to generate a cover image, store it in Supabase Storage, and broadcast a `world:image_ready` event so the setup page can display it as an atmospheric background.
 
-**Architecture:** Gemini Nano Banana Pro generates images from text prompts. Images are stored in Supabase Storage and their URLs saved to the campaign row. The generation happens in the background after the campaign is created — the world preview shows a loading placeholder until images are ready, then displays them.
+**Architecture:** The `generate-world` Edge Function already handles Claude world gen. This PR extends it: after broadcasting `world:complete`, it fire-and-forgets a call to a new `generate-image` Edge Function — passing only `campaign_id` and `type`. The `generate-image` function fetches WORLD.md from `campaign_files` itself, uses the `## Overview` section as the user prompt to Gemini (with a fixed system prompt for prompt injection defense), uploads the image to Supabase Storage (`campaign-images` bucket), updates `campaigns.cover_image_url`, and broadcasts `world:image_ready` on the campaign channel. The setup page listens and fades in the image as a background.
 
-**Tech Stack:** `@google/genai`, Gemini Nano Banana Pro (`gemini-3-pro-image-preview`), Supabase Storage
+**Tech Stack:** `@google/generative-ai` (npm, Deno), Gemini `gemini-3-pro-image-preview` (image generation), Supabase Storage, Supabase Realtime broadcast
+
+**Branch:** `feat/06b-image-generation` (`feat/06-image-generation` is already in use)
 
 **Depends on:** PR 05
 
@@ -19,293 +21,481 @@ See: `docs/plans/2026-03-03-steampunk-design-system.md`
 
 **Applicable to this PR:**
 
-- **Image loading placeholder:** While cover/map images generate asynchronously, show a shimmer skeleton with `--smog` base and `--gunmetal` shimmer sweep. Dimensions should match the final image container.
-- **Cover art display:** Display within an Iron Plate panel with `--gunmetal` border. Add a subtle vignette overlay on the image edges (radial gradient from transparent → `--soot` at 30%) to blend it into the dark background.
-- **World map display:** Same panel treatment. Optionally add a Copper Gauge Panel border (`2px solid --copper`) to give it a cartographic instrument feel.
-- **Image prompts:** When building Gemini prompts, guide outputs toward the steampunk aesthetic: warm amber lighting, industrial/mechanical elements, smog and steam, burnished metal textures.
+- **Cover art display:** Full-bleed background at 20% opacity with a gradient vignette (`from-soot/60 via-transparent to-soot/80`) so iron-plate panels remain readable.
+- **Image prompts:** The world description drives the image style entirely — no hardcoded aesthetic prefix. The system prompt instructs Gemini to produce fantasy RPG cover art faithful to the world described.
+- **Fade-in transition:** `transition-opacity duration-1000` when image URL arrives via broadcast.
 
 ---
 
-### Task 1: Install Google AI SDK and Create Client
+## Supabase Storage Setup
 
-**Step 1: Install**
+### Task 1: Create `campaign-images` Storage Bucket
 
-Run: `yarn add @google/genai`
+**Step 1: Apply migration**
 
-**Step 2: Create Gemini client**
+Apply via Supabase MCP `apply_migration` with name `create_campaign_images_bucket`:
 
-Create: `lib/gemini.ts`
+```sql
+-- Create the campaign-images bucket (public read)
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('campaign-images', 'campaign-images', true)
+ON CONFLICT (id) DO NOTHING;
 
-```typescript
-import { GoogleGenAI } from '@google/genai'
+-- Allow public read on all objects in campaign-images
+CREATE POLICY "Public read campaign images"
+  ON storage.objects FOR SELECT
+  USING (bucket_id = 'campaign-images');
 
-export const genai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY!,
-})
+-- Allow service role inserts (Edge Functions use service role key)
+CREATE POLICY "Service role write campaign images"
+  ON storage.objects FOR INSERT
+  WITH CHECK (bucket_id = 'campaign-images');
 ```
+
+**Step 2: Verify bucket appears in Supabase dashboard → Storage tab**
 
 **Step 3: Commit**
 
 ```bash
-git add -A && git commit -m "chore: install Google GenAI SDK and create client"
+git add supabase/migrations/ && git commit -m "chore: create campaign-images storage bucket"
 ```
 
 ---
 
-### Task 2: Build Image Generation Service
+## generate-image Edge Function
+
+### Task 2: Create `generate-image` Edge Function
 
 **Files:**
-- Create: `lib/image-gen.ts`
-- Create: `lib/__tests__/image-gen.test.ts`
 
-**Spec:**
+- Create: `supabase/functions/generate-image/index.ts`
+- Create: `supabase/functions/generate-image/__tests__/index.test.ts`
 
-```typescript
-// Generate an image from a text prompt, upload to Supabase Storage, return URL
-generateAndStoreImage(options: {
-  prompt: string
-  bucket: string       // e.g., 'campaign-images'
-  path: string         // e.g., 'campaign-123/cover.png'
-}): Promise<string>    // Returns public URL
-```
-
-Flow:
-1. Call Gemini with the prompt, requesting image output
-2. Receive base64 image data from the response
-3. Convert to buffer, upload to Supabase Storage
-4. Return the public URL
-
-**Step 1: Write tests**
-
-```typescript
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-
-vi.mock('@/lib/gemini', () => ({
-  genai: {
-    models: {
-      generateContent: vi.fn()
-    }
-  }
-}))
-
-vi.mock('@/lib/supabase/server', () => ({
-  createServerSupabaseClient: vi.fn(() => ({
-    storage: {
-      from: vi.fn(() => ({
-        upload: vi.fn().mockResolvedValue({ error: null }),
-        getPublicUrl: vi.fn().mockReturnValue({
-          data: { publicUrl: 'https://storage.example.com/image.png' }
-        })
-      }))
-    }
-  }))
-}))
-
-describe('generateAndStoreImage', () => {
-  beforeEach(() => { vi.clearAllMocks() })
-
-  it('calls Gemini with the prompt and returns storage URL', async () => {
-    const { genai } = await import('@/lib/gemini')
-    vi.mocked(genai.models.generateContent).mockResolvedValue({
-      candidates: [{
-        content: {
-          parts: [{ inlineData: { data: 'base64imagedata', mimeType: 'image/png' } }]
-        }
-      }]
-    } as any)
-
-    const { generateAndStoreImage } = await import('../image-gen')
-    const url = await generateAndStoreImage({
-      prompt: 'A dark castle',
-      bucket: 'campaign-images',
-      path: 'test/cover.png'
-    })
-    expect(url).toBe('https://storage.example.com/image.png')
-  })
-
-  it('throws when Gemini returns no image data', async () => {
-    const { genai } = await import('@/lib/gemini')
-    vi.mocked(genai.models.generateContent).mockResolvedValue({
-      candidates: [{ content: { parts: [{ text: 'No image generated' }] } }]
-    } as any)
-
-    const { generateAndStoreImage } = await import('../image-gen')
-    await expect(
-      generateAndStoreImage({ prompt: 'test', bucket: 'b', path: 'p' })
-    ).rejects.toThrow()
-  })
-})
-```
-
-**Step 2: Run tests — fail**
-
-**Step 3: Implement `lib/image-gen.ts`**
-
-**Step 4: Run tests — pass**
-
-**Step 5: Commit**
-
-```bash
-git add -A && git commit -m "feat: image generation service with Supabase Storage"
-```
-
----
-
-### Task 3: Build Image Generation API Route
-
-**Files:**
-- Create: `app/api/campaign/[id]/image/route.ts`
-- Create: `app/api/campaign/[id]/image/__tests__/route.test.ts`
-
-**Spec:**
-
-`POST /api/campaign/[id]/image`
+**Spec:** `POST /functions/v1/generate-image`
 
 Request body:
+
 ```json
 {
-  "type": "cover" | "map" | "scene" | "character",
-  "prompt": "A dark castle overlooking a misty valley...",
-  "player_id": "optional - for character portraits"
+  "campaign_id": "uuid",
+  "type": "cover"
 }
 ```
 
 Behavior:
-1. Validate campaign exists
-2. Build image prompt with fantasy-appropriate styling prefix
-3. Call `generateAndStoreImage` with appropriate bucket/path
-4. Update campaign row (`cover_image_url` or `map_image_url`) or player row (`character_image_url`) or message row (`image_url`)
-5. Return `{ url }` with status 200
 
-Prompt prefixes by type:
-- `cover`: "Fantasy RPG cover art, dark and atmospheric: {prompt}"
-- `map`: "Fantasy world map, parchment style, detailed regions: {prompt}"
-- `scene`: "Fantasy RPG scene illustration, dramatic lighting: {prompt}"
-- `character`: "Fantasy RPG character portrait, detailed, dramatic: {prompt}"
+1. Validate auth header against `GENERATE_IMAGE_WEBHOOK_SECRET`
+2. Validate `campaign_id` is present
+3. Fetch WORLD.md content from `campaign_files` table (where `campaign_id` matches and `filename = 'WORLD.md'`)
+4. Use the full WORLD.md content as the user prompt
+5. Call Gemini `gemini-3-pro-image-preview` with a **system prompt** (image style instructions) and a **user message** (the overview text — untrusted world content goes here, never in the system prompt)
+6. Extract base64 image bytes from response
+7. Upload to Supabase Storage at `campaign-images/{campaign_id}/{type}.png`
+8. Get public URL
+9. Update `campaigns.cover_image_url` (or `map_image_url` for `type: "map"`)
+10. Broadcast `world:image_ready` on `campaign:{campaign_id}` with `{ type, url }`
+11. Return `{ ok: true, url }`
+
+**System prompt** (fixed, never contains user content):
+
+```
+You are a fantasy RPG cover art generator. Generate a single dramatic, cinematic cover image faithfully depicting the world described by the user. Use rich atmospheric lighting, detailed environments, and an epic fantasy art style. Output only the image.
+```
 
 **Step 1: Write tests**
 
-Test cases:
-- Returns 404 when campaign doesn't exist
-- Returns 400 when type or prompt is missing
-- Returns 200 with URL on successful cover generation
-- Updates campaign `cover_image_url` in DB for cover type
-- Updates campaign `map_image_url` in DB for map type
+```typescript
+// supabase/functions/generate-image/__tests__/index.test.ts
+import { describe, it, expect, vi } from 'vitest';
 
-**Step 2: Run tests — fail**
+// We export and test pure helper functions independently of Deno.serve
+vi.stubGlobal('Deno', {
+  env: { get: () => 'test-value' },
+  serve: vi.fn()
+});
 
-**Step 3: Implement**
 
-**Step 4: Run tests — pass**
+describe('extractImageBytes', () => {
+  it('returns base64 data from Gemini response', async () => {
+    const { extractImageBytes } = await import('../index.ts');
+    const fakeResponse = {
+      candidates: [
+        {
+          content: {
+            parts: [{ inlineData: { data: 'abc123base64', mimeType: 'image/png' } }]
+          }
+        }
+      ]
+    };
+    expect(extractImageBytes(fakeResponse as any)).toBe('abc123base64');
+  });
 
-**Step 5: Commit**
+  it('throws when no image data in response', async () => {
+    const { extractImageBytes } = await import('../index.ts');
+    const fakeResponse = {
+      candidates: [{ content: { parts: [{ text: 'No image' }] } }]
+    };
+    expect(() => extractImageBytes(fakeResponse as any)).toThrow('No image data');
+  });
+});
 
-```bash
-git add -A && git commit -m "feat: POST /api/campaign/[id]/image route"
+describe('getStoragePath', () => {
+  it('returns correct path for cover type', async () => {
+    const { getStoragePath } = await import('../index.ts');
+    expect(getStoragePath('campaign-123', 'cover')).toBe('campaign-123/cover.png');
+  });
+
+  it('returns correct path for map type', async () => {
+    const { getStoragePath } = await import('../index.ts');
+    expect(getStoragePath('campaign-123', 'map')).toBe('campaign-123/map.png');
+  });
+});
 ```
 
----
+**Step 2: Run tests — verify they fail**
 
-### Task 4: Trigger Image Generation During Campaign Creation
+```bash
+cd supabase/functions/generate-image
+deno test --allow-env __tests__/index.test.ts
+```
 
-**Files:**
-- Modify: `app/api/campaign/route.ts`
+Expected: module not found or import error.
 
-**Updated flow for `POST /api/campaign`:**
-
-After Claude generates WORLD.md, trigger cover and map image generation in parallel (fire-and-forget — don't block the response):
-
-1. Insert campaign row (existing)
-2. Call Claude for WORLD.md (existing)
-3. Initialize campaign files (existing)
-4. **NEW:** Fire-and-forget: generate cover image and map image in parallel
-   - Cover prompt: derived from campaign name + world description excerpt
-   - Map prompt: derived from WORLD.md geography section
-5. Return response immediately (images will update asynchronously)
-
-Since the images are generated asynchronously, the frontend needs to poll or listen for updates. For now, the WorldPreview will show placeholders and the lobby will show images once they're available.
-
-**Step 1: Update tests**
-
-Add test verifying image generation is triggered (but doesn't block response):
+**Step 3: Implement `supabase/functions/generate-image/index.ts`**
 
 ```typescript
-it('triggers cover and map image generation after world gen', async () => {
-  // Mock everything
-  // Verify generateAndStoreImage is called twice (cover + map)
-  // Verify response returns before images are done
-})
+import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
+import { GoogleGenerativeAI } from 'npm:@google/generative-ai';
+import { createClient } from 'jsr:@supabase/supabase-js@2';
+
+// System prompt is fixed and never contains user-controlled content.
+// User content (full WORLD.md) goes only in the user message.
+const IMAGE_SYSTEM_PROMPT =
+  'You are a fantasy RPG cover art generator. Generate a single dramatic, cinematic cover image faithfully depicting the world described by the user. Use rich atmospheric lighting, detailed environments, and an epic fantasy art style. Output only the image.';
+
+export function extractImageBytes(response: {
+  candidates?: Array<{
+    content?: {
+      parts?: Array<{ inlineData?: { data: string; mimeType: string }; text?: string }>;
+    };
+  }>;
+}): string {
+  const parts = response.candidates?.[0]?.content?.parts ?? [];
+  for (const part of parts) {
+    if (part.inlineData?.data) return part.inlineData.data;
+  }
+  throw new Error('No image data returned from Gemini');
+}
+
+export function getStoragePath(campaignId: string, type: string): string {
+  return `${campaignId}/${type}.png`;
+}
+
+const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const supabase = createClient(supabaseUrl, serviceRoleKey);
+
+async function broadcastImageReady(
+  campaignId: string,
+  type: string,
+  url: string
+): Promise<void> {
+  try {
+    const res = await fetch(`${supabaseUrl}/realtime/v1/api/broadcast`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: serviceRoleKey,
+        Authorization: `Bearer ${serviceRoleKey}`
+      },
+      body: JSON.stringify({
+        messages: [
+          {
+            topic: `campaign:${campaignId}`,
+            event: 'world:image_ready',
+            payload: { type, url }
+          }
+        ]
+      })
+    });
+    if (!res.ok) {
+      console.error(`[generate-image] broadcast failed HTTP ${res.status}`);
+    }
+  } catch (err) {
+    console.error('[generate-image] broadcast threw', err);
+  }
+}
+
+Deno.serve(async (req: Request) => {
+  const webhookSecret = Deno.env.get('GENERATE_IMAGE_WEBHOOK_SECRET');
+  const authHeader = req.headers.get('authorization');
+  if (webhookSecret && authHeader !== `Bearer ${webhookSecret}`) {
+    return new Response('Unauthorized', { status: 401 });
+  }
+
+  let body: { campaign_id?: string; type?: string };
+  try {
+    body = await req.json();
+  } catch {
+    return new Response('Invalid JSON', { status: 400 });
+  }
+
+  const { campaign_id, type = 'cover' } = body;
+  if (!campaign_id) {
+    return new Response('Missing campaign_id', { status: 400 });
+  }
+
+  try {
+    // Fetch WORLD.md from the database — keep user content out of the system prompt
+    const { data: fileRow, error: fileError } = await supabase
+      .from('campaign_files')
+      .select('content')
+      .eq('campaign_id', campaign_id)
+      .eq('filename', 'WORLD.md')
+      .single();
+
+    if (fileError || !fileRow?.content) {
+      throw new Error(`WORLD.md not found for campaign ${campaign_id}`);
+    }
+
+    const userPrompt = fileRow.content;
+
+    const genai = new GoogleGenerativeAI(Deno.env.get('GEMINI_API_KEY')!);
+    const model = genai.getGenerativeModel({
+      model: 'gemini-3-pro-image-preview',
+      systemInstruction: IMAGE_SYSTEM_PROMPT
+    });
+
+    const result = await model.generateContent({
+      contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+      generationConfig: {
+        // @ts-ignore: responseModalities not yet in TS types
+        responseModalities: ['IMAGE']
+      }
+    });
+
+    const base64Data = extractImageBytes(result.response as any);
+    const imageBytes = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0));
+    const storagePath = getStoragePath(campaign_id, type);
+
+    const { error: uploadError } = await supabase.storage
+      .from('campaign-images')
+      .upload(storagePath, imageBytes, { contentType: 'image/png', upsert: true });
+
+    if (uploadError) throw uploadError;
+
+    const { data: urlData } = supabase.storage
+      .from('campaign-images')
+      .getPublicUrl(storagePath);
+
+    const publicUrl = urlData.publicUrl;
+    const column = type === 'map' ? 'map_image_url' : 'cover_image_url';
+
+    await supabase
+      .from('campaigns')
+      .update({ [column]: publicUrl })
+      .eq('id', campaign_id);
+
+    await broadcastImageReady(campaign_id, type, publicUrl);
+
+    return new Response(JSON.stringify({ ok: true, url: publicUrl }), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (err) {
+    console.error('[generate-image] failed', err);
+    return new Response('Image generation failed', { status: 500 });
+  }
+});
 ```
 
-**Step 2: Run test — fail**
+**Step 4: Run tests — verify they pass**
 
-**Step 3: Implement**
+```bash
+deno test --allow-env __tests__/index.test.ts
+```
 
-Use `Promise.all` with `catch` for error resilience — if image generation fails, it shouldn't break the campaign creation.
-
-**Step 4: Run tests — pass**
+Expected: 4 tests pass.
 
 **Step 5: Commit**
 
 ```bash
-git add -A && git commit -m "feat: trigger cover + map image generation during campaign creation"
+git add supabase/functions/generate-image/ && git commit -m "feat: generate-image Edge Function with Gemini + Supabase Storage"
 ```
 
 ---
 
-### Task 5: Display Images in World Preview
+### Task 3: Fire Image Generation from `generate-world` After World Complete
 
 **Files:**
-- Modify: `components/campaign/WorldPreview.tsx`
 
-**Spec:**
+- Modify: `supabase/functions/generate-world/index.ts`
 
-Update WorldPreview to display cover image and map image:
-- If images are available: show them prominently (cover as hero banner, map below world description)
-- If images are not yet generated: show loading placeholders with shimmer/skeleton animation
-- Add a simple polling mechanism: re-fetch campaign data every 5 seconds until both images are available (max 10 attempts)
+**Where:** After the `broadcastToChannel(..., "world:complete", ...)` call (~line 171), before the final `return`.
 
-**Step 1: Add shadcn skeleton component**
+**Step 1: Add fire-and-forget call**
 
-Run: `npx shadcn@latest add skeleton`
+No import changes needed — `generate-image` fetches the world content itself.
 
-**Step 2: Update WorldPreview component**
+After `broadcastToChannel(supabaseUrl, serviceRoleKey, campaign.id, "world:complete", { status: "lobby" })`, add:
 
-Add image display with `<Image>` from `next/image` or plain `<img>` with proper sizing. Add skeleton placeholders and polling logic.
+```typescript
+// Fire-and-forget: generate cover image in background
+// Do NOT await — image gen takes 15-30s and must not block the response
+// generate-image fetches WORLD.md itself; we pass only the campaign_id
+const imageWebhookSecret = Deno.env.get('GENERATE_IMAGE_WEBHOOK_SECRET');
+fetch(`${supabaseUrl}/functions/v1/generate-image`, {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${imageWebhookSecret}`
+  },
+  body: JSON.stringify({
+    campaign_id: campaign.id,
+    type: 'cover'
+  })
+}).catch((err) => {
+  logError(
+    'generate_world.image_trigger_failed',
+    { requestId, campaignId: campaign.id },
+    err
+  );
+});
+```
 
-**Step 3: Visual test**
+**Step 3: Visual verification**
 
-- Create a campaign → WorldPreview shows WORLD.md + image placeholders
-- After images generate: placeholders replaced with actual images
-- Cover image displays as a banner at the top
-- Map image displays below the world description
+Create a campaign → check Supabase logs for `generate-image` function invocation ~5-30s after world gen completes.
 
 **Step 4: Commit**
 
 ```bash
-git add -A && git commit -m "feat: display generated images in world preview"
+git add supabase/functions/generate-world/index.ts && git commit -m "feat: trigger cover image generation after world gen completes"
+```
+
+---
+
+### Task 4: Update Setup Page to Show Cover Image as Background
+
+**Files:**
+
+- Modify: `app/campaign/[id]/setup/page.tsx`
+
+**Step 1: Add `coverImageUrl` state**
+
+```typescript
+const [coverImageUrl, setCoverImageUrl] = useState<string | null>(null);
+```
+
+**Step 2: Populate from `loadCampaign`**
+
+Inside `loadCampaign`, after `setCampaign(data.campaign)`:
+
+```typescript
+if (data.campaign.cover_image_url) {
+  setCoverImageUrl(data.campaign.cover_image_url);
+}
+```
+
+**Step 3: Listen for `world:image_ready` broadcast**
+
+In the channel subscription block (inside `useEffect`), add a new `.on(...)` handler:
+
+```typescript
+.on('broadcast', { event: 'world:image_ready' }, (message: { payload: { type: string; url: string } }) => {
+  if (!mounted) return
+  if (message.payload.type === 'cover') {
+    setCoverImageUrl(message.payload.url)
+  }
+})
+```
+
+**Step 4: Render cover image as background**
+
+In the JSX, inside `<main className="relative min-h-screen bg-soot">`, add as the **first child** (before `<GearDecoration />`):
+
+```tsx
+{
+  coverImageUrl && (
+    <div className="absolute inset-0 z-0 transition-opacity duration-1000">
+      <img
+        src={coverImageUrl}
+        alt="Campaign world cover art"
+        className="h-full w-full object-cover opacity-20"
+      />
+      <div className="absolute inset-0 bg-gradient-to-b from-soot/60 via-transparent to-soot/80" />
+    </div>
+  );
+}
+```
+
+**Step 5: Visual test**
+
+1. Create a campaign → setup page shows spinner
+2. ~20-60s later: cover image fades in as a dim atmospheric background
+3. Iron-plate panels remain readable over the background
+4. Refresh the page with `status: 'lobby'` → image loads immediately from DB
+
+**Step 6: Commit**
+
+```bash
+git add app/campaign/ && git commit -m "feat: display cover image as atmospheric background on setup page"
+```
+
+---
+
+### Task 5: Environment Variables
+
+**Step 1: Add secrets to Supabase**
+
+```bash
+supabase secrets set GENERATE_IMAGE_WEBHOOK_SECRET=<generate-a-random-secret>
+supabase secrets set GEMINI_API_KEY=<your-gemini-api-key>
+```
+
+The same `GENERATE_IMAGE_WEBHOOK_SECRET` must also be available to `generate-world` (which already reads env vars from Supabase secrets).
+
+**Step 2: Deploy both Edge Functions**
+
+```bash
+supabase functions deploy generate-image
+supabase functions deploy generate-world
+```
+
+**Step 3: Verify**
+
+```bash
+supabase functions list
+```
+
+Both should appear as deployed.
+
+**Step 4: Commit any `.env.local.example` updates**
+
+```bash
+git add .env.local.example && git commit -m "chore: document GEMINI_API_KEY and GENERATE_IMAGE_WEBHOOK_SECRET"
 ```
 
 ---
 
 ## Testing Strategy
 
-| What | How | Detail |
-|------|-----|--------|
-| lib/image-gen.ts | Unit test (vitest) | 2 tests: success flow, no-image-data error |
-| POST /api/campaign/[id]/image | Unit test (vitest) | 5 tests: 404, 400, success (cover/map), DB updates |
-| Image trigger in campaign creation | Unit test (vitest) | 1 test: verify parallel generation triggered |
-| Supabase Storage upload | Manual | Verify images actually upload and URL works |
-| WorldPreview with images | Visual/manual | Placeholders → images, polling works |
+| What                | How              | Detail                                                          |
+| ------------------- | ---------------- | --------------------------------------------------------------- |
+| `extractImageBytes` | Unit (deno test) | Returns base64, throws on missing                               |
+| `getStoragePath`    | Unit (deno test) | Correct paths for cover/map                                     |
+| Full integration    | Manual           | Create campaign → cover image appears on setup page             |
+| Prompt injection    | Manual           | World description with injected instructions → image still generates normally |
+| Error resilience    | Manual           | Invalid GEMINI_API_KEY → world gen still reaches `lobby` status |
 
 ---
 
 ## Acceptance Criteria
 
-- [ ] `lib/image-gen.ts` generates images via Gemini and stores in Supabase Storage (2 tests passing)
-- [ ] `POST /api/campaign/[id]/image` generates and stores images by type (5 tests passing)
-- [ ] Campaign creation triggers cover + map generation in parallel (1 test passing)
-- [ ] WorldPreview displays images with skeleton placeholders while loading
-- [ ] Images appear in WorldPreview after generation completes
-- [ ] Image generation failure doesn't break campaign creation
+- [ ] `campaign-images` Supabase Storage bucket exists and is publicly readable
+- [ ] `generate-image` Edge Function deploys and returns `{ ok: true, url }` for valid requests
+- [ ] `generate-world` fires `generate-image` after broadcasting `world:complete` (non-blocking)
+- [ ] Setup page listens for `world:image_ready` and displays cover image as background
+- [ ] Setup page loads cover image from DB on page refresh if already generated
+- [ ] World generation still completes (status → `lobby`) even if image generation fails
+- [ ] 4 unit tests pass in `generate-image` (`extractImageBytes` ×2, `getStoragePath` ×2)
 - [ ] `yarn build` succeeds

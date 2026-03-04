@@ -60,7 +60,7 @@ Deno.serve(async (req: Request) => {
     })
 
     // Prompt injection defense: user content in user message, never in system
-    const systemPrompt = `You are a fantasy world-builder. Generate a rich WORLD.md document for a tabletop RPG campaign based on the player's description.
+    const systemPrompt = `You are a world-builder for tabletop RPG campaigns. Generate a rich WORLD.md document faithful to the genre, tone, and setting described by the player. Do NOT impose a fantasy genre — if the player describes a sci-fi, horror, Western, crime, or any other setting, match it exactly.
 
 Output a Markdown document with exactly these sections (use ## headings):
 ## World Name
