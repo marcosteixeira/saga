@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import type { World } from '@/types'
+import { fetchSelectableWorlds } from '@/components/campaign/world-vault'
 
 type WorldMode = 'new' | 'existing'
 
@@ -16,6 +17,7 @@ export function WorldGenForm() {
   const [hostUsername, setHostUsername] = useState('')
   const [worldMode, setWorldMode] = useState<WorldMode>('new')
   const [worlds, setWorlds] = useState<World[]>([])
+  const [totalWorldCount, setTotalWorldCount] = useState(0)
   const [worldsLoading, setWorldsLoading] = useState(false)
   const [selectedWorldId, setSelectedWorldId] = useState<string | null>(null)
   const [name, setName] = useState('')
@@ -35,13 +37,20 @@ export function WorldGenForm() {
 
   async function fetchWorlds() {
     if (worldsFetched.current) return
-    worldsFetched.current = true
     setWorldsLoading(true)
     try {
-      const res = await fetch('/api/world')
-      if (res.ok) {
-        const data = await res.json()
-        setWorlds(data.worlds ?? [])
+      const result = await fetchSelectableWorlds()
+      if (!result.ok) {
+        setError(result.error)
+        return
+      }
+
+      worldsFetched.current = true
+      setWorlds(result.worlds)
+      setTotalWorldCount(result.totalWorldCount)
+
+      if (selectedWorldId && !result.worlds.some(world => world.id === selectedWorldId)) {
+        setSelectedWorldId(null)
       }
     } finally {
       setWorldsLoading(false)
@@ -281,13 +290,15 @@ export function WorldGenForm() {
                   <path stroke="currentColor" strokeWidth={1} strokeLinecap="round" d="M3 7h18M3 12h18M3 17h18" />
                 </svg>
                 <p className="text-sm text-ash/70" style={{ fontFamily: 'var(--font-mono), monospace' }}>
-                  Vault empty. Forge your first world.
+                  {totalWorldCount > 0
+                    ? 'No ready worlds yet. Finish forging one, then select it here.'
+                    : 'Vault empty. Forge your first world.'}
                 </p>
               </div>
             ) : (
               <div className="flex flex-col gap-2">
                 <p className="text-xs text-ash/50 uppercase tracking-widest mb-1" style={{ fontFamily: 'var(--font-mono), monospace' }}>
-                  {worlds.length} world{worlds.length !== 1 ? 's' : ''} in vault — select one
+                  {worlds.length} ready world{worlds.length !== 1 ? 's' : ''} in vault — select one
                 </p>
                 <div className="grid grid-cols-1 gap-2 max-h-72 overflow-y-auto pr-1" style={{ scrollbarWidth: 'thin', scrollbarColor: 'var(--gunmetal) transparent' }}>
                   {worlds.map(world => (
