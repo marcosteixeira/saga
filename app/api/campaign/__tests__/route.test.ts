@@ -4,19 +4,34 @@ const mockInsert = vi.fn()
 const mockSelect = vi.fn()
 const mockSingle = vi.fn()
 const mockGetUser = vi.fn()
-const mockFetch = vi.fn()
-
-vi.stubGlobal('fetch', mockFetch)
+const mockWorldSelect = vi.fn()
+const mockWorldSingle = vi.fn()
+const mockWorldEq1 = vi.fn()
+const mockWorldEq2 = vi.fn()
 
 vi.mock('@/lib/supabase/server', () => ({
   createServerSupabaseClient: vi.fn(() => ({
-    from: () => ({
-      insert: mockInsert.mockReturnValue({
-        select: mockSelect.mockReturnValue({
-          single: mockSingle,
+    from: (table: string) => {
+      if (table === 'worlds') {
+        return {
+          select: () => ({
+            eq: () => ({
+              eq: () => ({
+                single: mockWorldSingle,
+              }),
+            }),
+          }),
+        }
+      }
+      // campaigns table
+      return {
+        insert: mockInsert.mockReturnValue({
+          select: mockSelect.mockReturnValue({
+            single: mockSingle,
+          }),
         }),
-      }),
-    }),
+      }
+    },
   })),
   createAuthServerClient: vi.fn(() =>
     Promise.resolve({
@@ -29,7 +44,8 @@ describe('POST /api/campaign', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.resetModules()
-    mockFetch.mockResolvedValue({ ok: true })
+    // By default, world exists and belongs to user
+    mockWorldSingle.mockResolvedValue({ data: { id: 'world-123', status: 'ready' }, error: null })
   })
 
   afterEach(() => {
@@ -42,7 +58,7 @@ describe('POST /api/campaign', () => {
     const { POST } = await import('../route')
     const req = new Request('http://localhost/api/campaign', {
       method: 'POST',
-      body: JSON.stringify({ name: 'Test', world_description: 'World' }),
+      body: JSON.stringify({ name: 'Test', world_id: 'world-123' }),
       headers: { 'Content-Type': 'application/json' },
     })
     const res = await POST(req)
@@ -54,14 +70,14 @@ describe('POST /api/campaign', () => {
     const { POST } = await import('../route')
     const req = new Request('http://localhost/api/campaign', {
       method: 'POST',
-      body: JSON.stringify({ world_description: 'test' }),
+      body: JSON.stringify({ world_id: 'world-123' }),
       headers: { 'Content-Type': 'application/json' },
     })
     const res = await POST(req)
     expect(res.status).toBe(400)
   })
 
-  it('returns 400 when world_description is missing', async () => {
+  it('returns 400 when world_id is missing', async () => {
     mockGetUser.mockResolvedValue({ data: { user: { id: 'user-1', email: 'a@b.com' } } })
     const { POST } = await import('../route')
     const req = new Request('http://localhost/api/campaign', {
@@ -85,7 +101,7 @@ describe('POST /api/campaign', () => {
       body: JSON.stringify({
         name: 'Test Campaign',
         host_username: 'DungeonMaster42',
-        world_description: 'A dark world...',
+        world_id: 'world-123',
       }),
       headers: { 'Content-Type': 'application/json' },
     })
@@ -104,7 +120,7 @@ describe('POST /api/campaign', () => {
     const { POST } = await import('../route')
     const req = new Request('http://localhost/api/campaign', {
       method: 'POST',
-      body: JSON.stringify({ name: 'Test', world_description: 'World' }),
+      body: JSON.stringify({ name: 'Test', world_id: 'world-123' }),
       headers: { 'Content-Type': 'application/json' },
     })
     await POST(req)
@@ -113,7 +129,7 @@ describe('POST /api/campaign', () => {
     )
   })
 
-  it('inserts campaign with status generating', async () => {
+  it('inserts campaign with status lobby', async () => {
     mockGetUser.mockResolvedValue({
       data: { user: { id: 'user-1', email: 'gm@saga.com' } },
     })
@@ -122,45 +138,32 @@ describe('POST /api/campaign', () => {
     const { POST } = await import('../route')
     const req = new Request('http://localhost/api/campaign', {
       method: 'POST',
-      body: JSON.stringify({ name: 'Test', world_description: 'A dark world' }),
+      body: JSON.stringify({ name: 'Test', world_id: 'world-123' }),
       headers: { 'Content-Type': 'application/json' },
     })
     await POST(req)
     expect(mockInsert).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'generating' })
+      expect.objectContaining({ status: 'lobby' })
     )
   })
 
-  it('fires edge function after campaign creation without waiting', async () => {
-    process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://test.supabase.co'
-    process.env.GENERATE_WORLD_WEBHOOK_SECRET = 'secret-token'
+  it('does not fire edge function on campaign creation', async () => {
+    const mockFetch = vi.fn()
+    vi.stubGlobal('fetch', mockFetch)
     mockGetUser.mockResolvedValue({
       data: { user: { id: 'user-1', email: 'gm@saga.com' } },
     })
-    mockSingle.mockResolvedValue({ data: { id: 'campaign-999' }, error: null })
+    mockSingle.mockResolvedValue({ data: { id: 'campaign-123' }, error: null })
 
     const { POST } = await import('../route')
     const req = new Request('http://localhost/api/campaign', {
       method: 'POST',
-      body: JSON.stringify({ name: 'Test', world_description: 'A dark world' }),
+      body: JSON.stringify({ name: 'Test', world_id: 'world-123' }),
       headers: { 'Content-Type': 'application/json' },
     })
-    const res = await POST(req)
-
-    // Response returns 201 and fetch was called with correct args
-    expect(res.status).toBe(201)
-
-    // Edge function is called (fire-and-forget)
-    expect(mockFetch).toHaveBeenCalledWith(
-      'https://test.supabase.co/functions/v1/generate-world',
-      expect.objectContaining({
-        method: 'POST',
-        headers: expect.objectContaining({
-          authorization: 'Bearer secret-token',
-        }),
-        body: expect.stringContaining('campaign-999'),
-      })
-    )
+    await POST(req)
+    expect(mockFetch).not.toHaveBeenCalled()
+    vi.unstubAllGlobals()
   })
 
   it('returns 500 when DB insert fails', async () => {
@@ -172,26 +175,10 @@ describe('POST /api/campaign', () => {
     const { POST } = await import('../route')
     const req = new Request('http://localhost/api/campaign', {
       method: 'POST',
-      body: JSON.stringify({ name: 'Test', world_description: 'World' }),
+      body: JSON.stringify({ name: 'Test', world_id: 'world-123' }),
       headers: { 'Content-Type': 'application/json' },
     })
     const res = await POST(req)
     expect(res.status).toBe(500)
-  })
-
-  it('does not fire edge function when DB insert fails', async () => {
-    mockGetUser.mockResolvedValue({
-      data: { user: { id: 'user-1', email: 'gm@saga.com' } },
-    })
-    mockSingle.mockResolvedValue({ data: null, error: { message: 'DB error' } })
-
-    const { POST } = await import('../route')
-    const req = new Request('http://localhost/api/campaign', {
-      method: 'POST',
-      body: JSON.stringify({ name: 'Test', world_description: 'World' }),
-      headers: { 'Content-Type': 'application/json' },
-    })
-    await POST(req)
-    expect(mockFetch).not.toHaveBeenCalled()
   })
 })

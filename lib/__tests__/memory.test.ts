@@ -73,10 +73,10 @@ describe('memory', () => {
       mockFrom.mockReturnValue({ upsert: mockUpsert })
 
       const { initializeCampaignFiles } = await import('../memory')
-      await initializeCampaignFiles('camp-1', '# Generated World')
+      await initializeCampaignFiles('camp-1')
 
-      // Should be called for each of the 5 files
-      expect(mockUpsert).toHaveBeenCalledTimes(5)
+      // Should be called for each of the 4 files (WORLD.md now lives on the world record)
+      expect(mockUpsert).toHaveBeenCalledTimes(4)
     })
   })
 })
