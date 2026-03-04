@@ -91,6 +91,49 @@ describe('POST /api/campaign/[id]/join', () => {
     expect(res.status).toBe(409)
   })
 
+  it('returns 400 when username is not a string', async () => {
+    ;(createAuthServerClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      auth: { getUser: async () => ({ data: { user: mockUser } }) },
+    })
+    const req = new Request('http://localhost/api/campaign/abc/join', {
+      method: 'POST',
+      body: JSON.stringify({ username: 123 }),
+    })
+    const res = await POST(req, makeParams('abc'))
+    expect(res.status).toBe(400)
+  })
+
+  it('returns 409 when campaign is full', async () => {
+    ;(createAuthServerClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      auth: { getUser: async () => ({ data: { user: mockUser } }) },
+    })
+    const campaignMock = {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      single: vi.fn().mockResolvedValue({ data: { id: 'camp-1', status: 'lobby' }, error: null }),
+    }
+    const countEqMock = vi.fn().mockResolvedValue({ count: 6, error: null })
+    const countSelectMock = { eq: countEqMock }
+    const playersMock = {
+      select: vi.fn().mockReturnValue(countSelectMock),
+    }
+    const mockDb = {
+      from: vi.fn().mockImplementation((table: string) => {
+        if (table === 'campaigns') return campaignMock
+        return playersMock
+      }),
+    }
+    ;(createServerSupabaseClient as ReturnType<typeof vi.fn>).mockReturnValue(mockDb)
+    const req = new Request('http://localhost/api/campaign/camp-1/join', {
+      method: 'POST',
+      body: JSON.stringify({ username: 'testuser' }),
+    })
+    const res = await POST(req, makeParams('camp-1'))
+    expect(res.status).toBe(409)
+    const body = await res.json()
+    expect(body.error).toContain('full')
+  })
+
   it('returns 200 with existing player if already joined', async () => {
     ;(createAuthServerClient as ReturnType<typeof vi.fn>).mockResolvedValue({
       auth: { getUser: async () => ({ data: { user: mockUser } }) },

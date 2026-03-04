@@ -15,11 +15,10 @@ export async function POST(
   }
 
   const body = await req.json()
-  const username: string = body.username?.trim()
-
-  if (!username) {
+  if (typeof body.username !== 'string' || !body.username.trim()) {
     return NextResponse.json({ error: 'Missing required field: username' }, { status: 400 })
   }
+  const username = body.username.trim()
 
   const supabase = createServerSupabaseClient()
 
@@ -37,6 +36,20 @@ export async function POST(
     return NextResponse.json({ error: 'Campaign has already started' }, { status: 409 })
   }
 
+  // Enforce max 6 players
+  const { count, error: countError } = await supabase
+    .from('players')
+    .select('id', { count: 'exact', head: true })
+    .eq('campaign_id', campaignId)
+
+  if (countError) {
+    return NextResponse.json({ error: 'Failed to check player count' }, { status: 500 })
+  }
+  if ((count ?? 0) >= 6) {
+    return NextResponse.json({ error: 'Campaign is full (max 6 players)' }, { status: 409 })
+  }
+
+  // Idempotent: once joined, username is locked in at join time
   const { data: existing } = await supabase
     .from('players')
     .select('*')
