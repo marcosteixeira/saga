@@ -5,13 +5,11 @@ import { EmberParticles } from '@/components/ember-particles'
 import { AmbientSmoke } from '@/components/ambient-smoke'
 import { GearDecoration } from '@/components/gear-decoration'
 import { Button } from '@/components/ui/button'
+import type { Campaign } from '@/types/campaign'
+import type { Player as DBPlayer } from '@/types/player'
+import type { World, WorldClass } from '@/types/world'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
-type WorldClass = {
-  name: string
-  description: string
-}
 
 type PlayerStatus = 'ready' | 'not_ready' | 'empty'
 
@@ -26,56 +24,12 @@ interface Player {
   status: PlayerStatus
 }
 
-// ─── Mock Data ────────────────────────────────────────────────────────────────
-
-const MOCK_CAMPAIGN = {
-  name: 'The Iron Meridian',
-  worldDescription:
-    'A shattered continent bound together by ancient brass machinery and the will of steam-powered gods.',
-  hostUsername: 'marco',
+interface LobbyClientProps {
+  campaign: Campaign
+  world: World
+  players: DBPlayer[]
+  currentUserId: string | null
 }
-
-const MOCK_WORLD_CLASSES: WorldClass[] = [
-  { name: 'Conduit Warden', description: 'Engineers who channel raw aetheric current through brass lattice implants.' },
-  { name: 'Ashwright', description: 'Survivors of the Smelt Wars who forge weapons from the bones of dead machines.' },
-  { name: 'Pressure Cleric', description: 'Priests of the Steam God who heal through regulated thermal release.' },
-  { name: 'Veil Broker', description: 'Shadow traders who slip between guild territories unseen and unregistered.' },
-  { name: 'Iron Chorus', description: 'Bards who amplify their voice through mechanical resonance chambers.' },
-  { name: 'Meridian Scout', description: 'Navigators trained to read ley-lines left by the ancient cartographers.' },
-]
-
-const INITIAL_PLAYERS: (Player | null)[] = [
-  {
-    id: '1',
-    username: 'marco',
-    characterName: 'Aldric Voss',
-    characterClass: 'Conduit Warden',
-    backstory: 'A disgraced knight seeking redemption in the forgotten ruins of the old empire.',
-    isHost: true,
-    isCurrentUser: true,
-    status: 'not_ready',
-  },
-  {
-    id: '2',
-    username: 'sara',
-    characterName: 'Nyx Ashveil',
-    characterClass: 'Veil Broker',
-    backstory: '',
-    isHost: false,
-    isCurrentUser: false,
-    status: 'ready',
-  },
-  {
-    id: '3',
-    username: 'paulo',
-    characterName: '',
-    characterClass: 'Ashwright',
-    backstory: '',
-    isHost: false,
-    isCurrentUser: false,
-    status: 'not_ready',
-  },
-]
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -259,12 +213,23 @@ function ClassCard({
 
 // ─── Main Component ────────────────────────────────────────────────────────────
 
-export default function LobbyClient() {
-  const [players, setPlayers] = useState<(Player | null)[]>(INITIAL_PLAYERS)
+export default function LobbyClient({ campaign, world, players: dbPlayers, currentUserId }: LobbyClientProps) {
+  const uiPlayers: Player[] = dbPlayers.map(p => ({
+    id: p.id,
+    username: p.username,
+    characterName: p.character_name ?? '',
+    characterClass: p.character_class ?? '',
+    backstory: p.character_backstory ?? '',
+    isHost: p.is_host,
+    isCurrentUser: p.user_id === currentUserId,
+    status: 'not_ready' as PlayerStatus,
+  }))
+
+  const [players, setPlayers] = useState<(Player | null)[]>(uiPlayers)
   const [isReady, setIsReady] = useState(false)
 
-  // Own character form state (current user = players[0])
-  const currentUser = players[0] as Player
+  // Own character form state
+  const currentUser = (players.find(p => p?.isCurrentUser) ?? players[0]) as Player
   const [charName, setCharName] = useState(currentUser.characterName)
   const [charClass, setCharClass] = useState<string>(currentUser.characterClass)
   const [backstory, setBackstory] = useState(currentUser.backstory)
@@ -305,7 +270,7 @@ export default function LobbyClient() {
     )
   }
 
-  const selectedClassData = MOCK_WORLD_CLASSES.find(c => c.name === charClass)
+  const selectedClassData = world.classes.find(c => c.name === charClass)
 
   return (
     <main className="relative min-h-screen overflow-hidden" style={{ background: 'var(--soot)' }}>
@@ -359,18 +324,18 @@ export default function LobbyClient() {
                 </div>
               </div>
               <h1 className="font-heading text-2xl lg:text-3xl tracking-widest uppercase mb-1" style={{ color: 'var(--steam)' }}>
-                {MOCK_CAMPAIGN.name}
+                {campaign.name}
               </h1>
             </div>
 
             {/* Campaign blurb */}
             <div className="mb-8" style={{ animation: 'fadeInUp 0.55s ease-out 0.1s both' }}>
               <p className="text-sm leading-relaxed max-w-lg" style={{ color: 'var(--ash)' }}>
-                {MOCK_CAMPAIGN.worldDescription}
+                {world.description}
               </p>
               <div className="mt-3 flex items-center gap-2">
                 <span className="font-mono text-xs" style={{ color: 'var(--gunmetal)' }}>Hosted by</span>
-                <span className="font-mono text-xs" style={{ color: 'var(--brass)' }}>@{MOCK_CAMPAIGN.hostUsername}</span>
+                <span className="font-mono text-xs" style={{ color: 'var(--brass)' }}>@{campaign.host_username}</span>
               </div>
             </div>
 
@@ -390,7 +355,7 @@ export default function LobbyClient() {
 
             {/* Roster */}
             <div className="flex flex-col gap-3 max-w-xl">
-              {players.map(player => (
+              {players.filter((p): p is Player => p !== null).map(player => (
                 <PlayerCard
                   key={player.id}
                   player={player}
@@ -524,7 +489,7 @@ export default function LobbyClient() {
                     Class <span style={{ color: 'var(--furnace)' }}>*</span>
                   </label>
                   <div className="grid grid-cols-2 gap-2">
-                    {MOCK_WORLD_CLASSES.map(worldClass => (
+                    {world.classes.map(worldClass => (
                       <ClassCard
                         key={worldClass.name}
                         worldClass={worldClass}
