@@ -1,5 +1,10 @@
 export type WorldStatus = 'generating' | 'ready' | 'error';
 
+export type WorldClass = {
+  name: string;
+  description: string;
+};
+
 export type World = {
   id: string;
   user_id: string;
@@ -9,6 +14,7 @@ export type World = {
   cover_image_url: string | null;
   map_image_url: string | null;
   status: WorldStatus;
+  classes: WorldClass[];
   created_at: string;
 };
 

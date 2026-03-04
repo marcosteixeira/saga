@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import Anthropic from "npm:@anthropic-ai/sdk"
 import { createClient } from "jsr:@supabase/supabase-js@2"
-import { getMissingRequiredSections } from "./world-content.ts"
+import { getMissingRequiredSections, parseClassesFromContent, stripClassesFromContent, validateClasses, WorldClass } from "./world-content.ts"
 import { logError, logInfo } from "./logging.ts"
 import { broadcastToChannel } from "./broadcast.ts"
 
@@ -75,11 +75,21 @@ Output a Markdown document with exactly these sections (use ## headings):
 ## Geography
 ## Factions
 ## Tone
+## Classes
 
-Be evocative and specific. Output ONLY the Markdown document, no preamble.`
+The ## Classes section must contain a JSON code block with exactly 6 character classes specific to this world's lore, tone, and setting. Format:
+\`\`\`json
+[
+  { "name": "Class Name", "description": "One sentence flavor description." },
+  ...
+]
+\`\`\`
+
+Be evocative and specific. Class names should feel native to this world — avoid generic names like "Warrior" or "Mage". Output ONLY the Markdown document, no preamble.`
 
     let worldContent = ""
     let missingSections: string[] = []
+    let parsedClasses: WorldClass[] = []
 
     for (let attempt = 1; attempt <= WORLD_GEN_MAX_ATTEMPTS; attempt++) {
       const attemptStartedAt = Date.now()
@@ -109,6 +119,11 @@ Be evocative and specific. Output ONLY the Markdown document, no preamble.`
         .join("")
 
       missingSections = getMissingRequiredSections(worldContent)
+      parsedClasses = parseClassesFromContent(worldContent)
+      const classesValid = validateClasses(parsedClasses)
+      if (!classesValid) {
+        missingSections = [...missingSections, '## Classes (invalid or missing)']
+      }
       logInfo("generate_world.ai_attempt_finished", {
         requestId,
         worldId: world.id,
@@ -134,9 +149,11 @@ Be evocative and specific. Output ONLY the Markdown document, no preamble.`
     }
 
     // Save generated content to worlds table
+    const cleanWorldContent = stripClassesFromContent(worldContent)
+
     await supabase
       .from("worlds")
-      .update({ world_content: worldContent, status: "ready" })
+      .update({ world_content: cleanWorldContent, classes: parsedClasses, status: "ready" })
       .eq("id", world.id)
     logInfo("generate_world.world_content_saved", { requestId, worldId: world.id })
 
