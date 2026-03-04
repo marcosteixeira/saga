@@ -221,14 +221,16 @@ export default function CampaignSetupPage() {
                 )}
 
                 <div className="flex w-full max-w-sm gap-3">
-                  <Button
-                    type="button"
-                    onClick={handleRetryGeneration}
-                    disabled={isRetrying}
-                    className="flex-1"
-                  >
-                    {isRetrying ? 'Retrying...' : 'Retry Generation'}
-                  </Button>
+                  {(campaign?.status === 'error' || error) && (
+                    <Button
+                      type="button"
+                      onClick={handleRetryGeneration}
+                      disabled={isRetrying}
+                      className="flex-1"
+                    >
+                      {isRetrying ? 'Retrying...' : 'Retry Generation'}
+                    </Button>
+                  )}
                   <Button
                     type="button"
                     variant="outline"
