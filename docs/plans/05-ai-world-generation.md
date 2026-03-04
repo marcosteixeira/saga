@@ -4,9 +4,9 @@
 
 **Goal:** Integrate Claude Sonnet 4.6 into campaign creation to generate WORLD.md from the host's world description. Establish the campaign memory file system (campaign_files table) with CRUD operations.
 
-**Architecture:** When a campaign is created, the API calls Claude to generate structured world lore from the host's description. The result is stored as a `WORLD.md` entry in `campaign_files`. A `lib/memory.ts` module provides CRUD for all campaign memory files. The campaign creation form now shows a loading state while AI generates content, then displays a preview.
+**Architecture:** World generation is async to avoid Vercel function timeouts (Claude can take 15–30s). `POST /api/campaign` inserts the campaign with `status: 'generating'` and immediately returns `{ id }`. It then fires-and-forgets a call to an internal generate route. The generate route calls Claude, initializes campaign files, updates campaign status to `'lobby'`, and broadcasts the change via Supabase Realtime. The client subscribes to the campaign's Realtime channel and shows a loading state until the status changes to `'lobby'`, then fetches and displays the world preview.
 
-**Tech Stack:** `@anthropic-ai/sdk`, Claude Sonnet 4.6, Supabase
+**Tech Stack:** `@anthropic-ai/sdk`, Claude Sonnet 4.6, Supabase Realtime
 
 **Depends on:** PR 04
 
@@ -357,7 +357,7 @@ Be evocative and specific. Starting Hooks must list 2-3 adventure hooks players 
 yarn test lib/prompts/__tests__/world-gen
 ```
 
-Expected: PASS (2 tests)
+Expected: PASS (3 tests)
 
 **Step 5: Commit**
 
@@ -368,32 +368,91 @@ git commit -m "feat: world generation prompt builder"
 
 ---
 
-### Task 4: Integrate World Generation into Campaign Creation
+### Task 4: Add 'generating' Campaign Status
+
+**Why:** World generation is async — the campaign row exists before generation completes. The `'generating'` status lets the client know to show a loading state and subscribe for completion.
 
 **Files:**
-- Modify: `app/api/campaign/route.ts`
-- Modify: `app/api/campaign/__tests__/route.test.ts`
+- Create: `supabase/migrations/003_campaign_generating_status.sql`
+- Modify: `types/campaign.ts`
 
-**Updated flow for `POST /api/campaign`:**
+**Step 1: Write migration**
 
-1. Validate input (existing)
-2. Insert campaign row (existing)
-3. **NEW:** Call Claude with `buildWorldGenPrompt(world_description)` → get WORLD.md text
-4. **NEW:** Call `initializeCampaignFiles(campaignId, worldMdContent)`
-5. Return `{ id }` with status 201
+Create `supabase/migrations/003_campaign_generating_status.sql`:
 
-The Claude call is non-streaming — we wait for the full response. Acceptable for campaign creation (one-time action, user sees loading screen).
+```sql
+-- Add 'generating' as a valid campaign status.
+-- No constraint change needed since status is plain TEXT — just documenting the new value.
+-- The default remains 'lobby' for campaigns that skip AI generation in future.
+COMMENT ON COLUMN campaigns.status IS 'lobby | generating | active | paused | ended';
+```
 
-**Step 1: Add tests for the new behavior**
+**Step 2: Update TypeScript type**
 
-Add to the existing test file (with mocks at top):
+In `types/campaign.ts`, add `'generating'` to the status union:
 
 ```typescript
+status: 'lobby' | 'generating' | 'active' | 'paused' | 'ended'
+```
+
+**Step 3: Commit**
+
+```bash
+git add supabase/migrations/003_campaign_generating_status.sql types/campaign.ts
+git commit -m "feat: add 'generating' campaign status"
+```
+
+---
+
+### Task 5: Build Internal World Generation Route
+
+**Files:**
+- Create: `app/api/campaign/[id]/generate/route.ts`
+- Create: `app/api/campaign/[id]/generate/__tests__/route.test.ts`
+
+**Spec:**
+
+`POST /api/campaign/[id]/generate`
+
+This is an **internal-only** route — never called directly by the browser. It's called fire-and-forget from `POST /api/campaign`. Protected by a shared secret header to prevent external abuse.
+
+Request headers:
+```
+x-internal-secret: <process.env.INTERNAL_SECRET>
+```
+
+Behavior:
+1. Validate `x-internal-secret` header → 401 if missing or wrong
+2. Fetch campaign row — 404 if not found
+3. Validate `status === 'generating'` — 400 if not (prevents duplicate runs)
+4. Build world gen prompt from campaign's `world_description`
+5. Call Claude (`anthropic.messages.create`, non-streaming, max_tokens: 2048)
+6. Call `initializeCampaignFiles(campaignId, worldContent)`
+7. Update campaign `status` to `'lobby'`
+8. Broadcast `{ type: 'world_ready' }` via Supabase Realtime to channel `campaign:{id}`
+9. Return `{ ok: true }` with status 200
+
+Error handling: if Claude call fails, update campaign status to `'error'` and return 500.
+
+**Step 1: Write tests**
+
+```typescript
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { NextRequest } from 'next/server'
+import { POST } from '../route'
+
+const mockFrom = vi.fn()
+const mockChannel = vi.fn()
+
+vi.mock('@/lib/supabase/server', () => ({
+  createServerSupabaseClient: vi.fn(() => ({ from: mockFrom, channel: mockChannel }))
+}))
+
 vi.mock('@/lib/anthropic', () => ({
   anthropic: {
     messages: {
       create: vi.fn().mockResolvedValue({
-        content: [{ type: 'text', text: '# World\nGenerated content' }]
+        content: [{ type: 'text', text: '## World Name\nDark Realm' }]
       })
     }
   }
@@ -403,68 +462,293 @@ vi.mock('@/lib/memory', () => ({
   initializeCampaignFiles: vi.fn().mockResolvedValue(undefined)
 }))
 
-it('calls Claude and initializes campaign files on success', async () => {
-  const { anthropic } = await import('@/lib/anthropic')
-  const { initializeCampaignFiles } = await import('@/lib/memory')
-  // ... POST with valid auth and body
-  expect(anthropic.messages.create).toHaveBeenCalledOnce()
-  expect(initializeCampaignFiles).toHaveBeenCalledWith(
-    expect.any(String),
-    '# World\nGenerated content'
-  )
+function makeRequest(campaignId: string, secret = 'test-secret') {
+  return new NextRequest(`http://localhost/api/campaign/${campaignId}/generate`, {
+    method: 'POST',
+    headers: { 'x-internal-secret': secret },
+  })
+}
+
+describe('POST /api/campaign/[id]/generate', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    process.env.INTERNAL_SECRET = 'test-secret'
+  })
+
+  it('returns 401 when secret header is missing', async () => {
+    const req = new NextRequest('http://localhost/api/campaign/c1/generate', { method: 'POST' })
+    const res = await POST(req, { params: { id: 'c1' } })
+    expect(res.status).toBe(401)
+  })
+
+  it('returns 401 when secret header is wrong', async () => {
+    const res = await POST(makeRequest('c1', 'wrong'), { params: { id: 'c1' } })
+    expect(res.status).toBe(401)
+  })
+
+  it('returns 404 when campaign not found', async () => {
+    mockFrom.mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({ data: null, error: {} })
+        })
+      })
+    })
+    const res = await POST(makeRequest('c1'), { params: { id: 'c1' } })
+    expect(res.status).toBe(404)
+  })
+
+  it('returns 400 when campaign status is not generating', async () => {
+    mockFrom.mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({
+            data: { id: 'c1', status: 'lobby', world_description: 'A realm' },
+            error: null
+          })
+        })
+      })
+    })
+    const res = await POST(makeRequest('c1'), { params: { id: 'c1' } })
+    expect(res.status).toBe(400)
+  })
+
+  it('calls Claude and initializes files on success', async () => {
+    mockFrom
+      .mockReturnValueOnce({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({
+              data: { id: 'c1', status: 'generating', world_description: 'A dark realm' },
+              error: null
+            })
+          })
+        })
+      })
+      .mockReturnValueOnce({ update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) }) })
+    mockChannel.mockReturnValue({ send: vi.fn().mockResolvedValue('ok') })
+
+    const { initializeCampaignFiles } = await import('@/lib/memory')
+    const res = await POST(makeRequest('c1'), { params: { id: 'c1' } })
+
+    expect(res.status).toBe(200)
+    expect(initializeCampaignFiles).toHaveBeenCalledWith('c1', '## World Name\nDark Realm')
+  })
+
+  it('updates campaign status to lobby and broadcasts world_ready', async () => {
+    const mockUpdate = vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) })
+    mockFrom
+      .mockReturnValueOnce({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({
+              data: { id: 'c1', status: 'generating', world_description: 'A realm' },
+              error: null
+            })
+          })
+        })
+      })
+      .mockReturnValueOnce({ update: mockUpdate })
+    const mockSend = vi.fn().mockResolvedValue('ok')
+    mockChannel.mockReturnValue({ send: mockSend })
+
+    await POST(makeRequest('c1'), { params: { id: 'c1' } })
+
+    expect(mockUpdate).toHaveBeenCalledWith({ status: 'lobby' })
+    expect(mockSend).toHaveBeenCalledWith(expect.objectContaining({
+      payload: expect.objectContaining({ type: 'world_ready' })
+    }))
+  })
 })
 ```
 
-**Step 2: Run new test — verify it fails**
+5 test cases.
+
+**Step 2: Run tests — verify they fail**
 
 ```bash
-yarn test app/api/campaign/__tests__/route
+yarn test app/api/campaign/\[id\]/generate/__tests__/route
 ```
 
-Expected: new test FAIL
+Expected: FAIL — `Cannot find module '../route'`
 
-**Step 3: Update `app/api/campaign/route.ts`**
-
-After the DB insert succeeds, add:
+**Step 3: Implement `app/api/campaign/[id]/generate/route.ts`**
 
 ```typescript
+import { NextRequest, NextResponse } from 'next/server'
+import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { anthropic } from '@/lib/anthropic'
 import { buildWorldGenPrompt } from '@/lib/prompts/world-gen'
 import { initializeCampaignFiles } from '@/lib/memory'
 
-// After campaign insert:
-const { system, user } = buildWorldGenPrompt(world_description)
-const aiResponse = await anthropic.messages.create({
-  model: 'claude-sonnet-4-6',
-  max_tokens: 2048,
-  system,
-  messages: [{ role: 'user', content: user }],
-})
-const worldContent = aiResponse.content
-  .filter((b) => b.type === 'text')
-  .map((b) => b.text)
-  .join('')
-await initializeCampaignFiles(campaign.id, worldContent)
+export async function POST(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const secret = request.headers.get('x-internal-secret')
+  if (!secret || secret !== process.env.INTERNAL_SECRET) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const supabase = createServerSupabaseClient()
+  const campaignId = params.id
+
+  const { data: campaign } = await supabase
+    .from('campaigns')
+    .select('id, status, world_description')
+    .eq('id', campaignId)
+    .single()
+
+  if (!campaign) {
+    return NextResponse.json({ error: 'Campaign not found' }, { status: 404 })
+  }
+  if (campaign.status !== 'generating') {
+    return NextResponse.json({ error: 'Campaign is not in generating state' }, { status: 400 })
+  }
+
+  try {
+    const { system, user } = buildWorldGenPrompt(campaign.world_description)
+    const aiResponse = await anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 2048,
+      system,
+      messages: [{ role: 'user', content: user }],
+    })
+    const worldContent = aiResponse.content
+      .filter((b) => b.type === 'text')
+      .map((b) => (b as { type: 'text'; text: string }).text)
+      .join('')
+
+    await initializeCampaignFiles(campaignId, worldContent)
+
+    await supabase
+      .from('campaigns')
+      .update({ status: 'lobby' })
+      .eq('id', campaignId)
+
+    await supabase.channel(`campaign:${campaignId}`).send({
+      type: 'broadcast',
+      event: 'campaign_update',
+      payload: { type: 'world_ready' },
+    })
+
+    return NextResponse.json({ ok: true }, { status: 200 })
+  } catch {
+    await supabase
+      .from('campaigns')
+      .update({ status: 'error' })
+      .eq('id', campaignId)
+    return NextResponse.json({ error: 'Generation failed' }, { status: 500 })
+  }
+}
 ```
 
-**Step 4: Run all tests — verify all pass**
+**Step 4: Run tests — verify they pass**
+
+```bash
+yarn test app/api/campaign/\[id\]/generate/__tests__/route
+```
+
+Expected: PASS (5 tests)
+
+**Step 5: Commit**
+
+```bash
+git add app/api/campaign/\[id\]/generate/
+git commit -m "feat: internal world generation route with async Claude call"
+```
+
+---
+
+### Task 6: Update Campaign Creation Route
+
+**Files:**
+- Modify: `app/api/campaign/route.ts`
+- Modify: `app/api/campaign/__tests__/route.test.ts`
+
+**Updated flow for `POST /api/campaign`:**
+
+1. Validate input
+2. Insert campaign row with `status: 'generating'`
+3. Fire-and-forget: `fetch('/api/campaign/[id]/generate', { headers: { 'x-internal-secret': ... } })` — do NOT await
+4. Return `{ id }` with status 201 immediately
+
+The client does not wait for generation — it subscribes via Realtime.
+
+**Step 1: Add test for new behavior**
+
+```typescript
+vi.mock('@/lib/memory', () => ({
+  initializeCampaignFiles: vi.fn()
+}))
+
+it('inserts campaign with status generating and returns id immediately', async () => {
+  // mock insert returning { id: 'c1' }
+  // verify response status 201 and body { id: 'c1' }
+  // verify no Claude call is made in this route (generation is delegated)
+})
+
+it('fires generate request without awaiting', async () => {
+  // verify fetch is called with correct URL and x-internal-secret header
+})
+```
+
+**Step 2: Run new tests — verify they fail**
 
 ```bash
 yarn test app/api/campaign/__tests__/route
 ```
 
-Expected: all tests PASS
+**Step 3: Update `app/api/campaign/route.ts`**
 
-**Step 5: Commit**
+```typescript
+// After campaign insert:
+// Fire-and-forget — do not await
+fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/campaign/${data.id}/generate`, {
+  method: 'POST',
+  headers: { 'x-internal-secret': process.env.INTERNAL_SECRET! },
+}).catch(() => {/* generation failure is handled inside the generate route */})
+
+return NextResponse.json({ id: data.id }, { status: 201 })
+```
+
+Also change the insert to use `status: 'generating'`:
+```typescript
+.insert({
+  name,
+  host_username,
+  host_user_id: user.id,
+  world_description,
+  system_description: system_description || null,
+  status: 'generating',   // ← was 'lobby'
+})
+```
+
+**Step 4: Run all tests — verify they pass**
 
 ```bash
-git add app/api/campaign/route.ts app/api/campaign/__tests__/route.test.ts
-git commit -m "feat: integrate Claude world generation into campaign creation"
+yarn test app/api/campaign/__tests__/route
+```
+
+**Step 5: Add `INTERNAL_SECRET` and `NEXT_PUBLIC_APP_URL` to `.env.local`**
+
+```
+INTERNAL_SECRET=<random-string>
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+```
+
+Document both in `.env.example`.
+
+**Step 6: Commit**
+
+```bash
+git add app/api/campaign/route.ts app/api/campaign/__tests__/route.test.ts .env.example
+git commit -m "feat: campaign creation fires async world generation"
 ```
 
 ---
 
-### Task 5: Add World Preview to Campaign Creation UI
+### Task 7: Add World Preview to Campaign Creation UI
 
 **Files:**
 - Create: `components/campaign/WorldPreview.tsx`
@@ -473,17 +757,25 @@ git commit -m "feat: integrate Claude world generation into campaign creation"
 **Spec:**
 
 After form submit:
-1. Show loading: "Generating your world..." (piston animation, `Rokkitt` uppercase `--steam`)
-2. On API response: fetch GET `/api/campaign/[id]` to load world files
-3. Render `WorldPreview`:
-   - Campaign name as H1 (`Rokkitt`, uppercase, `--brass` with glow)
-   - WORLD.md content in scroll area (plain text, preserve line breaks)
-   - "Enter Lobby" button → navigate to `/campaign/[id]/lobby`
+1. POST returns `{ id }` immediately — show loading state
+2. Subscribe to Supabase Realtime channel `campaign:{id}` for `world_ready` broadcast
+3. On `world_ready`: fetch GET `/api/campaign/[id]` to load world content
+4. Render `WorldPreview` — unsubscribe from channel
+
+**WorldGenForm state machine:**
+- `idle` → form visible
+- `submitting` → POST in flight (brief)
+- `generating` → POST returned, waiting for Realtime `world_ready`
+- `ready` → world content loaded, show `<WorldPreview />`
+
+During `generating`: show "Generating your world..." with piston animation. Subscribe to `campaign:{id}` Realtime channel. On `world_ready` event → fetch world content → transition to `ready`.
 
 **WorldPreview component:**
 - Props: `campaign: Campaign`, `worldContent: string`
 - Iron Plate panel — `--smog` 85% opacity, `--gunmetal` border
-- `ScrollArea` for long content
+- Campaign name as H1 (`Rokkitt`, uppercase, `--brass` with glow)
+- `ScrollArea` for long content (`Barlow Condensed`, `--steam`)
+- "Enter Lobby" button → navigate to `/campaign/[id]/lobby`
 
 **Step 1: Install scroll-area shadcn component**
 
@@ -526,21 +818,22 @@ export function WorldPreview({ campaign, worldContent }: Props) {
 }
 ```
 
-**Step 3: Update `WorldGenForm.tsx` to show preview after creation**
+**Step 3: Update `WorldGenForm.tsx` to subscribe to Realtime**
 
-Add states: `isGenerating` (bool), `preview` (`{ campaign, worldContent } | null`).
+```typescript
+type FormState = 'idle' | 'submitting' | 'generating' | 'ready'
+```
 
-After successful POST response:
-1. Set `isGenerating = true`
-2. Fetch GET `/api/campaign/${id}` to get the world file
-3. Set `preview = { campaign, worldContent }` and `isGenerating = false`
-
-Render: if `preview` → `<WorldPreview />`. If `isGenerating` → loading message. Else → form.
+After POST returns `{ id }`:
+1. Set state to `'generating'`
+2. Create Supabase browser client
+3. Subscribe to `campaign:{id}` channel, listen for `campaign_update` event with payload `{ type: 'world_ready' }`
+4. On `world_ready`: fetch `/api/campaign/${id}` to get campaign + world file, set state to `'ready'`, unsubscribe
 
 **Step 4: Visual test**
 
-- Fill form → submit → "Generating your world..." spinner
-- World preview appears with campaign name + WORLD.md content
+- Fill form → submit → immediately see "Generating your world..." with piston animation
+- After 15–30s → world preview appears (steam burst transition)
 - Long descriptions scroll within the card
 - "Enter Lobby" navigates correctly
 
@@ -548,7 +841,7 @@ Render: if `preview` → `<WorldPreview />`. If `isGenerating` → loading messa
 
 ```bash
 git add components/campaign/WorldPreview.tsx components/campaign/WorldGenForm.tsx
-git commit -m "feat: world preview after campaign creation"
+git commit -m "feat: async world preview via Supabase Realtime"
 ```
 
 ---
@@ -558,19 +851,21 @@ git commit -m "feat: world preview after campaign creation"
 | What | How | Detail |
 |------|-----|--------|
 | lib/memory.ts | Unit test (vitest) | 4 tests: getCampaignFile (found/not found), upsertCampaignFile, initializeCampaignFiles |
-| lib/prompts/world-gen.ts | Unit test (vitest) | 2 tests: includes description, includes required sections |
-| POST /api/campaign (updated) | Unit test (vitest) | Existing tests + 1 new for Claude integration |
+| lib/prompts/world-gen.ts | Unit test (vitest) | 3 tests: user field isolated, required sections in system, injection safety |
+| POST /api/campaign/[id]/generate | Unit test (vitest) | 5 tests: auth, 404, wrong status, Claude call, status update + broadcast |
+| POST /api/campaign (updated) | Unit test (vitest) | Existing tests + 2 new: status='generating', fire-and-forget fetch |
 | WorldPreview component | Visual/manual | Renders campaign name, world content, scroll works |
-| End-to-end creation flow | Visual/manual | Form → loading → preview → lobby redirect |
+| End-to-end async flow | Visual/manual | Form → instant return → loading → Realtime fires → preview → lobby |
 
 ---
 
 ## Acceptance Criteria
 
 - [ ] `lib/memory.ts` provides getCampaignFile, getCampaignFiles, upsertCampaignFile, initializeCampaignFiles (4 tests passing)
-- [ ] `lib/prompts/world-gen.ts` builds a structured prompt (2 tests passing)
-- [ ] Campaign creation now calls Claude to generate WORLD.md (test passing)
-- [ ] All 5 campaign files initialized after creation
-- [ ] WorldPreview component displays generated world content
-- [ ] Loading state shown during AI generation
+- [ ] `lib/prompts/world-gen.ts` isolates user input from system prompt (3 tests passing)
+- [ ] `POST /api/campaign` returns `{ id }` immediately with status `'generating'` (tests passing)
+- [ ] `POST /api/campaign/[id]/generate` calls Claude, initializes files, updates status, broadcasts (5 tests passing)
+- [ ] Campaign status transitions: `generating` → `lobby` on completion, `error` on failure
+- [ ] WorldGenForm subscribes to Realtime and shows preview when `world_ready` fires
+- [ ] `INTERNAL_SECRET` and `NEXT_PUBLIC_APP_URL` documented in `.env.example`
 - [ ] `yarn build` succeeds
