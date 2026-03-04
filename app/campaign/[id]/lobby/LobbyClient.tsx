@@ -431,11 +431,12 @@ export default function LobbyClient({
     backstory: p.character_backstory ?? '',
     isHost: p.is_host,
     isCurrentUser: p.user_id === currentUserId,
-    status: 'not_ready' as PlayerStatus
+    status: (p.is_ready ? 'ready' : 'not_ready') as PlayerStatus
   }));
 
   const [players, setPlayers] = useState<Player[]>(uiPlayers);
-  const [isReady, setIsReady] = useState(false);
+  const currentUserFromDb = dbPlayers.find((p) => p.user_id === currentUserId)
+  const [isReady, setIsReady] = useState(currentUserFromDb?.is_ready ?? false);
 
   // Own character form state
   const currentUser: Player | null = players.find((p) => p.isCurrentUser) ?? null;
@@ -444,6 +445,9 @@ export default function LobbyClient({
   const [backstory, setBackstory] = useState(currentUser?.backstory ?? '');
   const [formDirty, setFormDirty] = useState(false);
   const [charSaved, setCharSaved] = useState(!!currentUser?.characterName);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [readying, setReadying] = useState(false);
 
   // Derived
   const readyCount = players.filter((p) => p.status === 'ready').length;
@@ -451,34 +455,64 @@ export default function LobbyClient({
 
   const isHost = currentUser?.isHost ?? false;
 
-  function saveCharacter() {
+  async function saveCharacter() {
     if (!charName.trim() || !charClass) return;
-    setPlayers((prev) =>
-      prev.map((p) =>
-        p.isCurrentUser
-          ? {
-              ...p,
-              characterName: charName.trim(),
-              characterClass: charClass,
-              backstory,
-              status: 'not_ready'
-            }
-          : p
-      )
-    );
-    setCharSaved(true);
-    setFormDirty(false);
-    setIsReady(false);
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const res = await fetch(`/api/campaign/${campaign.id}/player`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          character_name: charName.trim(),
+          character_class: charClass,
+          character_backstory: backstory || null,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setSaveError(data.error ?? 'Failed to save character');
+        return;
+      }
+      setPlayers((prev) =>
+        prev.map((p) =>
+          p.isCurrentUser
+            ? { ...p, characterName: charName.trim(), characterClass: charClass, backstory }
+            : p
+        )
+      );
+      setCharSaved(true);
+      setFormDirty(false);
+      setIsReady(false);
+    } finally {
+      setSaving(false);
+    }
   }
 
-  function handleReady() {
-    setIsReady(true);
-    setPlayers((prev) =>
-      prev.map((p) => (p.isCurrentUser ? { ...p, status: 'ready' } : p))
-    );
+  async function handleReady() {
+    setReadying(true);
+    try {
+      const res = await fetch(`/api/campaign/${campaign.id}/ready`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_ready: true }),
+      });
+      if (!res.ok) return;
+      setIsReady(true);
+      setPlayers((prev) =>
+        prev.map((p) => (p.isCurrentUser ? { ...p, status: 'ready' } : p))
+      );
+    } finally {
+      setReadying(false);
+    }
   }
 
-  function handleEditCharacter() {
+  async function handleEditCharacter() {
+    await fetch(`/api/campaign/${campaign.id}/ready`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_ready: false }),
+    });
     setIsReady(false);
     setPlayers((prev) =>
       prev.map((p) => (p.isCurrentUser ? { ...p, status: 'not_ready' } : p))
@@ -901,18 +935,23 @@ export default function LobbyClient({
                   <Button
                     type="submit"
                     className="w-full"
-                    disabled={!charName.trim() || !charClass}
+                    disabled={!charName.trim() || !charClass || saving}
                     variant={charSaved && !formDirty ? 'outline' : 'default'}
                   >
-                    {charSaved && !formDirty ? 'Character Saved ✓' : 'Save Character'}
+                    {saving ? 'Saving…' : charSaved && !formDirty ? 'Character Saved ✓' : 'Save Character'}
                   </Button>
 
                   {charSaved && !formDirty && (
-                    <Button type="button" className="w-full" onClick={handleReady}>
-                      I&apos;m Ready
+                    <Button type="button" className="w-full" onClick={handleReady} disabled={readying}>
+                      {readying ? 'Updating…' : "I'm Ready"}
                     </Button>
                   )}
                 </div>
+                {saveError && (
+                  <p className="text-xs text-center" style={{ color: 'var(--furnace)' }}>
+                    {saveError}
+                  </p>
+                )}
 
                 {charSaved && !formDirty && (
                   <p
