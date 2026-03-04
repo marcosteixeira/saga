@@ -1,6 +1,6 @@
 'use client'
 
-import { type ReactElement, useState } from 'react'
+import { useState } from 'react'
 import { EmberParticles } from '@/components/ember-particles'
 import { AmbientSmoke } from '@/components/ambient-smoke'
 import { GearDecoration } from '@/components/gear-decoration'
@@ -8,7 +8,10 @@ import { Button } from '@/components/ui/button'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type CharacterClass = 'Warrior' | 'Rogue' | 'Mage' | 'Cleric' | 'Ranger' | 'Bard'
+type WorldClass = {
+  name: string
+  description: string
+}
 
 type PlayerStatus = 'ready' | 'not_ready' | 'empty'
 
@@ -16,7 +19,7 @@ interface Player {
   id: string
   username: string
   characterName: string
-  characterClass: CharacterClass
+  characterClass: string
   backstory: string
   isHost: boolean
   isCurrentUser: boolean
@@ -32,12 +35,21 @@ const MOCK_CAMPAIGN = {
   hostUsername: 'marco',
 }
 
+const MOCK_WORLD_CLASSES: WorldClass[] = [
+  { name: 'Conduit Warden', description: 'Engineers who channel raw aetheric current through brass lattice implants.' },
+  { name: 'Ashwright', description: 'Survivors of the Smelt Wars who forge weapons from the bones of dead machines.' },
+  { name: 'Pressure Cleric', description: 'Priests of the Steam God who heal through regulated thermal release.' },
+  { name: 'Veil Broker', description: 'Shadow traders who slip between guild territories unseen and unregistered.' },
+  { name: 'Iron Chorus', description: 'Bards who amplify their voice through mechanical resonance chambers.' },
+  { name: 'Meridian Scout', description: 'Navigators trained to read ley-lines left by the ancient cartographers.' },
+]
+
 const INITIAL_PLAYERS: (Player | null)[] = [
   {
     id: '1',
     username: 'marco',
     characterName: 'Aldric Voss',
-    characterClass: 'Warrior',
+    characterClass: 'Conduit Warden',
     backstory: 'A disgraced knight seeking redemption in the forgotten ruins of the old empire.',
     isHost: true,
     isCurrentUser: true,
@@ -47,7 +59,7 @@ const INITIAL_PLAYERS: (Player | null)[] = [
     id: '2',
     username: 'sara',
     characterName: 'Nyx Ashveil',
-    characterClass: 'Rogue',
+    characterClass: 'Veil Broker',
     backstory: '',
     isHost: false,
     isCurrentUser: false,
@@ -57,73 +69,13 @@ const INITIAL_PLAYERS: (Player | null)[] = [
     id: '3',
     username: 'paulo',
     characterName: '',
-    characterClass: 'Mage',
+    characterClass: 'Ashwright',
     backstory: '',
     isHost: false,
     isCurrentUser: false,
     status: 'not_ready',
   },
-  null, // empty slot
-  null,
-  null,
 ]
-
-// ─── SVG Class Icons ──────────────────────────────────────────────────────────
-
-const CLASS_ICONS: Record<CharacterClass, ReactElement> = {
-  Warrior: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
-      <path d="M14.5 3.5 L20.5 9.5 L9 21 L3 21 L3 15 Z" />
-      <path d="M14.5 3.5 L16.5 1.5 L22.5 7.5 L20.5 9.5" />
-      <path d="M8 16 L6 18" />
-    </svg>
-  ),
-  Rogue: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
-      <path d="M20 4 L4 20" />
-      <path d="M20 4 L17 7" />
-      <path d="M4 20 L7 17" />
-      <circle cx="12" cy="12" r="2" />
-      <path d="M15 9 L9 15" />
-    </svg>
-  ),
-  Mage: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
-      <path d="M5 19 L15 9" />
-      <path d="M15 9 L17 5 L19 7 L15 9Z" fill="currentColor" fillOpacity={0.3} />
-      <circle cx="5" cy="19" r="1.5" />
-      <path d="M9 13 L7 15" />
-      <path d="M12 10 L10 12" />
-      <path d="M18 3 L20 5 M19 3 L19 5 M18 4 L20 4" strokeWidth={1} />
-    </svg>
-  ),
-  Cleric: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
-      <path d="M12 3 L12 21" />
-      <path d="M7 8 L17 8" />
-      <path d="M9 3 C9 6 7 8 7 8 C7 8 9 10 12 10 C15 10 17 8 17 8 C17 8 15 6 15 3" strokeWidth={1} />
-    </svg>
-  ),
-  Ranger: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
-      <path d="M5 19 C5 11 10 6 18 5" />
-      <path d="M5 19 C13 19 18 14 19 6" />
-      <path d="M18 5 L19 6" />
-      <path d="M12 12 L20 4 L21 7 L18 8Z" fill="currentColor" fillOpacity={0.3} />
-    </svg>
-  ),
-  Bard: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
-      <ellipse cx="7" cy="18" rx="4" ry="2.5" transform="rotate(-30 7 18)" />
-      <path d="M10.5 16 L18 5" />
-      <path d="M18 5 L20 7" />
-      <path d="M14 10 L16 12" strokeWidth={1} />
-      <path d="M16 8 L18 10" strokeWidth={1} />
-    </svg>
-  ),
-}
-
-const CLASSES: CharacterClass[] = ['Warrior', 'Rogue', 'Mage', 'Cleric', 'Ranger', 'Bard']
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -148,14 +100,25 @@ function StatusBadge({ status }: { status: PlayerStatus }) {
   )
 }
 
+function ClassInitial({ name }: { name: string }) {
+  // Display the first letter of each word (up to 2) as a monogram
+  const initials = name
+    .split(' ')
+    .slice(0, 2)
+    .map(w => w[0])
+    .join('')
+    .toUpperCase()
+  return (
+    <span className="font-heading text-xs leading-none" style={{ color: 'var(--brass)', letterSpacing: '0.05em' }}>
+      {initials}
+    </span>
+  )
+}
+
 function PlayerCard({
   player,
-  onMarkReady,
-  isHost,
 }: {
   player: Player
-  onMarkReady?: (id: string) => void
-  isHost: boolean
 }) {
   const isOwn = player.isCurrentUser
 
@@ -196,12 +159,12 @@ function PlayerCard({
             ? player.characterName.charAt(0).toUpperCase()
             : player.username.charAt(0).toUpperCase()}
         </div>
-        {/* Class icon badge */}
+        {/* Class monogram badge */}
         <div
-          className="absolute -bottom-1.5 -right-1.5 w-5 h-5 rounded-sm flex items-center justify-center"
-          style={{ background: 'var(--iron)', border: '1px solid var(--gunmetal)', color: 'var(--brass)' }}
+          className="absolute -bottom-1.5 -right-1.5 w-6 h-5 rounded-sm flex items-center justify-center"
+          style={{ background: 'var(--iron)', border: '1px solid var(--gunmetal)' }}
         >
-          <div className="w-3 h-3">{CLASS_ICONS[player.characterClass]}</div>
+          <ClassInitial name={player.characterClass} />
         </div>
       </div>
 
@@ -234,91 +197,62 @@ function PlayerCard({
         </div>
       </div>
 
-      {/* Host action */}
-      {isHost && !isOwn && player.status === 'not_ready' && onMarkReady && (
-        <button
-          onClick={() => onMarkReady(player.id)}
-          className="flex-shrink-0 text-xs px-2.5 py-1.5 font-heading tracking-widest uppercase transition-all duration-200"
-          style={{
-            border: '1px solid rgba(196,148,61,0.3)',
-            color: 'var(--ash)',
-            background: 'transparent',
-          }}
-          onMouseEnter={e => {
-            const t = e.currentTarget
-            t.style.borderColor = 'var(--brass)'
-            t.style.color = 'var(--brass)'
-          }}
-          onMouseLeave={e => {
-            const t = e.currentTarget
-            t.style.borderColor = 'rgba(196,148,61,0.3)'
-            t.style.color = 'var(--ash)'
-          }}
-        >
-          Mark Ready
-        </button>
-      )}
     </div>
   )
 }
 
-function EmptySlot({ index }: { index: number }) {
-  return (
-    <div
-      className="relative p-4 flex items-center gap-4"
-      style={{
-        border: '1px dashed var(--gunmetal)',
-        background: 'rgba(26,24,20,0.3)',
-        animation: `fadeInUp 0.5s ease-out ${index * 60}ms both`,
-      }}
-    >
-      <div className="w-12 h-12 rounded flex items-center justify-center"
-        style={{ background: 'rgba(26,24,20,0.6)', border: '1px dashed rgba(61,54,48,0.5)' }}>
-        <span className="font-mono text-xs" style={{ color: 'var(--gunmetal)' }}>0{index + 1}</span>
-      </div>
-      <span className="text-sm italic" style={{ color: 'var(--gunmetal)' }}>Waiting for player…</span>
-    </div>
-  )
-}
 
-function ClassButton({
-  cls,
+function ClassCard({
+  worldClass,
   selected,
   onSelect,
 }: {
-  cls: CharacterClass
+  worldClass: WorldClass
   selected: boolean
-  onSelect: (c: CharacterClass) => void
+  onSelect: (name: string) => void
 }) {
   return (
     <button
       type="button"
-      onClick={() => onSelect(cls)}
-      className="relative flex flex-col items-center gap-1.5 p-3 transition-all duration-200 rounded-sm"
+      onClick={() => onSelect(worldClass.name)}
+      className="relative flex flex-col items-start gap-1.5 p-3 text-left transition-all duration-200"
       style={{
         border: selected ? '1px solid var(--brass)' : '1px solid var(--gunmetal)',
-        background: selected ? 'rgba(196,148,61,0.1)' : 'rgba(26,24,20,0.6)',
-        color: selected ? 'var(--brass)' : 'var(--ash)',
-        boxShadow: selected ? '0 0 12px rgba(196,148,61,0.12), inset 0 0 8px rgba(196,148,61,0.06)' : 'none',
+        background: selected ? 'rgba(196,148,61,0.07)' : 'rgba(26,24,20,0.5)',
+        boxShadow: selected
+          ? '0 0 14px rgba(196,148,61,0.1), inset 0 0 10px rgba(196,148,61,0.05)'
+          : 'none',
       }}
       onMouseEnter={e => {
         if (!selected) {
-          e.currentTarget.style.borderColor = 'rgba(196,148,61,0.4)'
-          e.currentTarget.style.color = 'var(--steam)'
+          e.currentTarget.style.borderColor = 'rgba(196,148,61,0.35)'
+          e.currentTarget.style.background = 'rgba(26,24,20,0.7)'
         }
       }}
       onMouseLeave={e => {
         if (!selected) {
           e.currentTarget.style.borderColor = 'var(--gunmetal)'
-          e.currentTarget.style.color = 'var(--ash)'
+          e.currentTarget.style.background = 'rgba(26,24,20,0.5)'
         }
       }}
     >
-      {CLASS_ICONS[cls]}
-      <span className="font-mono text-xs uppercase tracking-widest leading-none">{cls}</span>
+      {/* Selection dot */}
       {selected && (
-        <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full" style={{ background: 'var(--brass)' }} />
+        <span className="absolute top-2.5 right-2.5 w-1.5 h-1.5 rounded-full" style={{ background: 'var(--brass)' }} />
       )}
+
+      <span
+        className="font-heading text-xs tracking-widest uppercase leading-none"
+        style={{ color: selected ? 'var(--brass)' : 'var(--steam)' }}
+      >
+        {worldClass.name}
+      </span>
+      <span
+        className="text-xs leading-relaxed"
+        style={{ color: 'var(--ash)', opacity: selected ? 0.9 : 0.7 }}
+      >
+        {worldClass.description}
+      </span>
     </button>
   )
 }
@@ -332,15 +266,14 @@ export default function LobbyPage() {
   // Own character form state (current user = players[0])
   const currentUser = players[0] as Player
   const [charName, setCharName] = useState(currentUser.characterName)
-  const [charClass, setCharClass] = useState<CharacterClass>(currentUser.characterClass)
+  const [charClass, setCharClass] = useState<string>(currentUser.characterClass)
   const [backstory, setBackstory] = useState(currentUser.backstory)
   const [formDirty, setFormDirty] = useState(false)
   const [charSaved, setCharSaved] = useState(!!currentUser.characterName)
 
   // Derived
-  const filledPlayers = players.filter((p): p is Player => p !== null)
-  const readyCount = filledPlayers.filter(p => p.status === 'ready').length
-  const allReady = filledPlayers.length > 0 && filledPlayers.every(p => p.status === 'ready')
+  const readyCount = players.filter(p => p?.status === 'ready').length
+  const allReady = players.length > 0 && players.every(p => p?.status === 'ready')
 
   const isHost = currentUser.isHost
 
@@ -372,11 +305,7 @@ export default function LobbyPage() {
     )
   }
 
-  function handleHostMarkReady(playerId: string) {
-    setPlayers(prev =>
-      prev.map(p => (p?.id === playerId ? { ...p, status: 'ready' } : p))
-    )
-  }
+  const selectedClassData = MOCK_WORLD_CLASSES.find(c => c.name === charClass)
 
   return (
     <main className="relative min-h-screen overflow-hidden" style={{ background: 'var(--soot)' }}>
@@ -454,25 +383,19 @@ export default function LobbyPage() {
                 </h2>
                 <div className="i-beam flex-1" />
                 <span className="font-mono text-xs" style={{ color: 'var(--gunmetal)' }}>
-                  {readyCount}/{filledPlayers.length} ready
+                  {readyCount}/{players.length} ready
                 </span>
               </div>
             </div>
 
             {/* Roster */}
             <div className="flex flex-col gap-3 max-w-xl">
-              {players.map((player, i) =>
-                player === null ? (
-                  <EmptySlot key={`empty-${i}`} index={i} />
-                ) : (
-                  <PlayerCard
-                    key={player.id}
-                    player={player}
-                    onMarkReady={isHost ? handleHostMarkReady : undefined}
-                    isHost={isHost}
-                  />
-                )
-              )}
+              {players.map(player => (
+                <PlayerCard
+                  key={player.id}
+                  player={player}
+                />
+              ))}
             </div>
 
             {/* Host: Start Game */}
@@ -505,7 +428,7 @@ export default function LobbyPage() {
 
           {/* ── RIGHT: Character Form ─────────────────────────────────── */}
           <div
-            className="w-full lg:w-[380px] xl:w-[420px] flex-shrink-0 px-6 py-8 lg:px-8 lg:py-10 overflow-y-auto"
+            className="w-full lg:w-[420px] xl:w-[460px] flex-shrink-0 px-6 py-8 lg:px-8 lg:py-10 overflow-y-auto"
             style={{
               borderLeft: '1px solid rgba(61,54,48,0.4)',
               background: 'rgba(13,12,10,0.7)',
@@ -540,7 +463,12 @@ export default function LobbyPage() {
 
                 <div className="pt-4 border-t" style={{ borderColor: 'rgba(61,54,48,0.4)' }}>
                   <p className="font-heading text-base tracking-wide" style={{ color: 'var(--steam)' }}>{charName}</p>
-                  <p className="font-mono text-xs uppercase tracking-widest mt-1" style={{ color: 'var(--ash)' }}>{charClass}</p>
+                  <p className="font-mono text-xs uppercase tracking-widest mt-1" style={{ color: 'var(--brass)' }}>{charClass}</p>
+                  {selectedClassData && (
+                    <p className="text-xs mt-1 leading-relaxed" style={{ color: 'var(--ash)', opacity: 0.7 }}>
+                      {selectedClassData.description}
+                    </p>
+                  )}
                   {backstory && (
                     <p className="text-sm mt-3 leading-relaxed" style={{ color: 'var(--ash)' }}>{backstory}</p>
                   )}
@@ -590,18 +518,18 @@ export default function LobbyPage() {
                   />
                 </div>
 
-                {/* Class Picker */}
+                {/* Class Picker — world-specific cards with descriptions */}
                 <div className="flex flex-col gap-2">
                   <label className="font-mono text-xs uppercase tracking-widest" style={{ color: 'var(--brass)' }}>
                     Class <span style={{ color: 'var(--furnace)' }}>*</span>
                   </label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {CLASSES.map(cls => (
-                      <ClassButton
-                        key={cls}
-                        cls={cls}
-                        selected={charClass === cls}
-                        onSelect={c => { setCharClass(c); setFormDirty(true); setCharSaved(false) }}
+                  <div className="grid grid-cols-2 gap-2">
+                    {MOCK_WORLD_CLASSES.map(worldClass => (
+                      <ClassCard
+                        key={worldClass.name}
+                        worldClass={worldClass}
+                        selected={charClass === worldClass.name}
+                        onSelect={name => { setCharClass(name); setFormDirty(true); setCharSaved(false) }}
                       />
                     ))}
                   </div>
