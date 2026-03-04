@@ -30,25 +30,45 @@ export function WorldGenForm() {
     setIsGenerating(true)
 
     try {
-      const res = await fetch('/api/campaign', {
+      // Step 1: Create the world
+      const worldRes = await fetch('/api/world', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          description: worldDescription,
+        }),
+      })
+
+      const worldData = await worldRes.json()
+
+      if (!worldRes.ok) {
+        setError(worldData.error ?? 'Failed to create world.')
+        setIsGenerating(false)
+        return
+      }
+
+      // Step 2: Create the campaign linked to this world
+      const campaignRes = await fetch('/api/campaign', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name,
           host_username: hostUsername || undefined,
-          world_description: worldDescription,
+          world_id: worldData.id,
           system_description: systemDescription || undefined,
         }),
       })
 
-      const data = await res.json()
+      const campaignData = await campaignRes.json()
 
-      if (!res.ok) {
-        setError(data.error ?? 'Something went wrong. Check the gauges.')
+      if (!campaignRes.ok) {
+        setError(campaignData.error ?? 'Something went wrong. Check the gauges.')
         setIsGenerating(false)
         return
       }
-      router.push(`/campaign/${data.id}/setup`)
+
+      router.push(`/campaign/${campaignData.id}/setup`)
       // keep isGenerating=true so the loader stays until the page unmounts
     } catch (err) {
       const message =
@@ -105,6 +125,7 @@ export function WorldGenForm() {
       </div>
 
       {/* Describe Your World */}
+      {/* TODO: add world picker — allow selecting an existing world instead of creating new */}
       <div className="flex flex-col gap-2">
         <Label
           htmlFor="world_description"

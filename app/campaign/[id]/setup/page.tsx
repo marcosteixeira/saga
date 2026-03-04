@@ -5,24 +5,23 @@ import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { EmberParticles } from '@/components/ember-particles'
-import type { Campaign } from '@/types'
-
-const SETUP_ELIGIBLE_STATUSES: Array<Campaign['status']> = ['generating', 'error', 'lobby']
+import type { Campaign, World, WorldStatus } from '@/types'
 
 type CampaignPayload = {
   campaign: Campaign
+  world: World
 }
 
-function statusMessage(status: Campaign['status']): string {
+function statusMessage(status: WorldStatus | string): string {
   switch (status) {
     case 'generating':
       return 'World forge is active in the background. This page updates automatically.'
-    case 'lobby':
+    case 'ready':
       return 'World generation complete.'
     case 'error':
       return 'World generation failed.'
     default:
-      return `Campaign moved to '${status}'.`
+      return `World status: ${status}.`
   }
 }
 
@@ -33,6 +32,7 @@ export default function CampaignSetupPage() {
 
   const supabase = useMemo(() => createClient(), [])
   const [campaign, setCampaign] = useState<Campaign | null>(null)
+  const [world, setWorld] = useState<World | null>(null)
   const [statusText, setStatusText] = useState('Loading campaign setup...')
   const [error, setError] = useState<string | null>(null)
   const [pageLoading, setPageLoading] = useState(true)
@@ -49,53 +49,18 @@ export default function CampaignSetupPage() {
 
     const data = (await res.json()) as CampaignPayload
     setCampaign(data.campaign)
-    if (data.campaign.cover_image_url) {
-      setCoverImageUrl(`${data.campaign.cover_image_url}?t=${Date.now()}`)
+    setWorld(data.world)
+    if (data.world.cover_image_url) {
+      setCoverImageUrl(`${data.world.cover_image_url}?t=${Date.now()}`)
     }
-    setStatusText(statusMessage(data.campaign.status))
+    setStatusText(statusMessage(data.world.status))
 
     return data
   }, [campaignId])
 
   useEffect(() => {
     let mounted = true
-
-    const channel = supabase
-      .channel(`campaign:${campaignId}`)
-      .on('broadcast', { event: 'world:started' }, () => {
-        if (!mounted) return
-        setError(null)
-        setBusy(true)
-        setStatusText('World forge is active. This page updates automatically...')
-      })
-      .on('broadcast', { event: 'world:complete' }, async () => {
-        if (!mounted) return
-        try {
-          const data = await loadCampaign()
-          if (!mounted) return
-          setBusy(false)
-          setError(null)
-          setStatusText(statusMessage(data.campaign.status))
-        } catch (err) {
-          if (!mounted) return
-          setError(err instanceof Error ? err.message : 'Failed to load world data.')
-          setBusy(false)
-        }
-      })
-      .on('broadcast', { event: 'world:error' }, () => {
-        if (!mounted) return
-        setBusy(false)
-        setError('World generation failed. You can retry from this setup page.')
-        setStatusText(statusMessage('error'))
-      })
-      .on('broadcast', { event: 'world:image_ready' }, (message: { payload: { type: string; url: string } }) => {
-        if (!mounted) return
-        if (message.payload.type === 'cover') {
-          setImageLoaded(false)
-          setCoverImageUrl(message.payload.url)
-        }
-      })
-      .subscribe()
+    let channel: ReturnType<typeof supabase.channel> | null = null
 
     ;(async () => {
       try {
@@ -116,16 +81,58 @@ export default function CampaignSetupPage() {
           return
         }
 
-        if (!SETUP_ELIGIBLE_STATUSES.includes(data.campaign.status)) {
+        if (!['generating', 'ready', 'error'].includes(data.world.status)) {
           router.replace('/')
           return
         }
 
-        setBusy(data.campaign.status === 'generating')
-        if (data.campaign.status === 'error') {
+        setBusy(data.world.status === 'generating')
+        if (data.world.status === 'error') {
           setError('World generation failed. You can retry from this setup page.')
         }
         setPageLoading(false)
+
+        // Subscribe to the world channel now that we know the world ID
+        channel = supabase
+          .channel(`world:${data.campaign.world_id}`)
+          .on('broadcast', { event: 'world:started' }, () => {
+            if (!mounted) return
+            setError(null)
+            setBusy(true)
+            setStatusText('World forge is active. This page updates automatically...')
+          })
+          .on('broadcast', { event: 'world:complete' }, async () => {
+            if (!mounted) return
+            try {
+              const refreshed = await loadCampaign()
+              if (!mounted) return
+              setBusy(false)
+              setError(null)
+              setStatusText(statusMessage(refreshed.world.status))
+            } catch (err) {
+              if (!mounted) return
+              setError(err instanceof Error ? err.message : 'Failed to load world data.')
+              setBusy(false)
+            }
+          })
+          .on('broadcast', { event: 'world:error' }, () => {
+            if (!mounted) return
+            setBusy(false)
+            setError('World generation failed. You can retry from this setup page.')
+            setStatusText(statusMessage('error'))
+          })
+          .on(
+            'broadcast',
+            { event: 'world:image_ready' },
+            (message: { payload: { type: string; url: string } }) => {
+              if (!mounted) return
+              if (message.payload.type === 'cover') {
+                setImageLoaded(false)
+                setCoverImageUrl(message.payload.url)
+              }
+            }
+          )
+          .subscribe()
       } catch (err) {
         if (!mounted) return
         setError(err instanceof Error ? err.message : 'Failed to load campaign setup.')
@@ -136,7 +143,7 @@ export default function CampaignSetupPage() {
 
     return () => {
       mounted = false
-      void supabase.removeChannel(channel)
+      if (channel) void supabase.removeChannel(channel)
     }
   }, [campaignId, loadCampaign, router, supabase])
 
@@ -164,7 +171,7 @@ export default function CampaignSetupPage() {
     }
   }
 
-  const isComplete = campaign?.status === 'lobby'
+  const isComplete = world?.status === 'ready'
   const hasImage = !!coverImageUrl
 
   return (
@@ -331,13 +338,13 @@ export default function CampaignSetupPage() {
               {isComplete && (
                 <Button
                   className="w-full"
-                  onClick={() => router.push(`/campaign/${campaign.id}/lobby`)}
+                  onClick={() => router.push(`/campaign/${campaign!.id}/lobby`)}
                 >
                   Enter Lobby
                 </Button>
               )}
 
-              {(campaign?.status === 'error' || (error && !busy)) && (
+              {(world?.status === 'error' || (error && !busy)) && (
                 <Button
                   type="button"
                   onClick={handleRetryGeneration}

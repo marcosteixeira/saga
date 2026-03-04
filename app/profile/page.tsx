@@ -14,16 +14,6 @@ type ProfileCampaign = Pick<Campaign, 'id' | 'name' | 'status' | 'created_at'> &
 }
 
 function actionForCampaign(campaign: ProfileCampaign): { href: string; label: string } {
-  const isSetupEligible =
-    campaign.is_host && (campaign.status === 'generating' || campaign.status === 'error')
-
-  if (isSetupEligible) {
-    return {
-      href: `/campaign/${campaign.id}/setup`,
-      label: 'Setup',
-    }
-  }
-
   if (campaign.status === 'lobby') {
     return {
       href: `/campaign/${campaign.id}/lobby`,
