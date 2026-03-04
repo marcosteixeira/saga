@@ -10,6 +10,8 @@ import { GearDecoration } from '@/components/gear-decoration'
 import { WorldPreview } from '@/components/campaign/WorldPreview'
 import type { Campaign } from '@/types'
 
+const SETUP_ELIGIBLE_STATUSES: Array<Campaign['status']> = ['generating', 'error', 'lobby']
+
 type CampaignFile = {
   filename: string
   content: string
@@ -117,6 +119,11 @@ export default function CampaignSetupPage() {
         if (!mounted) return
 
         if (data.campaign.host_user_id !== user.id) {
+          router.replace('/')
+          return
+        }
+
+        if (!SETUP_ELIGIBLE_STATUSES.includes(data.campaign.status)) {
           router.replace('/')
           return
         }
