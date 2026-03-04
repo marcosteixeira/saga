@@ -650,9 +650,19 @@ export default function LobbyClient({
 
             {/* Roster */}
             <div className="flex flex-col gap-3 max-w-xl">
-              {players.map((player) => (
-                <PlayerCard key={player.id} player={player} />
-              ))}
+              {players.map((player) =>
+                player.isCurrentUser && !isReady ? (
+                  <DraftPlayerCard
+                    key={player.id}
+                    charName={charName}
+                    charClass={charClass}
+                    username={player.username}
+                    isHost={player.isHost}
+                  />
+                ) : (
+                  <PlayerCard key={player.id} player={player} />
+                )
+              )}
               {players.length === 0 && (
                 <DraftPlayerCard
                   charName={charName}
