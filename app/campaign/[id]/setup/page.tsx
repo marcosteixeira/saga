@@ -193,9 +193,7 @@ export default function CampaignSetupPage() {
               <div className="brass-pipe mx-auto mt-4 w-24" />
             </div>
 
-            {campaign?.status === 'lobby' && campaign ? (
-              <WorldPreview campaign={campaign} worldContent={worldContent} />
-            ) : (
+            {!(campaign?.status === 'lobby' && campaign) && (
               <div className="flex flex-col items-center gap-6 py-6">
                 {busy && <div className="piston-loader" aria-label="Generating..." />}
 
@@ -228,6 +226,10 @@ export default function CampaignSetupPage() {
               </div>
             )}
           </div>
+
+          {campaign?.status === 'lobby' && campaign && (
+            <WorldPreview campaign={campaign} worldContent={worldContent} />
+          )}
         </div>
       </div>
     </main>
