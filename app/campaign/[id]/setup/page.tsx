@@ -68,6 +68,12 @@ export default function CampaignSetupPage() {
 
     const channel = supabase
       .channel(`campaign:${campaignId}`)
+      .on('broadcast', { event: 'world:started' }, () => {
+        if (!mounted) return
+        setError(null)
+        setBusy(true)
+        setStatusText('World forge is active. This page updates automatically...')
+      })
       .on('broadcast', { event: 'world:progress' }, ({ payload }) => {
         if (!mounted) return
         const attempt = typeof payload.attempt === 'number' ? payload.attempt : '?'
