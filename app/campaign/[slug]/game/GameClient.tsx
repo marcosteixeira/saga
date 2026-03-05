@@ -278,7 +278,7 @@ function LoadingState({
         <div className="relative z-10 flex flex-1 flex-col">
           {/* Campaign title — stamps in letter by letter */}
           <div
-            className="flex flex-1 flex-col items-center justify-center px-6 text-center"
+            className="flex flex-1 flex-col items-center justify-start px-6 pt-12 sm:pt-16 text-center"
             style={{ opacity: contentVisible ? 1 : 0, transition: 'opacity 0.6s ease' }}
           >
             {/* Eyebrow label */}
@@ -319,96 +319,53 @@ function LoadingState({
             </h1>
           </div>
 
-          {/* Teletype dispatch panel — pinned to bottom */}
+          {/* Dispatch strip — slim bottom bar, keeps focal area clear */}
           <div
-            className="relative flex flex-col items-center gap-5 px-6 pb-10 sm:pb-14"
+            className="relative flex flex-col gap-2 px-6 pb-8 sm:pb-10"
             style={{
               opacity: contentVisible ? 1 : 0,
               transition: 'opacity 0.8s ease 0.4s'
             }}
           >
-            {/* Dispatch board */}
+            {/* Single-line phase indicator */}
             <div
-              className="w-full max-w-sm"
+              className="flex items-center justify-center gap-3"
               style={{
-                background: 'rgba(13,12,10,0.75)',
-                border: '1px solid var(--gunmetal)',
-                backdropFilter: 'blur(6px)',
-                clipPath:
-                  'polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px)'
+                background: 'rgba(13,12,10,0.6)',
+                backdropFilter: 'blur(8px)',
+                border: '1px solid rgba(97,86,74,0.35)',
+                padding: '6px 16px',
               }}
             >
-              {/* Board header */}
+              {/* Pulse dot */}
               <div
-                className="flex items-center gap-2 border-b border-gunmetal px-4 py-2"
-                style={{ background: 'rgba(61,54,48,0.4)' }}
+                className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber"
+                style={{
+                  boxShadow: '0 0 5px var(--amber)',
+                  animation: 'pulse 2s ease-in-out infinite'
+                }}
+              />
+              {/* Current phase text */}
+              <span
+                className="text-[10px] uppercase tracking-[0.3em] text-steam"
+                style={{ fontFamily: 'var(--font-mono), monospace' }}
               >
-                <div
-                  className="h-1.5 w-1.5 rounded-full bg-amber"
-                  style={{
-                    boxShadow: '0 0 4px var(--amber)',
-                    animation: 'pulse 2s ease-in-out infinite'
-                  }}
-                />
-                <span
-                  className="text-[9px] uppercase tracking-[0.35em] text-copper"
-                  style={{ fontFamily: 'var(--font-mono), monospace' }}
-                >
-                  Saga Engine — Dispatch Active
-                </span>
-              </div>
-
-              {/* Phase list */}
-              <div className="flex flex-col gap-0 px-4 py-3">
-                {phases.map((label, i) => {
-                  const done = i < phase;
-                  const active = i === phase;
-                  return (
-                    <div key={i} className="flex items-center gap-3 py-1">
-                      <span
-                        className="shrink-0 text-[9px]"
-                        style={{
-                          fontFamily: 'var(--font-mono), monospace',
-                          color: done
-                            ? 'var(--patina)'
-                            : active
-                              ? 'var(--amber)'
-                              : 'var(--gunmetal)',
-                          transition: 'color 0.4s'
-                        }}
-                      >
-                        {done ? '✓' : active ? '›' : '·'}
-                      </span>
-                      <span
-                        className="text-[10px] uppercase tracking-[0.15em]"
-                        style={{
-                          fontFamily: 'var(--font-mono), monospace',
-                          color: done
-                            ? 'var(--ash)'
-                            : active
-                              ? 'var(--steam)'
-                              : 'var(--gunmetal)',
-                          transition: 'color 0.4s ease'
-                        }}
-                      >
-                        {label}
-                        {active && (
-                          <span style={{ animation: 'blink 1.1s step-end infinite' }}>
-                            _
-                          </span>
-                        )}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
+                {phases[phase]}
+                <span style={{ animation: 'blink 1.1s step-end infinite' }}>_</span>
+              </span>
+              {/* Step counter */}
+              <span
+                className="text-[9px] tracking-[0.15em] text-brass/50 shrink-0"
+                style={{ fontFamily: 'var(--font-mono), monospace' }}
+              >
+                {phase + 1}/{phases.length}
+              </span>
             </div>
 
             {/* Pipeline progress bar */}
-            <div className="relative w-full max-w-sm">
-              {/* Pipe body */}
+            <div className="relative">
               <div
-                className="relative h-[6px] overflow-hidden"
+                className="relative h-[4px] overflow-hidden"
                 style={{
                   background: 'var(--iron)',
                   border: '1px solid var(--gunmetal)',
@@ -421,10 +378,9 @@ function LoadingState({
                     width: `${pct}%`,
                     background:
                       'linear-gradient(90deg, var(--copper), var(--brass), var(--amber))',
-                    boxShadow: '0 0 10px rgba(232,168,53,0.7)'
+                    boxShadow: '0 0 8px rgba(232,168,53,0.6)'
                   }}
                 />
-                {/* Steam flow animation inside filled portion */}
                 <div
                   className="absolute inset-y-0 left-0"
                   style={{
@@ -436,11 +392,10 @@ function LoadingState({
                   }}
                 />
               </div>
-              {/* End cap rivets */}
               {[0, 25, 50, 75, 100].map((pos) => (
                 <div
                   key={pos}
-                  className="absolute top-1/2 -translate-y-1/2 h-[10px] w-[4px]"
+                  className="absolute top-1/2 h-[8px] w-[3px]"
                   style={{
                     left: `${pos}%`,
                     background:
