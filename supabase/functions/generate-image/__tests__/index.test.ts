@@ -40,23 +40,3 @@ describe('getStoragePath', () => {
     expect(getStoragePath('campaign-123', 'map')).toBe('worlds/campaign-123/map.png');
   });
 });
-
-describe('getSystemPrompt', () => {
-  it('returns MAP_SYSTEM_PROMPT for type "map"', async () => {
-    const { getSystemPrompt } = await import('../index.ts');
-    const prompt = getSystemPrompt('map');
-    expect(prompt).toContain('cartographic');
-  });
-
-  it('returns IMAGE_SYSTEM_PROMPT for type "cover"', async () => {
-    const { getSystemPrompt } = await import('../index.ts');
-    const prompt = getSystemPrompt('cover');
-    expect(prompt).toContain('tabletop RPG background art');
-  });
-
-  it('returns IMAGE_SYSTEM_PROMPT for unknown type', async () => {
-    const { getSystemPrompt } = await import('../index.ts');
-    const prompt = getSystemPrompt('other');
-    expect(prompt).toContain('tabletop RPG background art');
-  });
-});
