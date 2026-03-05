@@ -72,6 +72,23 @@ describe('POST /api/campaign/[id]/start', () => {
     expect(res.status).toBe(403)
   })
 
+  it('returns 409 when campaign is already active', async () => {
+    ;(createAuthServerClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      auth: { getUser: async () => ({ data: { user: mockHostUser } }) },
+    })
+    const campaign = { id: 'abc', host_user_id: 'host-user-id', status: 'active' }
+    const mockDb = {
+      from: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        single: vi.fn().mockResolvedValue({ data: campaign, error: null }),
+      }),
+    }
+    ;(createServerSupabaseClient as ReturnType<typeof vi.fn>).mockReturnValue(mockDb)
+    const res = await POST(makeRequest(), makeParams('abc'))
+    expect(res.status).toBe(409)
+  })
+
   it('returns 400 when not all players are ready', async () => {
     ;(createAuthServerClient as ReturnType<typeof vi.fn>).mockResolvedValue({
       auth: { getUser: async () => ({ data: { user: mockHostUser } }) },

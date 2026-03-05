@@ -29,6 +29,10 @@ export async function POST(
     return NextResponse.json({ error: 'Only the host can start the campaign' }, { status: 403 })
   }
 
+  if (campaign.status !== 'lobby') {
+    return NextResponse.json({ error: 'Campaign already started' }, { status: 409 })
+  }
+
   const { data: players, error: playersError } = await supabase
     .from('players')
     .select('id, is_ready, character_name, character_class, character_backstory, username')
