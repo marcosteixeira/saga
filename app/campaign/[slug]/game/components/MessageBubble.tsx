@@ -2,44 +2,8 @@
 
 import type { Message } from '@/types/message';
 import type { Player } from '@/types/player';
-import type { ImageModalState } from './ImageModal';
 import { formatMessageTimeLocal } from './message-time';
 
-function InlineVision({ imageUrl, onExpand }: { imageUrl: string; onExpand: () => void }) {
-  return (
-    <button
-      onClick={onExpand}
-      className="group relative mt-3 block w-full overflow-hidden border border-brass/30 transition-all duration-300 hover:border-brass/70"
-      style={{
-        clipPath: 'polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)',
-        boxShadow: '0 0 20px rgba(196,148,61,0.08)',
-      }}
-    >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={imageUrl} alt="" className="block h-44 w-full object-cover transition-transform duration-500 group-hover:scale-[1.02] sm:h-56" />
-      <div
-        className="absolute inset-0 transition-opacity duration-300"
-        style={{ background: 'linear-gradient(0deg, rgba(13,12,10,0.6) 0%, rgba(13,12,10,0.1) 50%, transparent 100%)' }}
-      />
-      <div
-        className="absolute bottom-3 right-3 flex items-center gap-1.5 border border-brass/50 bg-soot/70 px-2 py-1 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
-        style={{ clipPath: 'polygon(3px 0, 100% 0, 100% calc(100% - 3px), calc(100% - 3px) 100%, 0 100%, 0 3px)', backdropFilter: 'blur(4px)' }}
-      >
-        <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-          <path d="M1 9L9 1M9 1H4M9 1V6" stroke="var(--brass)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-        <span className="text-[9px] uppercase tracking-[0.15em] text-brass" style={{ fontFamily: 'var(--font-mono), monospace' }}>View</span>
-      </div>
-      <div
-        className="absolute left-3 top-3 flex h-5 items-center gap-1.5 border border-brass/40 bg-soot/80 px-2"
-        style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 4px) 100%, 0 100%)', backdropFilter: 'blur(4px)' }}
-      >
-        <div className="h-1.5 w-1.5 rounded-full bg-amber" style={{ boxShadow: '0 0 4px var(--amber)' }} />
-        <span className="text-[9px] uppercase tracking-[0.2em] text-brass" style={{ fontFamily: 'var(--font-mono), monospace' }}>Vision</span>
-      </div>
-    </button>
-  );
-}
 
 function renderNarrationContent(content: string) {
   const chunks: React.ReactNode[] = [];
@@ -80,7 +44,7 @@ function renderNarrationContent(content: string) {
   return chunks;
 }
 
-export function MessageBubble({ message, players, onImageClick }: { message: Message; players: Player[]; onImageClick: (state: ImageModalState) => void }) {
+export function MessageBubble({ message, players }: { message: Message; players: Player[] }) {
   const player = players.find((p) => p.id === message.player_id);
 
   if (message.type === 'system') {
@@ -107,12 +71,6 @@ export function MessageBubble({ message, players, onImageClick }: { message: Mes
           <p className="text-base leading-loose text-steam sm:text-lg sm:leading-loose" style={{ fontFamily: 'var(--font-body), sans-serif', letterSpacing: '0.01em' }}>
             {renderNarrationContent(message.content)}
           </p>
-          {message.image_url && (
-            <InlineVision
-              imageUrl={message.image_url}
-              onExpand={() => onImageClick({ url: message.image_url!, caption: undefined })}
-            />
-          )}
         </div>
       </div>
     );
