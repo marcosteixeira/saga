@@ -72,9 +72,88 @@ export async function generateSessionContent(
     username: string
   }>
 ): Promise<void> {
-  // stub — implementation added in Task 5
-  void anthropic
-  void campaignId
-  void worldId
-  void players
+  const supabase = createServerSupabaseClient()
+
+  const { data: world, error: worldError } = await supabase
+    .from('worlds')
+    .select('name, world_content')
+    .eq('id', worldId)
+    .single()
+
+  if (worldError || !world?.world_content) {
+    throw new Error(`[start-campaign] world content not found for world ${worldId}`)
+  }
+
+  const { data: session, error: sessionError } = await supabase
+    .from('sessions')
+    .insert({
+      campaign_id: campaignId,
+      session_number: 1,
+      present_player_ids: players.map((p) => p.id),
+    })
+    .select('id')
+    .single()
+
+  if (sessionError || !session) {
+    throw new Error(`[start-campaign] failed to create session: ${sessionError?.message}`)
+  }
+
+  const playerList = players
+    .map((p) => {
+      const backstory = p.character_backstory ? ` Backstory: ${p.character_backstory}` : ''
+      return `- ${p.character_name ?? p.username} (${p.character_class ?? 'unknown class'})${backstory}`
+    })
+    .join('\n')
+
+  const userPrompt = `World: ${world.name}
+
+${world.world_content}
+
+Party members:
+${playerList}
+
+Generate the opening scene for this adventure. Return valid JSON only — no markdown, no explanation:
+{
+  "opening_situation": "<3-5 sentence narrative paragraph describing where the party finds themselves: setting, atmosphere, what is immediately happening>",
+  "starting_hooks": ["<hook 1>", "<hook 2>", "<hook 3>"]
+}`
+
+  const message = await anthropic.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 1024,
+    messages: [{ role: 'user', content: userPrompt }],
+  })
+
+  const text = message.content.find((b: { type: string; text?: string }) => b.type === 'text')?.text ?? ''
+  const parsed = JSON.parse(text) as {
+    opening_situation: string
+    starting_hooks: string[]
+  }
+
+  await supabase
+    .from('sessions')
+    .update({
+      opening_situation: parsed.opening_situation,
+      starting_hooks: parsed.starting_hooks,
+    })
+    .eq('id', session.id)
+
+  await broadcastCampaignEvent(campaignId, 'game:started', {
+    session_id: session.id,
+    opening_situation: parsed.opening_situation,
+    starting_hooks: parsed.starting_hooks,
+  })
+
+  triggerSceneImageGeneration(campaignId, session.id, world.name, world.world_content, playerList)
+    .catch((err) => console.error('[start-campaign] scene image generation failed:', err))
+}
+
+async function triggerSceneImageGeneration(
+  _campaignId: string,
+  _sessionId: string,
+  _worldName: string,
+  _worldContent: string,
+  _playerList: string,
+): Promise<void> {
+  // stub — implementation added in Task 6
 }
