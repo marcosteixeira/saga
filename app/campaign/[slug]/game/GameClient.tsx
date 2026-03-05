@@ -40,7 +40,7 @@ const MOCK_MESSAGES: Message[] = [
     content: 'Session started. Campaign mode: Free Play. Turn timer disabled.',
     image_url: null,
     type: 'system',
-    created_at: new Date(Date.now() - 360000).toISOString()
+    created_at: '2026-03-05T11:54:00.000Z'
   },
   {
     id: '1',
@@ -51,7 +51,7 @@ const MOCK_MESSAGES: Message[] = [
       'The airship *Ironclad Meridian* shudders as it pierces through a low-hanging cloudbank above the smog-choked sprawl of Gearfordshire. Through streaked portholes, you can see the city below — a labyrinth of copper pipes, towering smokestacks, and gas-lamp streets. Your destination: the Foundry District, where the Brass Consortium keeps its most dangerous secrets.',
     image_url: 'https://images.unsplash.com/photo-1531366936337-7c912a4589a7?w=1600&q=85',
     type: 'narration',
-    created_at: new Date(Date.now() - 300000).toISOString()
+    created_at: '2026-03-05T11:55:00.000Z'
   },
   {
     id: '2',
@@ -62,7 +62,7 @@ const MOCK_MESSAGES: Message[] = [
       'I pull out my compass and check our bearing. "How much time before we dock at the Meridian Tower?"',
     image_url: null,
     type: 'action',
-    created_at: new Date(Date.now() - 240000).toISOString()
+    created_at: '2026-03-05T11:56:00.000Z'
   },
   {
     id: '3',
@@ -73,7 +73,7 @@ const MOCK_MESSAGES: Message[] = [
       'The compass needle spins lazily — the aetherite interference from the district\'s power cores makes navigation unreliable here. Captain Mira calls back from the helm: *"Fifteen minutes, give or take. And pray the Corsair Guild isn\'t running checkpoints today."* A low rumble shakes the hull as a rival vessel passes uncomfortably close.',
     image_url: null,
     type: 'narration',
-    created_at: new Date(Date.now() - 180000).toISOString()
+    created_at: '2026-03-05T11:57:00.000Z'
   },
   {
     id: '4',
@@ -84,7 +84,7 @@ const MOCK_MESSAGES: Message[] = [
       'I move to the starboard side and peer through my spyglass at the rival vessel. Can I make out their markings?',
     image_url: null,
     type: 'action',
-    created_at: new Date(Date.now() - 120000).toISOString()
+    created_at: '2026-03-05T11:58:00.000Z'
   },
   {
     id: '5',
@@ -95,7 +95,7 @@ const MOCK_MESSAGES: Message[] = [
       "Roll Perception. The spyglass reveals a black hull with a serpent-and-gear sigil — the **Iron Serpent Company**, private enforcers for the Brass Consortium. They haven't spotted you yet, but they're running dark: no running lights, no registry beacon. Whatever they're doing out here isn't official business.",
     image_url: 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=800&q=80',
     type: 'narration',
-    created_at: new Date(Date.now() - 60000).toISOString()
+    created_at: '2026-03-05T11:59:00.000Z'
   }
 ];
 
