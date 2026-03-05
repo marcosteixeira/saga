@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createServerSupabaseClient, createAuthServerClient } from '@/lib/supabase/server'
 import { broadcastCampaignEvent } from '@/lib/realtime-broadcast'
-import { anthropic } from '@/lib/anthropic'
 
 export async function POST(
   _req: Request,
@@ -58,130 +57,23 @@ export async function POST(
 
   await broadcastCampaignEvent(campaignId, 'game:starting', {})
 
-  generateSessionContent(campaignId, campaign.world_id, players ?? []).catch((err) => {
-    console.error('[start-campaign] async generation failed:', err)
-  })
-
-  return NextResponse.json({ ok: true }, { status: 200 })
-}
-
-export async function generateSessionContent(
-  campaignId: string,
-  worldId: string,
-  players: Array<{
-    id: string
-    character_name: string | null
-    character_class: string | null
-    character_backstory: string | null
-    username: string
-  }>
-): Promise<void> {
-  const supabase = createServerSupabaseClient()
-
-  const { data: world, error: worldError } = await supabase
-    .from('worlds')
-    .select('name, world_content')
-    .eq('id', worldId)
-    .single()
-
-  if (worldError || !world?.world_content) {
-    throw new Error(`[start-campaign] world content not found for world ${worldId}`)
-  }
-
-  const { data: session, error: sessionError } = await supabase
-    .from('sessions')
-    .insert({
-      campaign_id: campaignId,
-      session_number: 1,
-      present_player_ids: players.map((p) => p.id),
-    })
-    .select('id')
-    .single()
-
-  if (sessionError || !session) {
-    throw new Error(`[start-campaign] failed to create session: ${sessionError?.message}`)
-  }
-
-  const playerList = players
-    .map((p) => {
-      const backstory = p.character_backstory ? ` Backstory: ${p.character_backstory}` : ''
-      return `- ${p.character_name ?? p.username} (${p.character_class ?? 'unknown class'})${backstory}`
-    })
-    .join('\n')
-
-  const userPrompt = `World: ${world.name}
-
-${world.world_content}
-
-Party members:
-${playerList}
-
-Generate the opening scene for this adventure. Return valid JSON only — no markdown, no explanation:
-{
-  "opening_situation": "<3-5 sentence narrative paragraph describing where the party finds themselves: setting, atmosphere, what is immediately happening>",
-  "starting_hooks": ["<hook 1>", "<hook 2>", "<hook 3>"]
-}`
-
-  const message = await anthropic.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 1024,
-    messages: [{ role: 'user', content: userPrompt }],
-  })
-
-  const text = (message.content as Array<{ type: string; text?: string }>).find((b) => b.type === 'text')?.text ?? ''
-  const parsed = JSON.parse(text) as {
-    opening_situation: string
-    starting_hooks: string[]
-  }
-
-  const { error: saveError } = await supabase
-    .from('sessions')
-    .update({
-      opening_situation: parsed.opening_situation,
-      starting_hooks: parsed.starting_hooks,
-    })
-    .eq('id', session.id)
-
-  if (saveError) {
-    throw new Error(`[start-campaign] failed to save session content: ${saveError.message}`)
-  }
-
-  await broadcastCampaignEvent(campaignId, 'game:started', {
-    session_id: session.id,
-    opening_situation: parsed.opening_situation,
-    starting_hooks: parsed.starting_hooks,
-  })
-
-  triggerSceneImageGeneration(campaignId, session.id, world.name, world.world_content, playerList)
-    .catch((err) => console.error('[start-campaign] scene image generation failed:', err))
-}
-
-async function triggerSceneImageGeneration(
-  campaignId: string,
-  sessionId: string,
-  worldName: string,
-  worldContent: string,
-  playerList: string,
-): Promise<void> {
-  const functionUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/generate-scene-image`
+  // Fire-and-forget: edge function handles session creation + AI generation
+  const functionUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/start-campaign`
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-  if (process.env.GENERATE_SCENE_IMAGE_WEBHOOK_SECRET) {
-    headers.authorization = `Bearer ${process.env.GENERATE_SCENE_IMAGE_WEBHOOK_SECRET}`
+  if (process.env.START_CAMPAIGN_WEBHOOK_SECRET) {
+    headers.authorization = `Bearer ${process.env.START_CAMPAIGN_WEBHOOK_SECRET}`
   }
-
-  const res = await fetch(functionUrl, {
+  fetch(functionUrl, {
     method: 'POST',
     headers,
     body: JSON.stringify({
-      session_id: sessionId,
       campaign_id: campaignId,
-      world_name: worldName,
-      world_content: worldContent,
-      player_list: playerList,
+      world_id: campaign.world_id,
+      players: players ?? [],
     }),
-  })
+  }).then(async (res) => {
+    if (!res.ok) console.error(`[start-campaign] edge function failed HTTP ${res.status}`)
+  }).catch((err) => console.error('[start-campaign] edge function fetch failed:', err))
 
-  if (!res.ok) {
-    console.error(`[start-campaign] generate-scene-image failed HTTP ${res.status}`)
-  }
+  return NextResponse.json({ ok: true }, { status: 200 })
 }

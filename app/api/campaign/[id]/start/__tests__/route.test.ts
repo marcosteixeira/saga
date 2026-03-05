@@ -9,14 +9,12 @@ vi.mock('@/lib/realtime-broadcast', () => ({
   broadcastCampaignEvent: vi.fn().mockResolvedValue(undefined),
 }))
 
-vi.mock('@/lib/anthropic', () => ({
-  anthropic: { messages: { create: vi.fn() } },
-}))
+const fetchMock = vi.fn()
+vi.stubGlobal('fetch', fetchMock)
 
 import { createServerSupabaseClient, createAuthServerClient } from '@/lib/supabase/server'
 import { broadcastCampaignEvent } from '@/lib/realtime-broadcast'
-import { POST, generateSessionContent } from '../route'
-import { anthropic } from '@/lib/anthropic'
+import { POST } from '../route'
 
 const mockHostUser = { id: 'host-user-id' }
 
@@ -118,7 +116,7 @@ describe('POST /api/campaign/[id]/start', () => {
     expect(body.error).toMatch(/not ready/i)
   })
 
-  it('returns 200, updates campaign to active, and broadcasts game:starting when all ready', async () => {
+  it('returns 200, updates campaign to active, broadcasts game:starting, and calls edge function when all ready', async () => {
     ;(createAuthServerClient as ReturnType<typeof vi.fn>).mockResolvedValue({
       auth: { getUser: async () => ({ data: { user: mockHostUser } }) },
     })
@@ -144,155 +142,17 @@ describe('POST /api/campaign/[id]/start', () => {
       }),
     }
     ;(createServerSupabaseClient as ReturnType<typeof vi.fn>).mockReturnValue(mockDb)
+    fetchMock.mockResolvedValue({ ok: true })
+
     const res = await POST(makeRequest(), makeParams('abc'))
     expect(res.status).toBe(200)
     expect(updateFn).toHaveBeenCalledWith({ status: 'active' })
     expect(broadcastCampaignEvent).toHaveBeenCalledWith('abc', 'game:starting', {})
-  })
-})
-
-describe('generateSessionContent', () => {
-  beforeEach(() => vi.clearAllMocks())
-
-  const players = [
-    { id: 'p1', character_name: 'Arwen', character_class: 'Mage', character_backstory: 'A wanderer', username: 'alice' },
-  ]
-
-  it('creates a session row with session_number 1 and present_player_ids', async () => {
-    const insertSingle = vi.fn().mockResolvedValue({ data: { id: 'session-1' }, error: null })
-    const sessionInsert = vi.fn().mockReturnValue({
-      select: vi.fn().mockReturnThis(),
-      single: insertSingle,
-    })
-    const updateEq = vi.fn().mockResolvedValue({ error: null })
-    const sessionUpdate = vi.fn().mockReturnValue({ eq: updateEq })
-    ;(anthropic.messages.create as ReturnType<typeof vi.fn>).mockResolvedValue({
-      content: [{ type: 'text', text: JSON.stringify({
-        opening_situation: 'You stand at the gates.',
-        starting_hooks: ['Hook A', 'Hook B'],
-      }) }],
-    })
-    const mockDb = {
-      from: vi.fn((table: string) => {
-        if (table === 'sessions') return { insert: sessionInsert, update: sessionUpdate }
-        if (table === 'worlds') return {
-          select: vi.fn().mockReturnThis(),
-          eq: vi.fn().mockReturnThis(),
-          single: vi.fn().mockResolvedValue({ data: { world_content: 'World lore...', name: 'Eldoria' }, error: null }),
-        }
-        return {}
-      }),
-    }
-    ;(createServerSupabaseClient as ReturnType<typeof vi.fn>).mockReturnValue(mockDb)
-    await generateSessionContent('campaign-1', 'world-1', players)
-    expect(sessionInsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        campaign_id: 'campaign-1',
-        session_number: 1,
-        present_player_ids: ['p1'],
-      })
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/functions/v1/start-campaign'),
+      expect.objectContaining({ method: 'POST' })
     )
-  })
-
-  it('calls Claude with world content and player info', async () => {
-    const insertSingle = vi.fn().mockResolvedValue({ data: { id: 'session-1' }, error: null })
-    const updateEq = vi.fn().mockResolvedValue({ error: null })
-    const mockDb = {
-      from: vi.fn((table: string) => {
-        if (table === 'sessions') return {
-          insert: vi.fn().mockReturnValue({ select: vi.fn().mockReturnThis(), single: insertSingle }),
-          update: vi.fn().mockReturnValue({ eq: updateEq }),
-        }
-        if (table === 'worlds') return {
-          select: vi.fn().mockReturnThis(),
-          eq: vi.fn().mockReturnThis(),
-          single: vi.fn().mockResolvedValue({ data: { world_content: 'World lore here', name: 'Eldoria' }, error: null }),
-        }
-        return {}
-      }),
-    }
-    ;(createServerSupabaseClient as ReturnType<typeof vi.fn>).mockReturnValue(mockDb)
-    ;(anthropic.messages.create as ReturnType<typeof vi.fn>).mockResolvedValue({
-      content: [{ type: 'text', text: JSON.stringify({
-        opening_situation: 'You stand at the gates.',
-        starting_hooks: ['Hook A'],
-      }) }],
-    })
-    await generateSessionContent('campaign-1', 'world-1', players)
-    const call = (anthropic.messages.create as ReturnType<typeof vi.fn>).mock.calls[0][0]
-    const userMsg = call.messages.find((m: { role: string }) => m.role === 'user')
-    expect(userMsg.content).toContain('World lore here')
-    expect(userMsg.content).toContain('Arwen')
-    expect(userMsg.content).toContain('Mage')
-  })
-
-  it('saves opening_situation and starting_hooks to session row', async () => {
-    const insertSingle = vi.fn().mockResolvedValue({ data: { id: 'session-1' }, error: null })
-    const updateEq = vi.fn().mockResolvedValue({ error: null })
-    const updateFn = vi.fn().mockReturnValue({ eq: updateEq })
-    const mockDb = {
-      from: vi.fn((table: string) => {
-        if (table === 'sessions') return {
-          insert: vi.fn().mockReturnValue({ select: vi.fn().mockReturnThis(), single: insertSingle }),
-          update: updateFn,
-        }
-        if (table === 'worlds') return {
-          select: vi.fn().mockReturnThis(),
-          eq: vi.fn().mockReturnThis(),
-          single: vi.fn().mockResolvedValue({ data: { world_content: 'Lore', name: 'World' }, error: null }),
-        }
-        return {}
-      }),
-    }
-    ;(createServerSupabaseClient as ReturnType<typeof vi.fn>).mockReturnValue(mockDb)
-    ;(anthropic.messages.create as ReturnType<typeof vi.fn>).mockResolvedValue({
-      content: [{ type: 'text', text: JSON.stringify({
-        opening_situation: 'You stand at the gates.',
-        starting_hooks: ['Investigate the noise', 'Follow the stranger'],
-      }) }],
-    })
-    await generateSessionContent('campaign-1', 'world-1', players)
-    expect(updateFn).toHaveBeenCalledWith(
-      expect.objectContaining({
-        opening_situation: 'You stand at the gates.',
-        starting_hooks: ['Investigate the noise', 'Follow the stranger'],
-      })
-    )
-  })
-
-  it('broadcasts game:started with session_id and opening content', async () => {
-    const insertSingle = vi.fn().mockResolvedValue({ data: { id: 'session-42' }, error: null })
-    const updateEq = vi.fn().mockResolvedValue({ error: null })
-    const mockDb = {
-      from: vi.fn((table: string) => {
-        if (table === 'sessions') return {
-          insert: vi.fn().mockReturnValue({ select: vi.fn().mockReturnThis(), single: insertSingle }),
-          update: vi.fn().mockReturnValue({ eq: updateEq }),
-        }
-        if (table === 'worlds') return {
-          select: vi.fn().mockReturnThis(),
-          eq: vi.fn().mockReturnThis(),
-          single: vi.fn().mockResolvedValue({ data: { world_content: 'Lore', name: 'World' }, error: null }),
-        }
-        return {}
-      }),
-    }
-    ;(createServerSupabaseClient as ReturnType<typeof vi.fn>).mockReturnValue(mockDb)
-    ;(anthropic.messages.create as ReturnType<typeof vi.fn>).mockResolvedValue({
-      content: [{ type: 'text', text: JSON.stringify({
-        opening_situation: 'The city burns.',
-        starting_hooks: ['Flee', 'Fight'],
-      }) }],
-    })
-    await generateSessionContent('campaign-1', 'world-1', players)
-    expect(broadcastCampaignEvent).toHaveBeenCalledWith(
-      'campaign-1',
-      'game:started',
-      expect.objectContaining({
-        session_id: 'session-42',
-        opening_situation: 'The city burns.',
-        starting_hooks: ['Flee', 'Fight'],
-      })
-    )
+    const body = await res.json()
+    expect(body).toEqual({ ok: true })
   })
 })
