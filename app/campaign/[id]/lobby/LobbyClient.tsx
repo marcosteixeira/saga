@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { EmberParticles } from '@/components/ember-particles';
 import { AmbientSmoke } from '@/components/ambient-smoke';
 import { GearDecoration } from '@/components/gear-decoration';
@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import type { Campaign } from '@/types/campaign';
 import type { Player as DBPlayer } from '@/types/player';
 import type { World, WorldClass } from '@/types/world';
+import { createClient } from '@/lib/supabase/client';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -449,6 +450,36 @@ export default function LobbyClient({
   const allReady = players.length > 0 && players.every((p) => p.status === 'ready');
 
   const isHost = currentUser?.isHost ?? false;
+
+  useEffect(() => {
+    const supabase = createClient()
+    let mounted = true
+
+    const channel = supabase
+      .channel(`campaign:${campaign.id}`)
+      .on('broadcast', { event: 'player:updated' }, ({ payload }: { payload: DBPlayer }) => {
+        if (!mounted) return
+        setPlayers((prev) =>
+          prev.map((p) => {
+            if (p.id !== payload.id) return p
+            return {
+              ...p,
+              username: payload.username,
+              characterName: payload.character_name ?? '',
+              characterClass: payload.character_class ?? '',
+              backstory: payload.character_backstory ?? '',
+              status: (payload.is_ready ? 'ready' : 'not_ready') as PlayerStatus,
+            }
+          })
+        )
+      })
+      .subscribe()
+
+    return () => {
+      mounted = false
+      supabase.removeChannel(channel)
+    }
+  }, [campaign.id])
 
   async function saveCharacter() {
     if (!charName.trim() || !charClass) return;
