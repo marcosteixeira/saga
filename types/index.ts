@@ -4,3 +4,4 @@ export type { Message, MessageInsert } from './message';
 export type { CampaignFile, CampaignFileInsert } from './campaign-file';
 export type { Session, SessionInsert } from './session';
 export type { World, WorldInsert, WorldStatus } from './world';
+export type { Image, ImageInsert, ImageStatus, ImageEntityType, ImageType } from './image';
