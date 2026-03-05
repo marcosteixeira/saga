@@ -48,13 +48,13 @@ SELECT
 FROM players
 WHERE character_image_url IS NOT NULL;
 
--- Messages: inline images
+-- Messages: inline images (storage_path unknown; status=ready since URL exists)
 INSERT INTO images (entity_type, entity_id, image_type, status, storage_path, public_url)
 SELECT
   'message',
   id,
   'inline',
-  NULL,
+  'ready',
   NULL,
   image_url
 FROM messages

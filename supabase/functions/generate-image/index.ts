@@ -23,8 +23,8 @@ export function extractImageBytes(response: GeminiResponse): string {
 
 export function getStoragePath(entityType: string, entityId: string, imageType: string): string {
   if (entityType === "world") return `worlds/${entityId}/${imageType}.png`
-  if (entityType === "session") return `sessions/${entityId}/scene.png`
-  if (entityType === "player") return `players/${entityId}/character.png`
+  if (entityType === "session") return `sessions/${entityId}/${imageType}.png`
+  if (entityType === "player") return `players/${entityId}/${imageType}.png`
   return `${entityType}s/${entityId}/${imageType}.png`
 }
 
@@ -83,7 +83,7 @@ async function buildPrompt(
   if (entityType === "session") {
     const { data: session, error: sessionError } = await supabase
       .from("sessions")
-      .select("campaign_id, present_player_ids")
+      .select("campaign_id")
       .eq("id", entityId)
       .single()
     if (sessionError || !session) throw new Error(`session not found: ${entityId}`)
@@ -141,6 +141,7 @@ async function denormalizeUrl(
     await supabase.from("players").update({ character_image_url: publicUrl }).eq("id", entityId)
     return
   }
+  console.warn(`[generate-image] denormalizeUrl: unrecognized entity_type '${entityType}' — parent table not updated`)
 }
 
 async function broadcastImageReady(
@@ -167,6 +168,9 @@ async function broadcastImageReady(
     })
     return
   }
+  // player: no broadcast emitted — no UI currently listens for character image updates.
+  // To add: broadcastToChannel on `campaign:{campaignId}` with event `image:ready` +
+  // update the lobby/character panel to subscribe and refresh the portrait.
 }
 
 Deno.serve(async (req: Request) => {
