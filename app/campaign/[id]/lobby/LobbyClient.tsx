@@ -713,20 +713,18 @@ export default function LobbyClient({
                 <div className="brass-pipe mb-6" />
                 <Button
                   className="w-full"
-                  disabled={!allReady}
-                  style={allReady ? {} : { opacity: 0.4, cursor: 'not-allowed' }}
-                  title={allReady ? undefined : 'Waiting for all players to be ready'}
+                  disabled
+                  style={{ opacity: 0.4, cursor: 'not-allowed' }}
+                  title="Session start coming soon"
                 >
                   Start Game
                 </Button>
-                {!allReady && (
-                  <p
-                    className="mt-2 text-center text-sm"
-                    style={{ color: 'var(--gunmetal)' }}
-                  >
-                    Waiting for all players to be ready
-                  </p>
-                )}
+                <p
+                  className="mt-2 text-center text-sm"
+                  style={{ color: 'var(--gunmetal)' }}
+                >
+                  Session start — coming soon
+                </p>
               </div>
             )}
           </div>
