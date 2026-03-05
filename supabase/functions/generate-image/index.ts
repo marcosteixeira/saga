@@ -23,7 +23,7 @@ export function extractImageBytes(response: GeminiResponse): string {
 
 export function getStoragePath(entityType: string, entityId: string, imageType: string): string {
   if (entityType === "world") return `worlds/${entityId}/${imageType}.png`
-  if (entityType === "session") return `sessions/${entityId}/${imageType}.png`
+  if (entityType === "campaign") return `campaigns/${entityId}/${imageType}.png`
   if (entityType === "player") return `players/${entityId}/${imageType}.png`
   return `${entityType}s/${entityId}/${imageType}.png`
 }
@@ -81,32 +81,25 @@ async function buildPrompt(
     }
   }
 
-  if (entityType === "session") {
-    const { data: session, error: sessionError } = await supabase
-      .from("sessions")
-      .select("campaign_id")
-      .eq("id", entityId)
-      .single()
-    if (sessionError || !session) throw new Error(`session not found: ${entityId}`)
-
+  if (entityType === "campaign") {
     const { data: campaign, error: campaignError } = await supabase
       .from("campaigns")
       .select("world_id")
-      .eq("id", session.campaign_id)
+      .eq("id", entityId)
       .single()
-    if (campaignError || !campaign) throw new Error(`campaign not found for session ${entityId}`)
+    if (campaignError || !campaign) throw new Error(`campaign not found: ${entityId}`)
 
     const { data: world, error: worldError } = await supabase
       .from("worlds")
       .select("name, world_content")
       .eq("id", campaign.world_id)
       .single()
-    if (worldError || !world?.world_content) throw new Error(`world not found for campaign ${session.campaign_id}`)
+    if (worldError || !world?.world_content) throw new Error(`world not found for campaign ${entityId}`)
 
     const { data: players } = await supabase
       .from("players")
       .select("character_name, character_class, username")
-      .eq("campaign_id", session.campaign_id)
+      .eq("campaign_id", entityId)
 
     const playerList = (players ?? [])
       .map((p) => `- ${p.character_name ?? p.username} (${p.character_class ?? "unknown class"})`)

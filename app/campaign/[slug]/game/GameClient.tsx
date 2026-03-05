@@ -5,7 +5,6 @@ import { createClient } from '@/lib/supabase/client';
 import { EmberParticles } from '@/components/ember-particles';
 import { AmbientSmoke } from '@/components/ambient-smoke';
 import { GearDecoration } from '@/components/gear-decoration';
-import { waitForSessionOpeningReady } from './session-readiness';
 import { ImageModal, type ImageModalState } from './components/ImageModal';
 import { MessageBubble } from './components/MessageBubble';
 import { MobileActionBar } from './components/MobileActionBar';
@@ -24,8 +23,7 @@ interface GameClientProps {
   currentUserId: string;
   openingReady: boolean;
   loadingImageUrl?: string;
-  sessionCoverImageUrl?: string;
-  sessionId: string | null;
+  campaignCoverImageUrl?: string;
   initialPlayerImages: Record<string, string>;
 }
 
@@ -38,16 +36,14 @@ const MOCK_MESSAGES: Message[] = [
   {
     id: '6',
     campaign_id: 'c1',
-    session_id: 's1',
     player_id: null,
-    content: 'Session started. Campaign mode: Free Play. Turn timer disabled.',
+    content: 'Campaign started. Campaign mode: Free Play. Turn timer disabled.',
     type: 'system',
     created_at: '2026-03-05T11:54:00.000Z'
   },
   {
     id: '1',
     campaign_id: 'c1',
-    session_id: 's1',
     player_id: null,
     content:
       'The airship *Ironclad Meridian* shudders as it pierces through a low-hanging cloudbank above the smog-choked sprawl of Gearfordshire. Through streaked portholes, you can see the city below — a labyrinth of copper pipes, towering smokestacks, and gas-lamp streets. Your destination: the Foundry District, where the Brass Consortium keeps its most dangerous secrets.',
@@ -57,7 +53,6 @@ const MOCK_MESSAGES: Message[] = [
   {
     id: '2',
     campaign_id: 'c1',
-    session_id: 's1',
     player_id: 'p1',
     content:
       'I pull out my compass and check our bearing. "How much time before we dock at the Meridian Tower?"',
@@ -67,7 +62,6 @@ const MOCK_MESSAGES: Message[] = [
   {
     id: '3',
     campaign_id: 'c1',
-    session_id: 's1',
     player_id: null,
     content:
       'The compass needle spins lazily — the aetherite interference from the district\'s power cores makes navigation unreliable here. Captain Mira calls back from the helm: *"Fifteen minutes, give or take. And pray the Corsair Guild isn\'t running checkpoints today."* A low rumble shakes the hull as a rival vessel passes uncomfortably close.',
@@ -77,7 +71,6 @@ const MOCK_MESSAGES: Message[] = [
   {
     id: '4',
     campaign_id: 'c1',
-    session_id: 's1',
     player_id: 'p2',
     content:
       'I move to the starboard side and peer through my spyglass at the rival vessel. Can I make out their markings?',
@@ -87,7 +80,6 @@ const MOCK_MESSAGES: Message[] = [
   {
     id: '5',
     campaign_id: 'c1',
-    session_id: 's1',
     player_id: null,
     content:
       "Roll Perception. The spyglass reveals a black hull with a serpent-and-gear sigil — the **Iron Serpent Company**, private enforcers for the Brass Consortium. They haven't spotted you yet, but they're running dark: no running lights, no registry beacon. Whatever they're doing out here isn't official business.",
@@ -1210,7 +1202,7 @@ function DesktopRightSidebar({
       className="relative z-10 hidden w-56 shrink-0 flex-col border-l border-gunmetal bg-iron/80 lg:flex"
       style={{ backdropFilter: 'blur(4px)' }}
     >
-      {/* Session cover image — clickable, falls back to world cover */}
+      {/* Campaign cover image — clickable, falls back to world cover */}
       <button
         onClick={() =>
           coverImageUrl &&
@@ -1413,8 +1405,7 @@ function ActiveGameView({
   players,
   messages: initialMessages,
   currentUserId,
-  sessionCoverImageUrl: initialSessionCoverImageUrl,
-  sessionId,
+  campaignCoverImageUrl: initialCampaignCoverImageUrl,
   initialPlayerImages,
 }: {
   campaign: Campaign;
@@ -1422,8 +1413,7 @@ function ActiveGameView({
   players: Player[];
   messages: Message[];
   currentUserId: string;
-  sessionCoverImageUrl?: string;
-  sessionId: string | null;
+  campaignCoverImageUrl?: string;
   initialPlayerImages: Record<string, string>;
 }) {
   const feedRef = useRef<HTMLDivElement>(null);
@@ -1431,7 +1421,7 @@ function ActiveGameView({
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>(null);
   const [imageModal, setImageModal] = useState<ImageModalState | null>(null);
   const [liveMessages, setLiveMessages] = useState<Message[]>(initialMessages);
-  const [liveCoverUrl, setLiveCoverUrl] = useState<string | undefined>(initialSessionCoverImageUrl);
+  const [liveCoverUrl, setLiveCoverUrl] = useState<string | undefined>(initialCampaignCoverImageUrl);
   const [playerImages, setPlayerImages] = useState<Record<string, string>>(initialPlayerImages);
 
   // Subscribe to messages and image updates
@@ -1473,7 +1463,7 @@ function ActiveGameView({
         }
       }) => {
         const { entity_type, entity_id, image_type, url } = message.payload;
-        if (entity_type === 'session' && sessionId && entity_id === sessionId) {
+        if (entity_type === 'campaign' && entity_id === campaign.id) {
           setLiveCoverUrl(url);
         } else if (entity_type === 'world' && entity_id === world.id && image_type === 'cover') {
           setLiveCoverUrl(url);
@@ -1487,7 +1477,7 @@ function ActiveGameView({
       supabase.removeChannel(messageChannel);
       supabase.removeChannel(imageChannel);
     };
-  }, [campaign.id, sessionId, world.id]);
+  }, [campaign.id, world.id]);
 
   const displayModal = imageModal;
 
@@ -1593,7 +1583,7 @@ function ActiveGameView({
               className="hidden text-[10px] uppercase tracking-[0.2em] text-patina sm:block"
               style={{ fontFamily: 'var(--font-mono), monospace' }}
             >
-              Session Active
+              Campaign Active
             </span>
           </div>
         </header>
@@ -1686,7 +1676,7 @@ function ActiveGameView({
         title="Expedition Log"
         onClose={() => setMobilePanel(null)}
       >
-        {/* Session cover image — clickable, falls back to world cover */}
+        {/* Campaign cover image — clickable, falls back to world cover */}
         <button
           onClick={() => {
             const url = liveCoverUrl;
@@ -1797,8 +1787,7 @@ export default function GameClient({
   currentUserId,
   openingReady,
   loadingImageUrl,
-  sessionCoverImageUrl,
-  sessionId,
+  campaignCoverImageUrl,
   initialPlayerImages,
 }: GameClientProps) {
   const [viewState, setViewState] = useState<GameViewState>(
@@ -1814,32 +1803,13 @@ export default function GameClient({
 
     const supabase = createClient();
     let cancelled = false;
-    const promoteToActive = () => {
-      if (cancelled) return;
-      setViewState('active');
-    };
-    const fetchSession = () =>
-      supabase
-        .from('sessions')
-        .select('opening_situation')
-        .eq('campaign_id', campaign.id)
-        .eq('session_number', 1)
-        .maybeSingle();
 
     const channel = supabase
       .channel(`campaign:${campaign.id}`)
       .on('broadcast', { event: 'game:started' }, () => {
-        promoteToActive();
+        if (!cancelled) setViewState('active');
       })
       .subscribe();
-
-    void waitForSessionOpeningReady(fetchSession, {
-      maxAttempts: 20,
-      delayMs: 1500,
-      shouldStop: () => cancelled,
-    }).then((ready) => {
-      if (ready) promoteToActive();
-    });
 
     return () => {
       cancelled = true;
@@ -1860,8 +1830,7 @@ export default function GameClient({
       players={players}
       messages={messages}
       currentUserId={currentUserId}
-      sessionCoverImageUrl={sessionCoverImageUrl}
-      sessionId={sessionId}
+      campaignCoverImageUrl={campaignCoverImageUrl}
       initialPlayerImages={initialPlayerImages}
     />
   );

@@ -41,9 +41,9 @@ describe('getStoragePath', () => {
     expect(getStoragePath('world', 'world-123', 'map')).toBe('worlds/world-123/map.png');
   });
 
-  it('returns correct path for session scene', async () => {
+  it('returns correct path for campaign cover', async () => {
     const { getStoragePath } = await import('../index.ts');
-    expect(getStoragePath('session', 'session-456', 'scene')).toBe('sessions/session-456/scene.png');
+    expect(getStoragePath('campaign', 'campaign-456', 'cover')).toBe('campaigns/campaign-456/cover.png');
   });
 
   it('returns correct path for player character', async () => {
@@ -88,7 +88,7 @@ describe('broadcastImageReady', () => {
     );
   });
 
-  it('broadcasts to world:{worldId} with image:ready event for a session image', async () => {
+  it('broadcasts to world:{worldId} with image:ready event for a campaign image', async () => {
     const { broadcastImageReady } = await import('../index.ts');
     const { broadcastToChannel } = await import('../generate-world/broadcast.ts');
 
@@ -96,10 +96,10 @@ describe('broadcastImageReady', () => {
       'https://example.supabase.co',
       'service-key',
       'world-xyz',
-      'session',
-      'session-789',
-      'scene',
-      'https://cdn.example.com/scene.png',
+      'campaign',
+      'campaign-789',
+      'cover',
+      'https://cdn.example.com/cover.png',
       'image-uuid-2',
     );
 
@@ -109,10 +109,10 @@ describe('broadcastImageReady', () => {
       'world:world-xyz',
       'image:ready',
       {
-        entity_type: 'session',
-        entity_id: 'session-789',
-        image_type: 'scene',
-        url: 'https://cdn.example.com/scene.png',
+        entity_type: 'campaign',
+        entity_id: 'campaign-789',
+        image_type: 'cover',
+        url: 'https://cdn.example.com/cover.png',
         image_id: 'image-uuid-2',
       }
     );

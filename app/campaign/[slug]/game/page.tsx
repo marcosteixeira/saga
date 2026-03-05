@@ -63,17 +63,9 @@ export default async function GamePage({ params }: Props) {
     .order('created_at', { ascending: true })
     .limit(50)
 
-  // Determine if the opening scene is ready (AI generation may still be in progress)
-  const { data: session } = await db
-    .from('sessions')
-    .select('id, opening_situation')
-    .eq('campaign_id', campaign.id)
-    .eq('session_number', 1)
-    .maybeSingle()
-
-  // Fetch images for initial render (world cover/map, session scene, player portraits)
+  // Fetch images for initial render (world cover/map, campaign cover, player portraits)
   const playerIds = (players ?? []).map((p) => p.id)
-  const imageEntityIds = [world.id, ...(session ? [session.id] : []), ...playerIds]
+  const imageEntityIds = [world.id, campaign.id, ...playerIds]
 
   const { data: imageRows } = await db
     .from('images')
@@ -86,7 +78,7 @@ export default async function GamePage({ params }: Props) {
 
   const worldCoverUrl = findImage('world', world.id, 'cover')
   const worldMapUrl = findImage('world', world.id, 'map')
-  const sessionSceneUrl = session ? findImage('session', session.id, 'scene') : null
+  const campaignCoverUrl = findImage('campaign', campaign.id, 'cover')
 
   const initialPlayerImages: Record<string, string> = {}
   for (const p of players ?? []) {
@@ -94,10 +86,10 @@ export default async function GamePage({ params }: Props) {
     if (url) initialPlayerImages[p.id] = url
   }
 
-  const openingReady = !!session?.opening_situation
+  const openingReady = !!campaign.opening_situation
 
-  // Loading background: session scene → world map → world cover
-  const loadingImageUrl = sessionSceneUrl ?? worldMapUrl ?? worldCoverUrl ?? undefined
+  // Loading background: campaign cover → world map → world cover
+  const loadingImageUrl = campaignCoverUrl ?? worldMapUrl ?? worldCoverUrl ?? undefined
 
   return (
     <GameClient
@@ -108,8 +100,7 @@ export default async function GamePage({ params }: Props) {
       currentUserId={user.id}
       openingReady={openingReady}
       loadingImageUrl={loadingImageUrl}
-      sessionCoverImageUrl={sessionSceneUrl ?? worldCoverUrl ?? undefined}
-      sessionId={session?.id ?? null}
+      campaignCoverImageUrl={campaignCoverUrl ?? worldCoverUrl ?? undefined}
       initialPlayerImages={initialPlayerImages}
     />
   )
