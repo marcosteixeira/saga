@@ -165,7 +165,7 @@ async function triggerSceneImageGeneration(
     headers.authorization = `Bearer ${process.env.GENERATE_SCENE_IMAGE_WEBHOOK_SECRET}`
   }
 
-  await fetch(functionUrl, {
+  const res = await fetch(functionUrl, {
     method: 'POST',
     headers,
     body: JSON.stringify({
@@ -176,4 +176,8 @@ async function triggerSceneImageGeneration(
       player_list: playerList,
     }),
   })
+
+  if (!res.ok) {
+    console.error(`[start-campaign] generate-scene-image failed HTTP ${res.status}`)
+  }
 }
