@@ -14,6 +14,9 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, '.'),
+      'jsr:@supabase/functions-js/edge-runtime.d.ts': path.resolve(__dirname, 'supabase/functions/__mocks__/edge-runtime.ts'),
+      'jsr:@supabase/supabase-js@2': path.resolve(__dirname, 'supabase/functions/__mocks__/supabase-js.ts'),
+      '../generate-world/broadcast.ts': path.resolve(__dirname, 'supabase/functions/__mocks__/broadcast.ts'),
     },
   },
 })
