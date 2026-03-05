@@ -1462,7 +1462,7 @@ function ActiveGameView({
       .subscribe();
 
     const imageChannel = supabase
-      .channel(`world-images:${world.id}`)
+      .channel(`world:${world.id}`)
       .on('broadcast', { event: 'image:ready' }, (message: {
         payload: {
           entity_type: string

@@ -15,7 +15,6 @@ const fakePlayer = {
   character_backstory: null,
   is_ready: false,
   is_host: false,
-  character_image_url: null,
   stats: { hp: 20, hp_max: 20 },
   status: 'active' as const,
   absence_mode: 'skip' as const,
