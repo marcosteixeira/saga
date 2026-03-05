@@ -62,6 +62,23 @@ export default async function GamePage({ params }: Props) {
     .order('created_at', { ascending: true })
     .limit(50)
 
+  // Determine if the opening scene is ready (AI generation may still be in progress)
+  const { data: session } = await db
+    .from('sessions')
+    .select('opening_situation, scene_image_url')
+    .eq('campaign_id', campaign.id)
+    .eq('session_number', 1)
+    .maybeSingle()
+
+  const openingReady = !!session?.opening_situation
+
+  // Loading background: session scene → world map → world cover
+  const loadingImageUrl =
+    session?.scene_image_url ??
+    world.map_image_url ??
+    world.cover_image_url ??
+    undefined
+
   return (
     <GameClient
       campaign={campaign}
@@ -69,6 +86,8 @@ export default async function GamePage({ params }: Props) {
       players={players ?? []}
       messages={messages ?? []}
       currentUserId={user.id}
+      openingReady={openingReady}
+      loadingImageUrl={loadingImageUrl}
     />
   )
 }
