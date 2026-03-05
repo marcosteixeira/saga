@@ -75,7 +75,7 @@ export async function GET(_req: Request) {
 
   const { data, error } = await supabase
     .from('worlds')
-    .select('id, name, description, cover_image_url, status, created_at')
+    .select('id, name, description, status, created_at')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false });
 
