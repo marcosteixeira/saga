@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { EmberParticles } from '@/components/ember-particles';
 import { AmbientSmoke } from '@/components/ambient-smoke';
 import { GearDecoration } from '@/components/gear-decoration';
@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import type { Campaign } from '@/types/campaign';
 import type { Player as DBPlayer } from '@/types/player';
 import type { World, WorldClass } from '@/types/world';
+import { createClient } from '@/lib/supabase/client';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -450,6 +451,56 @@ export default function LobbyClient({
 
   const isHost = currentUser?.isHost ?? false;
 
+  useEffect(() => {
+    const supabase = createClient()
+    let mounted = true
+
+    const channel = supabase
+      .channel(`campaign:${campaign.id}`)
+      .on('broadcast', { event: 'player:updated' }, ({ payload }: { payload: DBPlayer }) => {
+        if (!mounted) return
+        setPlayers((prev) =>
+          prev.map((p) => {
+            if (p.id !== payload.id) return p
+            return {
+              ...p,
+              username: payload.username,
+              characterName: payload.character_name ?? '',
+              characterClass: payload.character_class ?? '',
+              backstory: payload.character_backstory ?? '',
+              status: (payload.is_ready ? 'ready' : 'not_ready') as PlayerStatus,
+            }
+          })
+        )
+      })
+      .on('broadcast', { event: 'player:joined' }, ({ payload }: { payload: DBPlayer }) => {
+        if (!mounted) return
+        // Only add if not already in the list (idempotent)
+        setPlayers((prev) => {
+          if (prev.some((p) => p.id === payload.id)) return prev
+          return [
+            ...prev,
+            {
+              id: payload.id,
+              username: payload.username,
+              characterName: payload.character_name ?? '',
+              characterClass: payload.character_class ?? '',
+              backstory: payload.character_backstory ?? '',
+              isHost: payload.is_host,
+              isCurrentUser: false, // joining player sees their own row from initial fetch
+              status: 'not_ready' as PlayerStatus,
+            },
+          ]
+        })
+      })
+      .subscribe()
+
+    return () => {
+      mounted = false
+      supabase.removeChannel(channel)
+    }
+  }, [campaign.id])
+
   async function saveCharacter() {
     if (!charName.trim() || !charClass) return;
     setSaving(true);
@@ -682,20 +733,18 @@ export default function LobbyClient({
                 <div className="brass-pipe mb-6" />
                 <Button
                   className="w-full"
-                  disabled={!allReady}
-                  style={allReady ? {} : { opacity: 0.4, cursor: 'not-allowed' }}
-                  title={allReady ? undefined : 'Waiting for all players to be ready'}
+                  disabled
+                  style={{ opacity: 0.4, cursor: 'not-allowed' }}
+                  title="Session start coming soon"
                 >
                   Start Game
                 </Button>
-                {!allReady && (
-                  <p
-                    className="mt-2 text-center text-sm"
-                    style={{ color: 'var(--gunmetal)' }}
-                  >
-                    Waiting for all players to be ready
-                  </p>
-                )}
+                <p
+                  className="mt-2 text-center text-sm"
+                  style={{ color: 'var(--gunmetal)' }}
+                >
+                  Session start — coming soon
+                </p>
               </div>
             )}
           </div>

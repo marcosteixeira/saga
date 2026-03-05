@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createServerSupabaseClient, createAuthServerClient } from '@/lib/supabase/server'
+import { broadcastPlayerUpdate } from '@/lib/realtime-broadcast'
 
 export async function PATCH(
   req: Request,
@@ -66,6 +67,9 @@ export async function PATCH(
   if (updateError || !player) {
     return NextResponse.json({ error: 'Failed to update ready status' }, { status: 500 })
   }
+
+  // Fire-and-forget — broadcast failure must not break the response
+  void broadcastPlayerUpdate(campaignId, player)
 
   return NextResponse.json({ player }, { status: 200 })
 }
