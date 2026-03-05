@@ -738,7 +738,53 @@ git commit -m "feat: remove generate-scene-image (replaced by unified generate-i
 
 ---
 
-## Task 9: Deploy updated edge function
+## Task 9: Remove GENERATE_SCENE_IMAGE_WEBHOOK_SECRET env var
+
+`GENERATE_SCENE_IMAGE_WEBHOOK_SECRET` is now unused. Remove it from all three places.
+
+**Files:**
+- Modify: `.env.local.example`
+
+**Step 1: Remove from `.env.local.example`**
+
+Delete the line:
+```
+GENERATE_SCENE_IMAGE_WEBHOOK_SECRET=
+```
+
+**Step 2: Remove from Supabase edge function secrets**
+
+Run:
+```bash
+npx supabase secrets unset GENERATE_SCENE_IMAGE_WEBHOOK_SECRET
+```
+
+Verify it's gone:
+```bash
+npx supabase secrets list
+```
+Expected: `GENERATE_SCENE_IMAGE_WEBHOOK_SECRET` is no longer listed.
+
+**Step 3: Remove from Vercel**
+
+Run:
+```bash
+npx vercel env rm GENERATE_SCENE_IMAGE_WEBHOOK_SECRET production
+npx vercel env rm GENERATE_SCENE_IMAGE_WEBHOOK_SECRET preview
+npx vercel env rm GENERATE_SCENE_IMAGE_WEBHOOK_SECRET development
+```
+Each command will prompt for confirmation — confirm each. If an environment doesn't have the var, the command will error; ignore it.
+
+**Step 4: Commit**
+
+```bash
+git add .env.local.example
+git commit -m "chore: remove GENERATE_SCENE_IMAGE_WEBHOOK_SECRET env var"
+```
+
+---
+
+## Task 10: Deploy updated edge function
 
 **Step 1: Deploy generate-image**
 
