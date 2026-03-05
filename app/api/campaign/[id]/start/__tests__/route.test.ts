@@ -124,8 +124,12 @@ describe('POST /api/campaign/[id]/start', () => {
     const players = [
       { id: 'p1', is_ready: true, character_name: 'Arwen', character_class: 'Mage', character_backstory: null, username: 'alice' },
     ]
-    const updateEq = vi.fn().mockResolvedValue({ error: null })
-    const updateFn = vi.fn().mockReturnValue({ eq: updateEq })
+    const updateQuery = {
+      eq: vi.fn().mockReturnThis(),
+      select: vi.fn().mockReturnThis(),
+      single: vi.fn().mockResolvedValue({ data: { id: 'abc' }, error: null }),
+    }
+    const updateFn = vi.fn().mockReturnValue(updateQuery)
     const mockDb = {
       from: vi.fn((table: string) => {
         if (table === 'campaigns') return {
@@ -147,6 +151,8 @@ describe('POST /api/campaign/[id]/start', () => {
     const res = await POST(makeRequest(), makeParams('abc'))
     expect(res.status).toBe(200)
     expect(updateFn).toHaveBeenCalledWith({ status: 'active' })
+    expect(updateQuery.eq).toHaveBeenNthCalledWith(1, 'id', 'abc')
+    expect(updateQuery.eq).toHaveBeenNthCalledWith(2, 'status', 'lobby')
     expect(broadcastCampaignEvent).toHaveBeenCalledWith('abc', 'game:starting', {})
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining('/functions/v1/start-campaign'),
@@ -154,5 +160,42 @@ describe('POST /api/campaign/[id]/start', () => {
     )
     const body = await res.json()
     expect(body).toEqual({ ok: true })
+  })
+
+  it('returns 409 when atomic lobby->active update affects no rows', async () => {
+    ;(createAuthServerClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      auth: { getUser: async () => ({ data: { user: mockHostUser } }) },
+    })
+    const campaign = { id: 'abc', host_user_id: 'host-user-id', status: 'lobby' }
+    const players = [{ id: 'p1', is_ready: true }]
+
+    const updateQuery = {
+      eq: vi.fn().mockReturnThis(),
+      select: vi.fn().mockReturnThis(),
+      single: vi.fn().mockResolvedValue({ data: null, error: { code: 'PGRST116' } }),
+    }
+    const mockDb = {
+      from: vi.fn((table: string) => {
+        if (table === 'campaigns') return {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          single: vi.fn().mockResolvedValue({ data: campaign, error: null }),
+          update: vi.fn().mockReturnValue(updateQuery),
+        }
+        if (table === 'players') return {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockResolvedValue({ data: players, error: null }),
+        }
+        return {}
+      }),
+    }
+    ;(createServerSupabaseClient as ReturnType<typeof vi.fn>).mockReturnValue(mockDb)
+
+    const res = await POST(makeRequest(), makeParams('abc'))
+    expect(res.status).toBe(409)
+    expect(updateQuery.eq).toHaveBeenNthCalledWith(1, 'id', 'abc')
+    expect(updateQuery.eq).toHaveBeenNthCalledWith(2, 'status', 'lobby')
+    expect(broadcastCampaignEvent).not.toHaveBeenCalled()
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 })

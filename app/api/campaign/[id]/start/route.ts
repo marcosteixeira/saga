@@ -50,8 +50,14 @@ export async function POST(
     .from('campaigns')
     .update({ status: 'active' })
     .eq('id', campaignId)
+    .eq('status', 'lobby')
+    .select('id')
+    .single()
 
   if (updateError) {
+    if (updateError.code === 'PGRST116') {
+      return NextResponse.json({ error: 'Campaign already started' }, { status: 409 })
+    }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 
