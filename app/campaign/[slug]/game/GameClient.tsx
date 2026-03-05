@@ -1472,10 +1472,10 @@ function ActiveGameView({
           image_id: string
         }
       }) => {
-        const { entity_type, entity_id, url } = message.payload;
+        const { entity_type, entity_id, image_type, url } = message.payload;
         if (entity_type === 'session' && sessionId && entity_id === sessionId) {
           setLiveCoverUrl(url);
-        } else if (entity_type === 'world' && entity_id === world.id) {
+        } else if (entity_type === 'world' && entity_id === world.id && image_type === 'cover') {
           setLiveCoverUrl(url);
         } else if (entity_type === 'player') {
           setPlayerImages((prev) => ({ ...prev, [entity_id]: url }));
