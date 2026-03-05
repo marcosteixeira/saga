@@ -25,7 +25,6 @@ interface GameClientProps {
   openingReady: boolean;
   loadingImageUrl?: string;
   sessionCoverImageUrl?: string;
-  sessionId: string | null;
   initialPlayerImages: Record<string, string>;
 }
 
@@ -1414,7 +1413,6 @@ function ActiveGameView({
   messages: initialMessages,
   currentUserId,
   sessionCoverImageUrl: initialSessionCoverImageUrl,
-  sessionId,
   initialPlayerImages,
 }: {
   campaign: Campaign;
@@ -1423,7 +1421,6 @@ function ActiveGameView({
   messages: Message[];
   currentUserId: string;
   sessionCoverImageUrl?: string;
-  sessionId: string | null;
   initialPlayerImages: Record<string, string>;
 }) {
   const feedRef = useRef<HTMLDivElement>(null);
@@ -1473,7 +1470,7 @@ function ActiveGameView({
         }
       }) => {
         const { entity_type, entity_id, image_type, url } = message.payload;
-        if (entity_type === 'session' && sessionId && entity_id === sessionId) {
+        if (entity_type === 'campaign' && entity_id === campaign.id) {
           setLiveCoverUrl(url);
         } else if (entity_type === 'world' && entity_id === world.id && image_type === 'cover') {
           setLiveCoverUrl(url);
@@ -1487,7 +1484,7 @@ function ActiveGameView({
       supabase.removeChannel(messageChannel);
       supabase.removeChannel(imageChannel);
     };
-  }, [campaign.id, sessionId, world.id]);
+  }, [campaign.id, world.id]);
 
   const displayModal = imageModal;
 
@@ -1798,7 +1795,6 @@ export default function GameClient({
   openingReady,
   loadingImageUrl,
   sessionCoverImageUrl,
-  sessionId,
   initialPlayerImages,
 }: GameClientProps) {
   const [viewState, setViewState] = useState<GameViewState>(
@@ -1820,10 +1816,9 @@ export default function GameClient({
     };
     const fetchSession = () =>
       supabase
-        .from('sessions')
+        .from('campaigns')
         .select('opening_situation')
-        .eq('campaign_id', campaign.id)
-        .eq('session_number', 1)
+        .eq('id', campaign.id)
         .maybeSingle();
 
     const channel = supabase
@@ -1861,7 +1856,6 @@ export default function GameClient({
       messages={messages}
       currentUserId={currentUserId}
       sessionCoverImageUrl={sessionCoverImageUrl}
-      sessionId={sessionId}
       initialPlayerImages={initialPlayerImages}
     />
   );

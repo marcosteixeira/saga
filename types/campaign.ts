@@ -9,7 +9,8 @@ export type Campaign = {
   status: 'lobby' | 'active' | 'paused' | 'ended';
   turn_mode: 'free' | 'sequential';
   turn_timer_seconds: number;
-  current_session_id: string | null;
+  opening_situation: string | null;
+  starting_hooks: string[] | null;
   created_at: string;
 };
 

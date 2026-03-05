@@ -92,38 +92,19 @@ Deno.serve(async (req: Request) => {
     }
     logInfo("start_campaign.players_fetched", { requestId, campaign_id, playerCount: players.length })
 
-    // 3. Create session row (idempotent — return existing if already started)
-    const { data: existingSession } = await supabase
-      .from("sessions")
-      .select("id, opening_situation")
-      .eq("campaign_id", campaign_id)
-      .eq("session_number", 1)
-      .maybeSingle()
+    // 3. Idempotency check — return early if already started
+    const { data: existingCampaign } = await supabase
+      .from("campaigns")
+      .select("opening_situation")
+      .eq("id", campaign_id)
+      .single()
 
-    if (existingSession?.opening_situation) {
-      logInfo("start_campaign.already_started", { requestId, campaign_id, sessionId: existingSession.id })
-      return new Response(JSON.stringify({ ok: true, session_id: existingSession.id }), {
+    if (existingCampaign?.opening_situation) {
+      logInfo("start_campaign.already_started", { requestId, campaign_id })
+      return new Response(JSON.stringify({ ok: true }), {
         headers: { "Content-Type": "application/json" },
       })
     }
-
-    const sessionToUse = existingSession ?? null
-    const { data: session, error: sessionError } = sessionToUse
-      ? { data: sessionToUse, error: null }
-      : await supabase
-          .from("sessions")
-          .insert({
-            campaign_id,
-            session_number: 1,
-            present_player_ids: players.map((p) => p.id),
-          })
-          .select("id")
-          .single()
-
-    if (sessionError || !session) {
-      throw new Error(`failed to create session: ${sessionError?.message}`)
-    }
-    logInfo("start_campaign.session_created", { requestId, campaign_id, sessionId: session.id })
 
     // 4. Build user prompt — world content and player data are in the user message,
     //    not the system prompt, to prevent prompt injection from user-controlled content.
@@ -170,29 +151,28 @@ ${playerList}`
       starting_hooks: string[]
     }
 
-    // 6. Save to session
+    // 6. Save to campaign
     const { error: saveError } = await supabase
-      .from("sessions")
+      .from("campaigns")
       .update({
         opening_situation: parsed.opening_situation,
         starting_hooks: parsed.starting_hooks,
       })
-      .eq("id", session.id)
+      .eq("id", campaign_id)
 
     if (saveError) {
-      throw new Error(`failed to save session content: ${saveError.message}`)
+      throw new Error(`failed to save opening content: ${saveError.message}`)
     }
-    logInfo("start_campaign.session_content_saved", { requestId, campaign_id, sessionId: session.id })
+    logInfo("start_campaign.opening_content_saved", { requestId, campaign_id })
 
     // 7. Broadcast game:started
     await broadcastToChannel(supabaseUrl, serviceRoleKey, `campaign:${campaign_id}`, "game:started", {
-      session_id: session.id,
       opening_situation: parsed.opening_situation,
       starting_hooks: parsed.starting_hooks,
     })
     logInfo("start_campaign.game_started_broadcast_sent", { requestId, campaign_id })
 
-    // 8. Fire-and-forget scene image generation
+    // 8. Fire-and-forget cover image generation
     const imageSecret = Deno.env.get("GENERATE_IMAGE_WEBHOOK_SECRET")
     const imageHeaders: Record<string, string> = { "Content-Type": "application/json" }
     if (imageSecret) imageHeaders.authorization = `Bearer ${imageSecret}`
@@ -201,19 +181,19 @@ ${playerList}`
       method: "POST",
       headers: imageHeaders,
       body: JSON.stringify({
-        entity_type: "session",
-        entity_id: session.id,
-        image_type: "scene",
+        entity_type: "campaign",
+        entity_id: campaign_id,
+        image_type: "cover",
       }),
     }).then(async (res) => {
       if (!res.ok) {
         logError(
           "start_campaign.image_failed",
-          { requestId, campaign_id, sessionId: session.id, status: res.status },
+          { requestId, campaign_id, status: res.status },
           new Error(`generate-image responded with ${res.status}`),
         )
       } else {
-        logInfo("start_campaign.image_triggered", { requestId, campaign_id, sessionId: session.id })
+        logInfo("start_campaign.image_triggered", { requestId, campaign_id })
       }
     }).catch((err) => {
       logError("start_campaign.image_fetch_failed", { requestId, campaign_id }, err)
@@ -225,11 +205,10 @@ ${playerList}`
     logInfo("start_campaign.completed", {
       requestId,
       campaign_id,
-      sessionId: session.id,
       durationMs: Date.now() - requestStartedAt,
     })
 
-    return new Response(JSON.stringify({ ok: true, session_id: session.id }), {
+    return new Response(JSON.stringify({ ok: true }), {
       headers: { "Content-Type": "application/json" },
     })
   } catch (err) {
