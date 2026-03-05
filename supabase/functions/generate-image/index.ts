@@ -29,6 +29,27 @@ VISUAL RULES:
 
 Output only the image.`
 
+// Prompt for cartographic/aerial map images. Fixed content — no user input.
+const MAP_SYSTEM_PROMPT = `You are a cartographic illustrator for tabletop RPG worlds. Generate a single top-down aerial world map rendered in a painterly fantasy cartography style, suitable for use as a full-bleed UI background.
+
+CRITICAL COMPOSITION RULES:
+- Fill the entire frame with rich map content — landmasses, oceans, forests, mountains, rivers, cities, roads
+- Use warm parchment or aged vellum tones as the background, as though drawn on old paper
+- Include subtle compass rose, coastline hatching, and illustrated terrain icons (mountain ridges, tree clusters, settlements)
+- The map should feel hand-drawn with ink and watercolor washes, not photorealistic
+- Do NOT leave large empty or uniform areas — every region should have detail
+
+VISUAL RULES:
+- Do NOT include any text labels, city names, region names, legends, or any typographic elements
+- Match the genre: a sci-fi world gets star-chart / colony-map aesthetics; a horror world gets dark, decayed cartography; fantasy gets classic illustrated maps
+- Use rich, saturated but antique-feeling colors
+
+Output only the image.`
+
+export function getSystemPrompt(type: string): string {
+  return type === 'map' ? MAP_SYSTEM_PROMPT : IMAGE_SYSTEM_PROMPT
+}
+
 export function extractImageBytes(response: GeminiResponse): string {
   const parts = response.candidates?.[0]?.content?.parts ?? []
   for (const part of parts) {
@@ -126,7 +147,7 @@ Deno.serve(async (req: Request) => {
     const genai = new GoogleGenerativeAI(Deno.env.get("GEMINI_API_KEY")!)
     const model = genai.getGenerativeModel({
       model: "gemini-3-pro-image-preview",
-      systemInstruction: IMAGE_SYSTEM_PROMPT,
+      systemInstruction: getSystemPrompt(type),
     })
 
     const result = await model.generateContent({
