@@ -24,6 +24,7 @@ interface GameClientProps {
   currentUserId: string;
   openingReady: boolean;
   loadingImageUrl?: string;
+  sessionCoverImageUrl?: string;
 }
 
 type GameViewState = 'loading' | 'active' | 'image-reveal';
@@ -1198,11 +1199,13 @@ function DesktopLeftSidebar({
 function DesktopRightSidebar({
   world,
   messages,
-  onImageClick
+  onImageClick,
+  coverImageUrl,
 }: {
   world: World;
   messages: Message[];
   onImageClick: (state: ImageModalState) => void;
+  coverImageUrl: string | null;
 }) {
   const galleryImages = messages.filter((m) => m.image_url);
 
@@ -1211,20 +1214,20 @@ function DesktopRightSidebar({
       className="relative z-10 hidden w-56 shrink-0 flex-col border-l border-gunmetal bg-iron/80 lg:flex"
       style={{ backdropFilter: 'blur(4px)' }}
     >
-      {/* World image — clickable */}
+      {/* Session cover image — clickable, falls back to world cover */}
       <button
         onClick={() =>
-          world.cover_image_url &&
-          onImageClick({ url: world.cover_image_url, caption: world.name })
+          coverImageUrl &&
+          onImageClick({ url: coverImageUrl, caption: world.name })
         }
         className="group relative overflow-hidden border-b border-gunmetal"
-        style={{ cursor: world.cover_image_url ? 'pointer' : 'default' }}
+        style={{ cursor: coverImageUrl ? 'pointer' : 'default' }}
       >
-        {world.cover_image_url ? (
+        {coverImageUrl ? (
           <>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={world.cover_image_url}
+              src={coverImageUrl}
               alt={world.name}
               className="h-32 w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
             />
@@ -1311,7 +1314,7 @@ function DesktopRightSidebar({
         ) : (
           <div className="grid grid-cols-2 gap-1.5">
             {galleryImages
-              .slice(-6)
+              .slice()
               .reverse()
               .map((m) => (
                 <GalleryThumb
@@ -1427,53 +1430,79 @@ function ActiveGameView({
   campaign,
   world,
   players,
-  messages,
+  messages: initialMessages,
   currentUserId,
-  devShowReveal,
-  onDismissReveal
+  sessionCoverImageUrl: initialSessionCoverImageUrl,
 }: {
   campaign: Campaign;
   world: World;
   players: Player[];
   messages: Message[];
   currentUserId: string;
-  devShowReveal: boolean;
-  onDismissReveal: () => void;
+  sessionCoverImageUrl?: string;
 }) {
   const feedRef = useRef<HTMLDivElement>(null);
   const [inputValue, setInputValue] = useState('');
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>(null);
   const [imageModal, setImageModal] = useState<ImageModalState | null>(null);
+  const [liveMessages, setLiveMessages] = useState<Message[]>(initialMessages);
+  const [liveCoverUrl, setLiveCoverUrl] = useState<string | undefined>(initialSessionCoverImageUrl);
 
-  const revealModal: ImageModalState = {
-    url: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=800&q=80',
-    caption:
-      "The Iron Serpent Company's vessel emerges from the smog — black hull, serpent crest.",
-    isVisionReveal: true
-  };
-  const displayModal = devShowReveal ? revealModal : imageModal;
+  // Subscribe to new messages and session cover image updates
+  useEffect(() => {
+    const supabase = createClient();
+
+    const channel = supabase
+      .channel(`game-active:${campaign.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'messages', filter: `campaign_id=eq.${campaign.id}` },
+        (payload) => {
+          setLiveMessages((prev) => {
+            // Avoid duplicates
+            if (prev.some((m) => m.id === (payload.new as Message).id)) return prev;
+            return [...prev, payload.new as Message];
+          });
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'messages', filter: `campaign_id=eq.${campaign.id}` },
+        (payload) => {
+          setLiveMessages((prev) =>
+            prev.map((m) => (m.id === (payload.new as Message).id ? (payload.new as Message) : m))
+          );
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'sessions', filter: `campaign_id=eq.${campaign.id}` },
+        (payload) => {
+          const updated = payload.new as { scene_image_url?: string | null };
+          if (updated.scene_image_url) setLiveCoverUrl(updated.scene_image_url);
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [campaign.id]);
+
+  const displayModal = imageModal;
 
   useEffect(() => {
     if (feedRef.current) feedRef.current.scrollTop = feedRef.current.scrollHeight;
-  }, [messages]);
+  }, [liveMessages]);
 
-  const sortedMessages = [...messages].sort(
+  const sortedMessages = [...liveMessages].sort(
     (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
   );
 
   const handlePanelToggle = (panel: MobilePanel) =>
     setMobilePanel((prev) => (prev === panel ? null : panel));
   const handleImageClick = (state: ImageModalState) => setImageModal(state);
-  const handleModalClose = () => {
-    if (devShowReveal) {
-      onDismissReveal();
-      return;
-    }
+  const handleModalClose = () => setImageModal(null);
 
-    setImageModal(null);
-  };
-
-  const galleryImages = messages.filter((m) => m.image_url);
+  const galleryImages = liveMessages.filter((m) => m.image_url);
 
   return (
     <div className="relative flex h-[100dvh] overflow-hidden bg-soot">
@@ -1620,8 +1649,9 @@ function ActiveGameView({
       {/* Desktop right */}
       <DesktopRightSidebar
         world={world}
-        messages={messages}
+        messages={liveMessages}
         onImageClick={handleImageClick}
+        coverImageUrl={liveCoverUrl ?? world.cover_image_url ?? null}
       />
 
       {/* Mobile UI */}
@@ -1655,24 +1685,24 @@ function ActiveGameView({
         title="Expedition Log"
         onClose={() => setMobilePanel(null)}
       >
-        {/* World image — clickable */}
+        {/* Session cover image — clickable, falls back to world cover */}
         <button
-          onClick={() =>
-            world.cover_image_url &&
-            handleImageClick({ url: world.cover_image_url, caption: world.name })
-          }
+          onClick={() => {
+            const url = liveCoverUrl ?? world.cover_image_url;
+            url && handleImageClick({ url, caption: world.name });
+          }}
           className="group relative mb-4 block w-full overflow-hidden border border-gunmetal"
           style={{
             clipPath:
               'polygon(4px 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%, 0 4px)',
-            cursor: world.cover_image_url ? 'pointer' : 'default'
+            cursor: (liveCoverUrl ?? world.cover_image_url) ? 'pointer' : 'default'
           }}
         >
-          {world.cover_image_url ? (
+          {(liveCoverUrl ?? world.cover_image_url) ? (
             <>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={world.cover_image_url}
+                src={liveCoverUrl ?? world.cover_image_url!}
                 alt={world.name}
                 className="h-40 w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
               />
@@ -1752,7 +1782,7 @@ function ActiveGameView({
         ) : (
           <div className="grid grid-cols-2 gap-2">
             {galleryImages
-              .slice(-6)
+              .slice()
               .reverse()
               .map((m) => (
                 <GalleryThumb
@@ -1771,58 +1801,6 @@ function ActiveGameView({
   );
 }
 
-// ─── Dev State Switcher ────────────────────────────────────────────────────────
-
-function DevStateSwitcher({
-  currentState,
-  onChange
-}: {
-  currentState: GameViewState;
-  onChange: (s: GameViewState) => void;
-}) {
-  const states: { id: GameViewState; label: string }[] = [
-    { id: 'loading', label: 'Loading' },
-    { id: 'active', label: 'Active' },
-    { id: 'image-reveal', label: 'Vision' }
-  ];
-  return (
-    <div className="fixed bottom-20 left-1/2 z-[100] -translate-x-1/2 lg:bottom-6">
-      <div
-        className="flex items-center gap-1 border border-amber/40 bg-soot/90 px-2 py-1.5 sm:px-3 sm:py-2"
-        style={{
-          backdropFilter: 'blur(8px)',
-          clipPath:
-            'polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)',
-          boxShadow: '0 0 20px rgba(232,168,53,0.15)'
-        }}
-      >
-        <span
-          className="mr-2 text-[8px] uppercase tracking-[0.2em] text-amber/60 sm:mr-3 sm:text-[9px]"
-          style={{ fontFamily: 'var(--font-mono), monospace' }}
-        >
-          Dev
-        </span>
-        {states.map(({ id, label }) => (
-          <button
-            key={id}
-            onClick={() => onChange(id)}
-            className="px-2 py-0.5 text-[9px] uppercase tracking-[0.1em] transition-all duration-200 sm:px-3 sm:py-1 sm:tracking-[0.15em]"
-            style={{
-              fontFamily: 'var(--font-mono), monospace',
-              background: currentState === id ? 'var(--brass)' : 'transparent',
-              color: currentState === id ? 'var(--soot)' : 'var(--ash)',
-              clipPath:
-                'polygon(3px 0, 100% 0, 100% calc(100% - 3px), calc(100% - 3px) 100%, 0 100%, 0 3px)'
-            }}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function GameClient({
@@ -1833,11 +1811,9 @@ export default function GameClient({
   currentUserId,
   openingReady,
   loadingImageUrl,
+  sessionCoverImageUrl,
 }: GameClientProps) {
   const [viewState, setViewState] = useState<GameViewState>(
-    openingReady ? 'active' : 'loading'
-  );
-  const [devState, setDevState] = useState<GameViewState>(
     openingReady ? 'active' : 'loading'
   );
 
@@ -1853,7 +1829,6 @@ export default function GameClient({
     const promoteToActive = () => {
       if (cancelled) return;
       setViewState('active');
-      setDevState('active');
     };
     const fetchSession = () =>
       supabase
@@ -1884,33 +1859,20 @@ export default function GameClient({
     };
   }, [campaign.id, openingReady]);
 
-  const effectiveState = viewState !== 'loading' ? devState : viewState;
-  const isCampaignReady = effectiveState !== 'loading';
-  const devShowReveal = effectiveState === 'image-reveal';
-
-  const handleDismissReveal = () => setDevState('active');
+  const isCampaignReady = viewState !== 'loading';
 
   if (!isCampaignReady) {
-    return (
-      <>
-        <LoadingState campaignName={campaign.name} backgroundImageUrl={loadingImageUrl} />
-        <DevStateSwitcher currentState={devState} onChange={setDevState} />
-      </>
-    );
+    return <LoadingState campaignName={campaign.name} backgroundImageUrl={loadingImageUrl} />;
   }
 
   return (
-    <>
-      <ActiveGameView
-        campaign={campaign}
-        world={world}
-        players={players}
-        messages={messages}
-        currentUserId={currentUserId}
-        devShowReveal={devShowReveal}
-        onDismissReveal={handleDismissReveal}
-      />
-      <DevStateSwitcher currentState={devState} onChange={setDevState} />
-    </>
+    <ActiveGameView
+      campaign={campaign}
+      world={world}
+      players={players}
+      messages={messages}
+      currentUserId={currentUserId}
+      sessionCoverImageUrl={sessionCoverImageUrl}
+    />
   );
 }
