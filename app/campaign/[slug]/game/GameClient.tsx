@@ -1897,7 +1897,14 @@ export default function GameClient({
       setDevState('active');
     };
     const reconcileOpeningReadiness = async () => {
-      const ready = await fetchSessionOpeningReady(supabase, campaign.id);
+      const ready = await fetchSessionOpeningReady(() =>
+        supabase
+          .from('sessions')
+          .select('opening_situation')
+          .eq('campaign_id', campaign.id)
+          .eq('session_number', 1)
+          .maybeSingle()
+      );
       if (ready) promoteToActive();
     };
 
