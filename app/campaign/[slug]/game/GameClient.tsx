@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { EmberParticles } from '@/components/ember-particles';
 import { AmbientSmoke } from '@/components/ambient-smoke';
 import { GearDecoration } from '@/components/gear-decoration';
+import { fetchSessionOpeningReady } from './session-readiness';
 import { ImageModal, type ImageModalState } from './components/ImageModal';
 import { MessageBubble } from './components/MessageBubble';
 import { MobileActionBar } from './components/MobileActionBar';
@@ -1889,15 +1890,32 @@ export default function GameClient({
     if (openingReady) return;
 
     const supabase = createClient();
+    let cancelled = false;
+    const promoteToActive = () => {
+      if (cancelled) return;
+      setViewState('active');
+      setDevState('active');
+    };
+    const reconcileOpeningReadiness = async () => {
+      const ready = await fetchSessionOpeningReady(supabase, campaign.id);
+      if (ready) promoteToActive();
+    };
+
     const channel = supabase
       .channel(`campaign:${campaign.id}`)
       .on('broadcast', { event: 'game:started' }, () => {
-        setViewState('active');
-        setDevState('active');
+        promoteToActive();
       })
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          void reconcileOpeningReadiness();
+        }
+      });
+
+    void reconcileOpeningReadiness();
 
     return () => {
+      cancelled = true;
       supabase.removeChannel(channel);
     };
   }, [campaign.id, openingReady]);
