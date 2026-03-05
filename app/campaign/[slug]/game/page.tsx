@@ -1,6 +1,5 @@
 import { notFound, redirect } from 'next/navigation'
 import { createAuthServerClient, createServerSupabaseClient } from '@/lib/supabase/server'
-import { pickLatestImageUrl } from '@/lib/image-selection'
 import GameClient from './GameClient'
 
 interface Props {
@@ -48,60 +47,36 @@ export default async function GamePage({ params }: Props) {
     notFound()
   }
 
-  // Fetch players
   const db = createServerSupabaseClient()
-  const { data: players } = await db
-    .from('players')
-    .select('*')
-    .eq('campaign_id', campaign.id)
+  const [playersResult, messagesResult, imagesResult] = await Promise.all([
+    db.from('players').select('*').eq('campaign_id', campaign.id),
+    db.from('messages').select('*').eq('campaign_id', campaign.id).order('created_at', { ascending: true }).limit(50),
+    db.from('images').select('entity_type, entity_id, image_type, public_url').eq('status', 'ready').in('entity_id', [world.id, campaign.id]),
+  ])
 
-  // Fetch recent messages (last 50)
-  const { data: messages } = await db
-    .from('messages')
-    .select('*')
-    .eq('campaign_id', campaign.id)
-    .order('created_at', { ascending: true })
-    .limit(50)
+  const imageRows = imagesResult.data ?? []
+  const findUrl = (entityType: string, entityId: string, imageType: string) =>
+    imageRows.find((r) => r.entity_type === entityType && r.entity_id === entityId && r.image_type === imageType)?.public_url ?? null
 
-  // Fetch images for initial render (world cover/map, campaign cover, player portraits)
-  const playerIds = (players ?? []).map((p) => p.id)
-  const imageEntityIds = [world.id, campaign.id, ...playerIds]
-
-  const { data: imageRows } = await db
-    .from('images')
-    .select('entity_type, entity_id, image_type, public_url, created_at')
-    .eq('status', 'ready')
-    .in('entity_id', imageEntityIds)
-
-  const findImage = (entityType: string, entityId: string, imageType: string) =>
-    pickLatestImageUrl(imageRows, entityType, entityId, imageType)
-
-  const worldCoverUrl = findImage('world', world.id, 'cover')
-  const worldMapUrl = findImage('world', world.id, 'map')
-  const campaignCoverUrl = findImage('campaign', campaign.id, 'cover')
-
-  const initialPlayerImages: Record<string, string> = {}
-  for (const p of players ?? []) {
-    const url = findImage('player', p.id, 'character')
-    if (url) initialPlayerImages[p.id] = url
-  }
+  const worldWithImages = { ...world, cover_url: findUrl('world', world.id, 'cover'), map_url: findUrl('world', world.id, 'map') }
+  const campaignWithImages = { ...campaign, cover_url: findUrl('campaign', campaign.id, 'cover') }
 
   const openingReady = !!campaign.opening_situation
 
-  // Loading background: campaign cover → world map → world cover
-  const loadingImageUrl = campaignCoverUrl ?? worldMapUrl ?? worldCoverUrl ?? undefined
+  // Loading background: campaign cover → world cover → world map
+  const loadingImageUrl = campaignWithImages.cover_url ?? worldWithImages.cover_url ?? worldWithImages.map_url ?? undefined
 
   return (
     <GameClient
-      campaign={campaign}
-      world={world}
-      players={players ?? []}
-      messages={messages ?? []}
+      campaign={campaignWithImages}
+      world={worldWithImages}
+      players={playersResult.data ?? []}
+      messages={messagesResult.data ?? []}
       currentUserId={user.id}
       openingReady={openingReady}
       loadingImageUrl={loadingImageUrl}
-      campaignCoverImageUrl={campaignCoverUrl ?? worldCoverUrl ?? undefined}
-      initialPlayerImages={initialPlayerImages}
+      campaignCoverImageUrl={campaignWithImages.cover_url ?? worldWithImages.cover_url ?? undefined}
+      initialPlayerImages={{}}
     />
   )
 }

@@ -14,6 +14,8 @@ export type World = {
   status: WorldStatus;
   classes: WorldClass[];
   created_at: string;
+  cover_url?: string | null;
+  map_url?: string | null;
 };
 
 export type WorldInsert = Pick<World, 'user_id' | 'name' | 'description'>;

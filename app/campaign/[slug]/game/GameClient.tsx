@@ -1197,6 +1197,17 @@ function DesktopRightSidebar({
   onImageClick: (state: ImageModalState) => void;
   coverImageUrl: string | null;
 }) {
+  const seen = new Set<string>();
+  const galleryImages: { url: string; caption: string }[] = [
+    coverImageUrl ? { url: coverImageUrl, caption: `${world.name} — Campaign` } : null,
+    world.map_url ? { url: world.map_url, caption: `${world.name} — Map` } : null,
+    world.cover_url ? { url: world.cover_url, caption: `${world.name} — Cover` } : null,
+  ].filter((item): item is { url: string; caption: string } => {
+    if (!item) return false;
+    if (seen.has(item.url)) return false;
+    seen.add(item.url);
+    return true;
+  });
   return (
     <aside
       className="relative z-10 hidden w-56 shrink-0 flex-col border-l border-gunmetal bg-iron/80 lg:flex"
@@ -1292,12 +1303,20 @@ function DesktopRightSidebar({
             Gallery
           </span>
         </div>
-        <p
+        {galleryImages.length > 0 ? (
+          <div className="grid grid-cols-2 gap-2">
+            {galleryImages.map(({ url, caption }) => (
+              <GalleryThumb key={url} imageUrl={url} onClick={() => onImageClick({ url, caption })} />
+            ))}
+          </div>
+        ) : (
+          <p
             className="text-[9px] uppercase tracking-[0.1em] text-ash/30"
             style={{ fontFamily: 'var(--font-mono), monospace' }}
           >
             No visions recorded yet
           </p>
+        )}
       </div>
     </aside>
   );
@@ -1763,12 +1782,33 @@ function ActiveGameView({
             Gallery
           </span>
         </div>
-        <p
-            className="text-[10px] uppercase tracking-[0.1em] text-ash/30"
-            style={{ fontFamily: 'var(--font-mono), monospace' }}
-          >
-            No visions recorded yet
-          </p>
+        {(() => {
+          const mobileSeen = new Set<string>();
+          const mobileGallery: { url: string; caption: string }[] = [
+            liveCoverUrl ? { url: liveCoverUrl, caption: `${world.name} — Campaign` } : null,
+            world.map_url ? { url: world.map_url, caption: `${world.name} — Map` } : null,
+            world.cover_url ? { url: world.cover_url, caption: `${world.name} — Cover` } : null,
+          ].filter((item): item is { url: string; caption: string } => {
+            if (!item) return false;
+            if (mobileSeen.has(item.url)) return false;
+            mobileSeen.add(item.url);
+            return true;
+          });
+          return mobileGallery.length > 0 ? (
+            <div className="grid grid-cols-3 gap-2">
+              {mobileGallery.map(({ url, caption }) => (
+                <GalleryThumb key={url} imageUrl={url} onClick={() => handleImageClick({ url, caption })} />
+              ))}
+            </div>
+          ) : (
+            <p
+              className="text-[10px] uppercase tracking-[0.1em] text-ash/30"
+              style={{ fontFamily: 'var(--font-mono), monospace' }}
+            >
+              No visions recorded yet
+            </p>
+          );
+        })()}
       </MobilePanel>
 
       {/* Image Modal */}

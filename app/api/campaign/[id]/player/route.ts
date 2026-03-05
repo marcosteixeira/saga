@@ -74,7 +74,7 @@ export async function POST(
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 
-  void broadcastPlayerJoin(campaignId, player)
+  await broadcastPlayerJoin(campaignId, player)
   return NextResponse.json({ player }, { status: 201 })
 }
 
@@ -133,8 +133,7 @@ export async function PATCH(
     return NextResponse.json({ error: 'Player not found in this campaign' }, { status: 404 })
   }
 
-  // Fire-and-forget — broadcast failure must not break the response
-  void broadcastPlayerUpdate(campaignId, player)
+  await broadcastPlayerUpdate(campaignId, player)
 
   return NextResponse.json({ player }, { status: 200 })
 }

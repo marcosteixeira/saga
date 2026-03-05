@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -11,6 +12,7 @@ import type { Campaign } from '@/types'
 
 type ProfileCampaign = Pick<Campaign, 'id' | 'slug' | 'name' | 'status' | 'created_at'> & {
   is_host: boolean
+  cover_image_url: string | null
 }
 
 function actionForCampaign(campaign: ProfileCampaign): { href: string; label: string } {
@@ -118,9 +120,20 @@ export default function ProfilePage() {
                 return (
                   <div
                     key={campaign.id}
-                    className="rounded border border-gunmetal bg-smog/60 p-4 md:p-5"
+                    className="rounded border border-gunmetal bg-smog/60 overflow-hidden"
                   >
-                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    {campaign.cover_image_url && (
+                      <div className="relative h-28 w-full">
+                        <Image
+                          src={campaign.cover_image_url}
+                          alt={campaign.name}
+                          fill
+                          className="object-cover"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-smog/90 to-transparent" />
+                      </div>
+                    )}
+                    <div className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between md:p-5">
                       <div>
                         <h2 className="font-heading text-xl text-brass">{campaign.name}</h2>
                         <p

@@ -28,6 +28,22 @@ export function getStoragePath(entityType: string, entityId: string, imageType: 
   return `${entityType}s/${entityId}/${imageType}.png`
 }
 
+const WORLD_MAP_IMAGE_SYSTEM_PROMPT = `You are a tabletop RPG cartographer. Generate a single widescreen (16:9 landscape) illustrated map that will be used as a full-bleed UI background for a web application.
+
+CRITICAL COMPOSITION RULES:
+- Fill the entire frame with a richly detailed illustrated map — no empty or black areas
+- The map should show the world's geography: regions, landmarks, cities, terrain features, and points of interest
+- Include decorative elements appropriate to the genre: compass rose, border ornamentation, region labels, and legend markers consistent with the world's lore
+- The overall style must match the genre — never default to generic fantasy parchment
+
+VISUAL RULES:
+- Do NOT include any UI chrome, logos, or non-map elements
+- Do NOT render a blank, modern-style, or generic map — this must look like an artifact or document from within the world
+- Genre must be faithfully rendered: fantasy gets a classic illustrated parchment map with ink linework and terrain icons; sci-fi gets a star chart or sector map with holographic/blueprint aesthetics; crime gets a gritty city district map with hand-marked annotations; horror gets a dark, unsettling cartographic document — never default to generic fantasy
+- Match color palette, materials, and visual language to the world's tone
+
+Output only the image.`
+
 const WORLD_IMAGE_SYSTEM_PROMPT = `You are a tabletop RPG background art generator. Generate a single widescreen (16:9 landscape) cinematic scene that will be used as a full-bleed UI background for a web application.
 
 CRITICAL COMPOSITION RULES:
@@ -74,9 +90,13 @@ async function buildPrompt(
       .eq("id", entityId)
       .single()
     if (error || !world?.world_content) throw new Error(`world_content not found for world ${entityId}`)
+    const systemPrompt = imageType === "map" ? WORLD_MAP_IMAGE_SYSTEM_PROMPT : WORLD_IMAGE_SYSTEM_PROMPT
+    // Prefix instructs Gemini to depict atmosphere/aesthetic only — avoids copyright blocks
+    // when world content references real IP (Star Wars, LotR, etc.)
+    const userPrompt = `Depict the atmosphere, aesthetic, and visual feel of this setting. Do NOT depict any specific named characters, logos, or trademarked designs. Focus on environment, lighting, mood, and genre:\n\n${world.world_content as string}`
     return {
-      systemPrompt: WORLD_IMAGE_SYSTEM_PROMPT,
-      userPrompt: world.world_content as string,
+      systemPrompt,
+      userPrompt,
       worldId: entityId,
     }
   }
@@ -158,19 +178,60 @@ Deno.serve(async (req: Request) => {
   const { createClient } = await import("jsr:@supabase/supabase-js@2")
   const supabase = createClient(supabaseUrl, serviceRoleKey)
 
-  // 1. Create images row
-  const { data: imageRow, error: insertError } = await supabase
-    .from("images")
-    .insert({ entity_type, entity_id, image_type, status: "generating" })
-    .select("id")
-    .single()
+  // Singleton image types have one canonical row per entity — find-or-create then reset to generating.
+  // Multi image types (e.g. portraits) accumulate rows over time — always insert.
+  const SINGLETON_IMAGE_TYPES = new Set(["cover", "map"])
+  const isSingleton = SINGLETON_IMAGE_TYPES.has(image_type)
 
-  if (insertError || !imageRow) {
-    console.error("[generate-image] failed to insert images row", insertError)
-    return new Response("Failed to create image record", { status: 500 })
+  // 1. Create or update images row
+  let imageId: string
+
+  if (isSingleton) {
+    // Can't use upsert with onConflict here because the unique index is partial (per image_type).
+    // Instead: find existing row and reset it, or insert a fresh one.
+    const { data: existing } = await supabase
+      .from("images")
+      .select("id")
+      .eq("entity_type", entity_type)
+      .eq("entity_id", entity_id)
+      .eq("image_type", image_type)
+      .maybeSingle()
+
+    if (existing) {
+      const { error: updateError } = await supabase
+        .from("images")
+        .update({ status: "generating", storage_path: null, public_url: null, error: null })
+        .eq("id", existing.id)
+      if (updateError) {
+        console.error("[generate-image] failed to reset images row", updateError)
+        return new Response("Failed to create image record", { status: 500 })
+      }
+      imageId = existing.id
+    } else {
+      const { data: imageRow, error: insertError } = await supabase
+        .from("images")
+        .insert({ entity_type, entity_id, image_type, status: "generating" })
+        .select("id")
+        .single()
+      if (insertError || !imageRow) {
+        console.error("[generate-image] failed to insert images row", insertError)
+        return new Response("Failed to create image record", { status: 500 })
+      }
+      imageId = imageRow.id
+    }
+  } else {
+    const { data: imageRow, error: insertError } = await supabase
+      .from("images")
+      .insert({ entity_type, entity_id, image_type, status: "generating" })
+      .select("id")
+      .single()
+
+    if (insertError || !imageRow) {
+      console.error("[generate-image] failed to insert images row", insertError)
+      return new Response("Failed to create image record", { status: 500 })
+    }
+    imageId = imageRow.id
   }
-
-  const imageId = imageRow.id
 
   try {
     // 2. Build prompt

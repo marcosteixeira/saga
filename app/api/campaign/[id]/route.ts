@@ -46,9 +46,19 @@ export async function GET(
     }
   }
 
-  const [playersResult, filesResult] = await Promise.all([
+  const worldId = campaignResult.data.worlds?.id
+
+  const [playersResult, filesResult, imagesResult] = await Promise.all([
     supabase.from('players').select('*').eq('campaign_id', campaignId),
     supabase.from('campaign_files').select('*').eq('campaign_id', campaignId),
+    worldId
+      ? supabase
+          .from('images')
+          .select('entity_type, entity_id, image_type, public_url')
+          .eq('status', 'ready')
+          .in('entity_id', [campaignId, worldId])
+          .not('public_url', 'is', null)
+      : Promise.resolve({ data: [] }),
   ])
 
   if (playersResult.error || filesResult.error) {
@@ -58,10 +68,18 @@ export async function GET(
   // Separate world from campaign for a clean response shape
   const { worlds: world, ...campaign } = campaignResult.data
 
+  const imageRows = imagesResult.data ?? []
+  const findImageUrl = (entityType: string, entityId: string, imageType: string) =>
+    imageRows.find(
+      (r) => r.entity_type === entityType && r.entity_id === entityId && r.image_type === imageType
+    )?.public_url ?? null
+
   return NextResponse.json({
     campaign,
     world,
     players: playersResult.data ?? [],
     files: filesResult.data ?? [],
+    world_cover_url: worldId ? findImageUrl('world', worldId, 'cover') : null,
+    campaign_cover_url: findImageUrl('campaign', campaignId, 'cover'),
   })
 }

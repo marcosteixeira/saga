@@ -12,6 +12,7 @@ export type Campaign = {
   opening_situation: string | null;
   starting_hooks: string[] | null;
   created_at: string;
+  cover_url?: string | null;
 };
 
 export type CampaignInsert = Pick<
