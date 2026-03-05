@@ -6,7 +6,12 @@ vi.mock('@/lib/supabase/server', () => ({
   createAuthServerClient: vi.fn(),
 }))
 
+vi.mock('@/lib/realtime-broadcast', () => ({
+  broadcastPlayerUpdate: vi.fn().mockResolvedValue(undefined),
+}))
+
 import { createServerSupabaseClient, createAuthServerClient } from '@/lib/supabase/server'
+import { broadcastPlayerUpdate } from '@/lib/realtime-broadcast'
 
 const mockUser = { id: 'user-123' }
 
@@ -227,5 +232,52 @@ describe('PATCH /api/campaign/[id]/player', () => {
     expect(updateFn).toHaveBeenCalledWith(
       expect.objectContaining({ is_ready: false })
     )
+  })
+
+  it('calls broadcastPlayerUpdate with campaignId and updated player on success', async () => {
+    ;(createAuthServerClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      auth: { getUser: async () => ({ data: { user: mockUser } }) },
+    })
+    const updatedPlayer = {
+      id: 'player-1',
+      user_id: 'user-123',
+      campaign_id: 'abc',
+      character_name: 'Arwen',
+      character_class: 'Mage',
+      character_backstory: null,
+      is_ready: false,
+    }
+    const mockDb = {
+      from: vi.fn().mockReturnThis(),
+      update: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      select: vi.fn().mockReturnThis(),
+      single: vi.fn().mockResolvedValue({ data: updatedPlayer, error: null }),
+    }
+    ;(createServerSupabaseClient as ReturnType<typeof vi.fn>).mockReturnValue(mockDb)
+    await PATCH(
+      makeRequest({ character_name: 'Arwen', character_class: 'Mage' }),
+      makeParams('abc')
+    )
+    expect(broadcastPlayerUpdate).toHaveBeenCalledWith('abc', updatedPlayer)
+  })
+
+  it('does not call broadcastPlayerUpdate when DB update fails', async () => {
+    ;(createAuthServerClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      auth: { getUser: async () => ({ data: { user: mockUser } }) },
+    })
+    const mockDb = {
+      from: vi.fn().mockReturnThis(),
+      update: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      select: vi.fn().mockReturnThis(),
+      single: vi.fn().mockResolvedValue({ data: null, error: { code: 'PGRST116' } }),
+    }
+    ;(createServerSupabaseClient as ReturnType<typeof vi.fn>).mockReturnValue(mockDb)
+    await PATCH(
+      makeRequest({ character_name: 'Arwen', character_class: 'Mage' }),
+      makeParams('abc')
+    )
+    expect(broadcastPlayerUpdate).not.toHaveBeenCalled()
   })
 })

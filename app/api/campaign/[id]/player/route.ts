@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createServerSupabaseClient, createAuthServerClient } from '@/lib/supabase/server'
+import { broadcastPlayerUpdate } from '@/lib/realtime-broadcast'
 
 export async function PATCH(
   req: Request,
@@ -55,6 +56,9 @@ export async function PATCH(
   if (!player) {
     return NextResponse.json({ error: 'Player not found in this campaign' }, { status: 404 })
   }
+
+  // Fire-and-forget — broadcast failure must not break the response
+  void broadcastPlayerUpdate(campaignId, player)
 
   return NextResponse.json({ player }, { status: 200 })
 }
