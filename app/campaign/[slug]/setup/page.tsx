@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { pickLatestImageUrl } from '@/lib/image-selection'
 import { Button } from '@/components/ui/button'
 import { EmberParticles } from '@/components/ember-particles'
 import type { Campaign, World, WorldStatus } from '@/types'
@@ -50,8 +51,21 @@ export default function CampaignSetupPage() {
     const data = (await res.json()) as CampaignPayload
     setCampaign(data.campaign)
     setWorld(data.world)
-    if (data.world.cover_image_url) {
-      setCoverImageUrl(`${data.world.cover_image_url}?t=${Date.now()}`)
+    const { data: imageRows } = await supabase
+      .from('images')
+      .select('entity_type, entity_id, image_type, public_url, created_at')
+      .eq('entity_type', 'world')
+      .eq('entity_id', data.campaign.world_id)
+      .eq('status', 'ready')
+
+    const coverUrl = pickLatestImageUrl(
+      imageRows,
+      'world',
+      data.campaign.world_id,
+      'cover'
+    )
+    if (coverUrl) {
+      setCoverImageUrl(`${coverUrl}?t=${Date.now()}`)
     }
     setStatusText(statusMessage(data.world.status))
 
@@ -123,12 +137,21 @@ export default function CampaignSetupPage() {
           })
           .on(
             'broadcast',
-            { event: 'world:image_ready' },
-            (message: { payload: { type: string; url: string } }) => {
+            { event: 'image:ready' },
+            (message: {
+              payload: {
+                entity_type: string
+                entity_id: string
+                image_type: string
+                url: string
+                image_id: string
+              }
+            }) => {
               if (!mounted) return
-              if (message.payload.type === 'cover') {
+              const { entity_type, entity_id, image_type, url } = message.payload
+              if (entity_type === 'world' && entity_id === data.campaign.world_id && image_type === 'cover') {
                 setImageLoaded(false)
-                setCoverImageUrl(message.payload.url)
+                setCoverImageUrl(url)
               }
             }
           )

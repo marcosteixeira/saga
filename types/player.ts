@@ -6,7 +6,6 @@ export type Player = {
   character_name: string | null
   character_class: string | null
   character_backstory: string | null
-  character_image_url: string | null
   stats: { hp: number; hp_max: number }
   status: 'active' | 'dead' | 'incapacitated' | 'absent'
   absence_mode: 'skip' | 'npc' | 'auto_act'

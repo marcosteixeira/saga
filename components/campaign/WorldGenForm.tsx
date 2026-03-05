@@ -379,17 +379,9 @@ function WorldCard({
           background: 'var(--smog)',
           border: selected ? '1px solid var(--brass)' : '1px solid var(--gunmetal)',
         }}>
-          {world.cover_image_url ? (
-            <img
-              src={world.cover_image_url}
-              alt={world.name}
-              className="h-full w-full object-cover object-left"
-            />
-          ) : (
-            <div className="h-full w-full flex items-center justify-center">
+          <div className="h-full w-full flex items-center justify-center">
               <GlobeIcon dimmed={!selected} />
             </div>
-          )}
           {/* Overlay on selected */}
           {selected && (
             <div className="absolute inset-0 bg-brass/10" />

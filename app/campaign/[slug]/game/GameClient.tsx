@@ -25,6 +25,8 @@ interface GameClientProps {
   openingReady: boolean;
   loadingImageUrl?: string;
   sessionCoverImageUrl?: string;
+  sessionId: string | null;
+  initialPlayerImages: Record<string, string>;
 }
 
 type GameViewState = 'loading' | 'active' | 'image-reveal';
@@ -39,7 +41,6 @@ const MOCK_MESSAGES: Message[] = [
     session_id: 's1',
     player_id: null,
     content: 'Session started. Campaign mode: Free Play. Turn timer disabled.',
-    image_url: null,
     type: 'system',
     created_at: '2026-03-05T11:54:00.000Z'
   },
@@ -50,7 +51,6 @@ const MOCK_MESSAGES: Message[] = [
     player_id: null,
     content:
       'The airship *Ironclad Meridian* shudders as it pierces through a low-hanging cloudbank above the smog-choked sprawl of Gearfordshire. Through streaked portholes, you can see the city below — a labyrinth of copper pipes, towering smokestacks, and gas-lamp streets. Your destination: the Foundry District, where the Brass Consortium keeps its most dangerous secrets.',
-    image_url: 'https://images.unsplash.com/photo-1531366936337-7c912a4589a7?w=1600&q=85',
     type: 'narration',
     created_at: '2026-03-05T11:55:00.000Z'
   },
@@ -61,7 +61,6 @@ const MOCK_MESSAGES: Message[] = [
     player_id: 'p1',
     content:
       'I pull out my compass and check our bearing. "How much time before we dock at the Meridian Tower?"',
-    image_url: null,
     type: 'action',
     created_at: '2026-03-05T11:56:00.000Z'
   },
@@ -72,7 +71,6 @@ const MOCK_MESSAGES: Message[] = [
     player_id: null,
     content:
       'The compass needle spins lazily — the aetherite interference from the district\'s power cores makes navigation unreliable here. Captain Mira calls back from the helm: *"Fifteen minutes, give or take. And pray the Corsair Guild isn\'t running checkpoints today."* A low rumble shakes the hull as a rival vessel passes uncomfortably close.',
-    image_url: null,
     type: 'narration',
     created_at: '2026-03-05T11:57:00.000Z'
   },
@@ -83,7 +81,6 @@ const MOCK_MESSAGES: Message[] = [
     player_id: 'p2',
     content:
       'I move to the starboard side and peer through my spyglass at the rival vessel. Can I make out their markings?',
-    image_url: null,
     type: 'action',
     created_at: '2026-03-05T11:58:00.000Z'
   },
@@ -94,7 +91,6 @@ const MOCK_MESSAGES: Message[] = [
     player_id: null,
     content:
       "Roll Perception. The spyglass reveals a black hull with a serpent-and-gear sigil — the **Iron Serpent Company**, private enforcers for the Brass Consortium. They haven't spotted you yet, but they're running dark: no running lights, no registry beacon. Whatever they're doing out here isn't official business.",
-    image_url: 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=800&q=80',
     type: 'narration',
     created_at: '2026-03-05T11:59:00.000Z'
   }
@@ -109,7 +105,6 @@ const MOCK_PLAYERS: Player[] = [
     character_name: 'Vex Ashbury',
     character_class: 'Artificer',
     character_backstory: 'Former guild engineer turned rogue inventor.',
-    character_image_url: null,
     stats: { hp: 18, hp_max: 20 },
     status: 'active',
     absence_mode: 'skip',
@@ -126,7 +121,6 @@ const MOCK_PLAYERS: Player[] = [
     character_name: 'Lyra Copperfield',
     character_class: 'Scout',
     character_backstory: 'Ex-corsair pilot who now hunts her former crew.',
-    character_image_url: null,
     stats: { hp: 12, hp_max: 20 },
     status: 'active',
     absence_mode: 'skip',
@@ -143,7 +137,6 @@ const MOCK_PLAYERS: Player[] = [
     character_name: 'Barnabas Grime',
     character_class: 'Brawler',
     character_backstory: 'Retired prizefighter from the Soot Pits.',
-    character_image_url: null,
     stats: { hp: 5, hp_max: 20 },
     status: 'active',
     absence_mode: 'skip',
@@ -833,11 +826,13 @@ function HpBar({ hp, hpMax }: { hp: number; hpMax: number }) {
 function PlayerCard({
   player,
   isCurrentUser,
-  compact = false
+  compact = false,
+  playerImages = {}
 }: {
   player: Player;
   isCurrentUser: boolean;
   compact?: boolean;
+  playerImages?: Record<string, string>;
 }) {
   const isLowHp = player.stats.hp / player.stats.hp_max < 0.25;
   return (
@@ -852,10 +847,10 @@ function PlayerCard({
               'polygon(4px 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%, 0 4px)'
           }}
         >
-          {player.character_image_url ? (
+          {playerImages[player.id] ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={player.character_image_url}
+              src={playerImages[player.id]}
               alt={player.character_name ?? ''}
               className="h-full w-full object-cover"
             />
@@ -1126,11 +1121,13 @@ function GalleryThumb({ imageUrl, onClick }: { imageUrl: string; onClick: () => 
 function DesktopLeftSidebar({
   campaign,
   players,
-  currentUserId
+  currentUserId,
+  playerImages = {}
 }: {
   campaign: Campaign;
   players: Player[];
   currentUserId: string;
+  playerImages?: Record<string, string>;
 }) {
   return (
     <aside
@@ -1156,6 +1153,7 @@ function DesktopLeftSidebar({
             player={player}
             isCurrentUser={player.user_id === currentUserId}
             compact
+            playerImages={playerImages}
           />
         ))}
       </div>
@@ -1207,8 +1205,6 @@ function DesktopRightSidebar({
   onImageClick: (state: ImageModalState) => void;
   coverImageUrl: string | null;
 }) {
-  const galleryImages = messages.filter((m) => m.image_url);
-
   return (
     <aside
       className="relative z-10 hidden w-56 shrink-0 flex-col border-l border-gunmetal bg-iron/80 lg:flex"
@@ -1304,27 +1300,12 @@ function DesktopRightSidebar({
             Gallery
           </span>
         </div>
-        {galleryImages.length === 0 ? (
-          <p
+        <p
             className="text-[9px] uppercase tracking-[0.1em] text-ash/30"
             style={{ fontFamily: 'var(--font-mono), monospace' }}
           >
             No visions recorded yet
           </p>
-        ) : (
-          <div className="grid grid-cols-2 gap-1.5">
-            {galleryImages
-              .slice()
-              .reverse()
-              .map((m) => (
-                <GalleryThumb
-                  key={m.id}
-                  imageUrl={m.image_url!}
-                  onClick={() => onImageClick({ url: m.image_url! })}
-                />
-              ))}
-          </div>
-        )}
       </div>
     </aside>
   );
@@ -1433,6 +1414,8 @@ function ActiveGameView({
   messages: initialMessages,
   currentUserId,
   sessionCoverImageUrl: initialSessionCoverImageUrl,
+  sessionId,
+  initialPlayerImages,
 }: {
   campaign: Campaign;
   world: World;
@@ -1440,6 +1423,8 @@ function ActiveGameView({
   messages: Message[];
   currentUserId: string;
   sessionCoverImageUrl?: string;
+  sessionId: string | null;
+  initialPlayerImages: Record<string, string>;
 }) {
   const feedRef = useRef<HTMLDivElement>(null);
   const [inputValue, setInputValue] = useState('');
@@ -1447,19 +1432,19 @@ function ActiveGameView({
   const [imageModal, setImageModal] = useState<ImageModalState | null>(null);
   const [liveMessages, setLiveMessages] = useState<Message[]>(initialMessages);
   const [liveCoverUrl, setLiveCoverUrl] = useState<string | undefined>(initialSessionCoverImageUrl);
+  const [playerImages, setPlayerImages] = useState<Record<string, string>>(initialPlayerImages);
 
-  // Subscribe to new messages and session cover image updates
+  // Subscribe to messages and image updates
   useEffect(() => {
     const supabase = createClient();
 
-    const channel = supabase
+    const messageChannel = supabase
       .channel(`game-active:${campaign.id}`)
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'messages', filter: `campaign_id=eq.${campaign.id}` },
         (payload) => {
           setLiveMessages((prev) => {
-            // Avoid duplicates
             if (prev.some((m) => m.id === (payload.new as Message).id)) return prev;
             return [...prev, payload.new as Message];
           });
@@ -1474,18 +1459,35 @@ function ActiveGameView({
           );
         }
       )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'sessions', filter: `campaign_id=eq.${campaign.id}` },
-        (payload) => {
-          const updated = payload.new as { scene_image_url?: string | null };
-          if (updated.scene_image_url) setLiveCoverUrl(updated.scene_image_url);
-        }
-      )
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
-  }, [campaign.id]);
+    const imageChannel = supabase
+      .channel(`world:${world.id}`)
+      .on('broadcast', { event: 'image:ready' }, (message: {
+        payload: {
+          entity_type: string
+          entity_id: string
+          image_type: string
+          url: string
+          image_id: string
+        }
+      }) => {
+        const { entity_type, entity_id, image_type, url } = message.payload;
+        if (entity_type === 'session' && sessionId && entity_id === sessionId) {
+          setLiveCoverUrl(url);
+        } else if (entity_type === 'world' && entity_id === world.id && image_type === 'cover') {
+          setLiveCoverUrl(url);
+        } else if (entity_type === 'player') {
+          setPlayerImages((prev) => ({ ...prev, [entity_id]: url }));
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(messageChannel);
+      supabase.removeChannel(imageChannel);
+    };
+  }, [campaign.id, sessionId, world.id]);
 
   const displayModal = imageModal;
 
@@ -1502,8 +1504,6 @@ function ActiveGameView({
   const handleImageClick = (state: ImageModalState) => setImageModal(state);
   const handleModalClose = () => setImageModal(null);
 
-  const galleryImages = liveMessages.filter((m) => m.image_url);
-
   return (
     <div className="relative flex h-[100dvh] overflow-hidden bg-soot">
       <EmberParticles count={8} />
@@ -1515,6 +1515,7 @@ function ActiveGameView({
         campaign={campaign}
         players={players}
         currentUserId={currentUserId}
+        playerImages={playerImages}
       />
 
       {/* Center */}
@@ -1613,7 +1614,6 @@ function ActiveGameView({
                 key={msg.id}
                 message={msg}
                 players={players}
-                onImageClick={handleImageClick}
               />
             ))}
             {/* GM typing */}
@@ -1651,7 +1651,7 @@ function ActiveGameView({
         world={world}
         messages={liveMessages}
         onImageClick={handleImageClick}
-        coverImageUrl={liveCoverUrl ?? world.cover_image_url ?? null}
+        coverImageUrl={liveCoverUrl ?? null}
       />
 
       {/* Mobile UI */}
@@ -1674,6 +1674,7 @@ function ActiveGameView({
               key={player.id}
               player={player}
               isCurrentUser={player.user_id === currentUserId}
+              playerImages={playerImages}
             />
           ))}
         </div>
@@ -1688,21 +1689,21 @@ function ActiveGameView({
         {/* Session cover image — clickable, falls back to world cover */}
         <button
           onClick={() => {
-            const url = liveCoverUrl ?? world.cover_image_url;
+            const url = liveCoverUrl;
             url && handleImageClick({ url, caption: world.name });
           }}
           className="group relative mb-4 block w-full overflow-hidden border border-gunmetal"
           style={{
             clipPath:
               'polygon(4px 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%, 0 4px)',
-            cursor: (liveCoverUrl ?? world.cover_image_url) ? 'pointer' : 'default'
+            cursor: liveCoverUrl ? 'pointer' : 'default'
           }}
         >
-          {(liveCoverUrl ?? world.cover_image_url) ? (
+          {liveCoverUrl ? (
             <>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={liveCoverUrl ?? world.cover_image_url!}
+                src={liveCoverUrl!}
                 alt={world.name}
                 className="h-40 w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
               />
@@ -1772,27 +1773,12 @@ function ActiveGameView({
             Gallery
           </span>
         </div>
-        {galleryImages.length === 0 ? (
-          <p
+        <p
             className="text-[10px] uppercase tracking-[0.1em] text-ash/30"
             style={{ fontFamily: 'var(--font-mono), monospace' }}
           >
             No visions recorded yet
           </p>
-        ) : (
-          <div className="grid grid-cols-2 gap-2">
-            {galleryImages
-              .slice()
-              .reverse()
-              .map((m) => (
-                <GalleryThumb
-                  key={m.id}
-                  imageUrl={m.image_url!}
-                  onClick={() => handleImageClick({ url: m.image_url! })}
-                />
-              ))}
-          </div>
-        )}
       </MobilePanel>
 
       {/* Image Modal */}
@@ -1812,6 +1798,8 @@ export default function GameClient({
   openingReady,
   loadingImageUrl,
   sessionCoverImageUrl,
+  sessionId,
+  initialPlayerImages,
 }: GameClientProps) {
   const [viewState, setViewState] = useState<GameViewState>(
     openingReady ? 'active' : 'loading'
@@ -1873,6 +1861,8 @@ export default function GameClient({
       messages={messages}
       currentUserId={currentUserId}
       sessionCoverImageUrl={sessionCoverImageUrl}
+      sessionId={sessionId}
+      initialPlayerImages={initialPlayerImages}
     />
   );
 }

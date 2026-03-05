@@ -6,7 +6,6 @@ export type Session = {
   summary_md: string | null
   opening_situation: string | null
   starting_hooks: string[] | null
-  scene_image_url: string | null
   started_at: string
   ended_at: string | null
 }

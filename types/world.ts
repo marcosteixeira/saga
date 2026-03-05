@@ -11,8 +11,6 @@ export type World = {
   name: string;
   description: string;
   world_content: string | null;
-  cover_image_url: string | null;
-  map_image_url: string | null;
   status: WorldStatus;
   classes: WorldClass[];
   created_at: string;
