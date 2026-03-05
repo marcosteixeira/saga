@@ -124,7 +124,7 @@ Generate the opening scene for this adventure. Return valid JSON only — no mar
     messages: [{ role: 'user', content: userPrompt }],
   })
 
-  const text = message.content.find((b: { type: string; text?: string }) => b.type === 'text')?.text ?? ''
+  const text = (message.content as Array<{ type: string; text?: string }>).find((b) => b.type === 'text')?.text ?? ''
   const parsed = JSON.parse(text) as {
     opening_situation: string
     starting_hooks: string[]
