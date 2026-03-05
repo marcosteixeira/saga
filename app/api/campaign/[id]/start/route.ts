@@ -153,11 +153,27 @@ Generate the opening scene for this adventure. Return valid JSON only — no mar
 }
 
 async function triggerSceneImageGeneration(
-  _campaignId: string,
-  _sessionId: string,
-  _worldName: string,
-  _worldContent: string,
-  _playerList: string,
+  campaignId: string,
+  sessionId: string,
+  worldName: string,
+  worldContent: string,
+  playerList: string,
 ): Promise<void> {
-  // stub — implementation added in Task 6
+  const functionUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/generate-scene-image`
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (process.env.GENERATE_SCENE_IMAGE_WEBHOOK_SECRET) {
+    headers.authorization = `Bearer ${process.env.GENERATE_SCENE_IMAGE_WEBHOOK_SECRET}`
+  }
+
+  await fetch(functionUrl, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      session_id: sessionId,
+      campaign_id: campaignId,
+      world_name: worldName,
+      world_content: worldContent,
+      player_list: playerList,
+    }),
+  })
 }
