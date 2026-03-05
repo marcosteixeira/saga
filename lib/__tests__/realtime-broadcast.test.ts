@@ -4,7 +4,7 @@ const mockFetch = vi.fn()
 vi.stubGlobal('fetch', mockFetch)
 
 // Must import AFTER stubbing fetch
-const { broadcastPlayerUpdate } = await import('../realtime-broadcast')
+const { broadcastPlayerUpdate, broadcastPlayerJoin } = await import('../realtime-broadcast')
 
 const fakePlayer = {
   id: 'player-1',
@@ -79,5 +79,46 @@ describe('broadcastPlayerUpdate', () => {
     await expect(broadcastPlayerUpdate('camp-1', fakePlayer)).resolves.toBeUndefined()
     // The fetch was still called (broadcast was attempted)
     expect(mockFetch).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('broadcastPlayerJoin', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockFetch.mockResolvedValue({ ok: true, status: 200 })
+    vi.stubEnv('SUPABASE_URL', 'https://abc.supabase.co')
+    vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'service-role-key')
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
+  it('POSTs to the Supabase Realtime broadcast endpoint', async () => {
+    await broadcastPlayerJoin('camp-1', fakePlayer)
+    expect(mockFetch).toHaveBeenCalledWith(
+      'https://abc.supabase.co/realtime/v1/api/broadcast',
+      expect.objectContaining({ method: 'POST' })
+    )
+  })
+
+  it('sends player:joined event on the correct channel', async () => {
+    await broadcastPlayerJoin('camp-1', fakePlayer)
+    const [, options] = mockFetch.mock.calls[0]
+    const body = JSON.parse(options.body)
+    expect(body).toEqual({
+      messages: [
+        {
+          topic: 'campaign:camp-1',
+          event: 'player:joined',
+          payload: fakePlayer,
+        },
+      ],
+    })
+  })
+
+  it('does not throw when fetch fails', async () => {
+    mockFetch.mockRejectedValue(new Error('network error'))
+    await expect(broadcastPlayerJoin('camp-1', fakePlayer)).resolves.toBeUndefined()
   })
 })

@@ -473,6 +473,26 @@ export default function LobbyClient({
           })
         )
       })
+      .on('broadcast', { event: 'player:joined' }, ({ payload }: { payload: DBPlayer }) => {
+        if (!mounted) return
+        // Only add if not already in the list (idempotent)
+        setPlayers((prev) => {
+          if (prev.some((p) => p.id === payload.id)) return prev
+          return [
+            ...prev,
+            {
+              id: payload.id,
+              username: payload.username,
+              characterName: payload.character_name ?? '',
+              characterClass: payload.character_class ?? '',
+              backstory: payload.character_backstory ?? '',
+              isHost: payload.is_host,
+              isCurrentUser: false, // joining player sees their own row from initial fetch
+              status: 'not_ready' as PlayerStatus,
+            },
+          ]
+        })
+      })
       .subscribe()
 
     return () => {

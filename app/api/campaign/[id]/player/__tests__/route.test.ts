@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { PATCH } from '../route'
+import { PATCH, POST } from '../route'
 
 vi.mock('@/lib/supabase/server', () => ({
   createServerSupabaseClient: vi.fn(),
@@ -8,10 +8,11 @@ vi.mock('@/lib/supabase/server', () => ({
 
 vi.mock('@/lib/realtime-broadcast', () => ({
   broadcastPlayerUpdate: vi.fn().mockResolvedValue(undefined),
+  broadcastPlayerJoin: vi.fn().mockResolvedValue(undefined),
 }))
 
 import { createServerSupabaseClient, createAuthServerClient } from '@/lib/supabase/server'
-import { broadcastPlayerUpdate } from '@/lib/realtime-broadcast'
+import { broadcastPlayerUpdate, broadcastPlayerJoin } from '@/lib/realtime-broadcast'
 
 const mockUser = { id: 'user-123' }
 
@@ -279,5 +280,81 @@ describe('PATCH /api/campaign/[id]/player', () => {
       makeParams('abc')
     )
     expect(broadcastPlayerUpdate).not.toHaveBeenCalled()
+  })
+})
+
+describe('POST /api/campaign/[id]/player', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('calls broadcastPlayerJoin with campaignId and new player after insert', async () => {
+    ;(createAuthServerClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      auth: { getUser: async () => ({ data: { user: mockUser } }) },
+    })
+    const newPlayer = {
+      id: 'player-new',
+      user_id: 'user-123',
+      campaign_id: 'camp-1',
+      username: 'testuser',
+      character_name: null,
+      character_class: null,
+      is_ready: false,
+      is_host: false,
+    }
+    // campaign lookup → lobby status
+    const mockDb = {
+      from: vi.fn()
+        .mockReturnValueOnce({
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          single: vi.fn().mockResolvedValue({ data: { id: 'camp-1', status: 'lobby' }, error: null }),
+        })
+        // existing player check → not found
+        .mockReturnValueOnce({
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          single: vi.fn().mockResolvedValue({ data: null, error: { code: 'PGRST116' } }),
+        })
+        // insert
+        .mockReturnValueOnce({
+          insert: vi.fn().mockReturnValue({
+            select: vi.fn().mockReturnThis(),
+            single: vi.fn().mockResolvedValue({ data: newPlayer, error: null }),
+          }),
+        }),
+    }
+    ;(createServerSupabaseClient as ReturnType<typeof vi.fn>).mockReturnValue(mockDb)
+    const req = new Request('http://localhost/api/campaign/camp-1/player', {
+      method: 'POST',
+      body: JSON.stringify({ username: 'testuser' }),
+    })
+    await POST(req, makeParams('camp-1'))
+    expect(broadcastPlayerJoin).toHaveBeenCalledWith('camp-1', newPlayer)
+  })
+
+  it('does not call broadcastPlayerJoin when player already exists (200 return)', async () => {
+    ;(createAuthServerClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      auth: { getUser: async () => ({ data: { user: mockUser } }) },
+    })
+    const existingPlayer = { id: 'player-1', user_id: 'user-123', campaign_id: 'camp-1', username: 'testuser' }
+    const mockDb = {
+      from: vi.fn()
+        .mockReturnValueOnce({
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          single: vi.fn().mockResolvedValue({ data: { id: 'camp-1', status: 'lobby' }, error: null }),
+        })
+        .mockReturnValueOnce({
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          single: vi.fn().mockResolvedValue({ data: existingPlayer, error: null }),
+        }),
+    }
+    ;(createServerSupabaseClient as ReturnType<typeof vi.fn>).mockReturnValue(mockDb)
+    const req = new Request('http://localhost/api/campaign/camp-1/player', {
+      method: 'POST',
+      body: JSON.stringify({ username: 'testuser' }),
+    })
+    await POST(req, makeParams('camp-1'))
+    expect(broadcastPlayerJoin).not.toHaveBeenCalled()
   })
 })
