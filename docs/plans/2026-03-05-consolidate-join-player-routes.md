@@ -2,9 +2,9 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Replace the separate `/api/campaign/[id]/join` (create) and `/api/campaign/[id]/player` (update) routes with a single `/api/campaign/[id]/join` route that upserts player data.
+**Goal:** Replace the separate `/api/campaign/[id]/player` (create) and `/api/campaign/[id]/player` (update) routes with a single `/api/campaign/[id]/player` route that upserts player data.
 
-**Architecture:** The new `POST /api/campaign/[id]/join` checks for an existing player record for the authenticated user in the campaign. If none exists, it creates one (requires `username`, `character_name`, `character_class`). If one exists, it updates character fields with whatever is passed. The `/player` route and its tests are deleted, and the frontend `saveCharacter` call is pointed at `/join`.
+**Architecture:** The `PATCH /api/campaign/[id]/player` endpoint updates character fields for the authenticated player's existing row. The frontend `saveCharacter` call is pointed at `/player`.
 
 **Tech Stack:** Next.js App Router route handlers, Supabase service-role client, Vitest
 
@@ -13,7 +13,7 @@
 ### Task 1: Update the join route to support upsert
 
 **Files:**
-- Modify: `app/api/campaign/[id]/join/route.ts`
+- Modify: `app/api/campaign/[id]/player/route.ts`
 
 **Step 1: Replace the full file with the upsert implementation**
 
@@ -153,14 +153,14 @@ export async function POST(
 **Step 2: Run the existing join tests to confirm they still pass**
 
 ```bash
-yarn vitest app/api/campaign/\\[id\\]/join --run
+yarn vitest app/api/campaign/\\[id\\]/player --run
 ```
 Expected: all tests pass (existing create-path tests are unaffected).
 
 **Step 3: Commit**
 
 ```bash
-git add app/api/campaign/\[id\]/join/route.ts
+git add app/api/campaign/\[id\]/player/route.ts
 git commit -m "feat: extend join route to upsert player — create on first join, update on subsequent calls"
 ```
 
@@ -169,7 +169,7 @@ git commit -m "feat: extend join route to upsert player — create on first join
 ### Task 2: Update join route tests to cover the update path
 
 **Files:**
-- Modify: `app/api/campaign/[id]/join/__tests__/route.test.ts`
+- Modify: `app/api/campaign/[id]/player/__tests__/route.test.ts`
 
 **Step 1: Update the existing "creates a new player" test to include character fields**
 
@@ -205,7 +205,7 @@ Add these test cases to the existing `describe` block (after the last existing t
     }
     ;(createServerSupabaseClient as ReturnType<typeof vi.fn>).mockReturnValue(mockDb)
 
-    const req = new Request('http://localhost/api/campaign/camp-1/join', {
+    const req = new Request('http://localhost/api/campaign//player', {
       method: 'POST',
       body: JSON.stringify({ character_name: 'Arwen', character_class: 'Mage' }),
     })
@@ -235,7 +235,7 @@ Add these test cases to the existing `describe` block (after the last existing t
     }
     ;(createServerSupabaseClient as ReturnType<typeof vi.fn>).mockReturnValue(mockDb)
 
-    const req = new Request('http://localhost/api/campaign/camp-1/join', {
+    const req = new Request('http://localhost/api/campaign//player', {
       method: 'POST',
       body: JSON.stringify({ character_name: 'Arwen', character_class: 'Mage' }),
     })
@@ -262,7 +262,7 @@ Add these test cases to the existing `describe` block (after the last existing t
     }
     ;(createServerSupabaseClient as ReturnType<typeof vi.fn>).mockReturnValue(mockDb)
 
-    const req = new Request('http://localhost/api/campaign/camp-1/join', {
+    const req = new Request('http://localhost/api/campaign//player', {
       method: 'POST',
       body: JSON.stringify({ character_name: 'Arwen', character_class: 'Mage' }),
     })
@@ -282,7 +282,7 @@ Add these test cases to the existing `describe` block (after the last existing t
       single: vi.fn().mockResolvedValue({ data: null, error: { code: 'PGRST116' } }),
     }
     ;(createServerSupabaseClient as ReturnType<typeof vi.fn>).mockReturnValue(mockDb)
-    const req = new Request('http://localhost/api/campaign/camp-1/join', {
+    const req = new Request('http://localhost/api/campaign//player', {
       method: 'POST',
       body: JSON.stringify({ username: 'testuser', character_class: 'Mage' }),
     })
@@ -303,7 +303,7 @@ Add these test cases to the existing `describe` block (after the last existing t
       single: vi.fn().mockResolvedValue({ data: null, error: { code: 'PGRST116' } }),
     }
     ;(createServerSupabaseClient as ReturnType<typeof vi.fn>).mockReturnValue(mockDb)
-    const req = new Request('http://localhost/api/campaign/camp-1/join', {
+    const req = new Request('http://localhost/api/campaign//player', {
       method: 'POST',
       body: JSON.stringify({ username: 'testuser', character_name: 'Arwen' }),
     })
@@ -317,7 +317,7 @@ Add these test cases to the existing `describe` block (after the last existing t
     ;(createAuthServerClient as ReturnType<typeof vi.fn>).mockResolvedValue({
       auth: { getUser: async () => ({ data: { user: mockUser } }) },
     })
-    const req = new Request('http://localhost/api/campaign/camp-1/join', {
+    const req = new Request('http://localhost/api/campaign//player', {
       method: 'POST',
       body: 'not-valid-json',
     })
@@ -329,14 +329,14 @@ Add these test cases to the existing `describe` block (after the last existing t
 **Step 2: Run the tests to verify they pass**
 
 ```bash
-yarn vitest app/api/campaign/\\[id\\]/join --run
+yarn vitest app/api/campaign/\\[id\\]/player --run
 ```
 Expected: all tests pass (including the 4 new ones).
 
 **Step 3: Commit**
 
 ```bash
-git add app/api/campaign/\[id\]/join/__tests__/route.test.ts
+git add app/api/campaign/\[id\]/player/__tests__/route.test.ts
 git commit -m "test: add update-path coverage to join route tests"
 ```
 
@@ -382,7 +382,7 @@ git commit -m "refactor: delete /player route — superseded by upsert join rout
 
 ---
 
-### Task 4: Update the frontend to call /join instead of /player
+### Task 4: Keep the frontend calling /player
 
 **Files:**
 - Modify: `app/campaign/[id]/lobby/LobbyClient.tsx:458`
@@ -399,7 +399,7 @@ In `saveCharacter` (around line 458), change:
 to:
 
 ```typescript
-      const res = await fetch(`/api/campaign/${campaign.id}/join`, {
+      const res = await fetch(`/api/campaign//player`, {
         method: 'POST',
 ```
 
@@ -414,5 +414,5 @@ Expected: all tests pass.
 
 ```bash
 git add app/campaign/\[id\]/lobby/LobbyClient.tsx
-git commit -m "feat: wire saveCharacter to POST /join instead of PATCH /player"
+git commit -m "feat: keep saveCharacter on PATCH /player"
 ```

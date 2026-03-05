@@ -263,7 +263,7 @@ git add -A && git commit -m "feat: integrate memory updates and image triggers i
 ### Task 4: Update CHARACTERS.md on Player Join
 
 **Files:**
-- Modify: `app/api/campaign/[id]/join/route.ts`
+- Modify: `app/api/campaign/[id]/player/route.ts`
 - Modify: `lib/memory.ts` (add helper)
 
 **Spec:**
