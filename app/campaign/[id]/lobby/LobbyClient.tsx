@@ -457,15 +457,58 @@ export default function LobbyClient({
   const isHost = currentUser?.isHost ?? false;
 
   useEffect(() => {
-    const supabase = createClient();
+    const supabase = createClient()
+    let mounted = true
+
     const channel = supabase
       .channel(`campaign:${campaign.id}`)
       .on('broadcast', { event: 'game:starting' }, () => {
-        router.push(`/campaign/${campaign.id}/game`);
+        if (!mounted) return
+        router.push(`/campaign/${campaign.id}/game`)
       })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [campaign.id, router]);
+      .on('broadcast', { event: 'player:updated' }, ({ payload }: { payload: DBPlayer }) => {
+        if (!mounted) return
+        setPlayers((prev) =>
+          prev.map((p) => {
+            if (p.id !== payload.id) return p
+            return {
+              ...p,
+              username: payload.username,
+              characterName: payload.character_name ?? '',
+              characterClass: payload.character_class ?? '',
+              backstory: payload.character_backstory ?? '',
+              status: (payload.is_ready ? 'ready' : 'not_ready') as PlayerStatus,
+            }
+          })
+        )
+      })
+      .on('broadcast', { event: 'player:joined' }, ({ payload }: { payload: DBPlayer }) => {
+        if (!mounted) return
+        // Only add if not already in the list (idempotent)
+        setPlayers((prev) => {
+          if (prev.some((p) => p.id === payload.id)) return prev
+          return [
+            ...prev,
+            {
+              id: payload.id,
+              username: payload.username,
+              characterName: payload.character_name ?? '',
+              characterClass: payload.character_class ?? '',
+              backstory: payload.character_backstory ?? '',
+              isHost: payload.is_host,
+              isCurrentUser: false, // joining player sees their own row from initial fetch
+              status: 'not_ready' as PlayerStatus,
+            },
+          ]
+        })
+      })
+      .subscribe()
+
+    return () => {
+      mounted = false
+      supabase.removeChannel(channel)
+    }
+  }, [campaign.id, router])
 
   async function handleStartGame() {
     setStarting(true);
@@ -476,8 +519,9 @@ export default function LobbyClient({
         const data = await res.json();
         setStartError(data.error ?? 'Failed to start game');
         setStarting(false);
+        return;
       }
-      // On success: do nothing — redirect happens via game:starting broadcast
+      router.push(`/campaign/${campaign.id}/game`);
     } catch {
       setStartError('Failed to start game');
       setStarting(false);

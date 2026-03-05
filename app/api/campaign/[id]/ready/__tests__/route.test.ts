@@ -6,7 +6,12 @@ vi.mock('@/lib/supabase/server', () => ({
   createAuthServerClient: vi.fn(),
 }))
 
+vi.mock('@/lib/realtime-broadcast', () => ({
+  broadcastPlayerUpdate: vi.fn().mockResolvedValue(undefined),
+}))
+
 import { createServerSupabaseClient, createAuthServerClient } from '@/lib/supabase/server'
+import { broadcastPlayerUpdate } from '@/lib/realtime-broadcast'
 
 const mockUser = { id: 'user-123' }
 
@@ -212,6 +217,49 @@ describe('PATCH /api/campaign/[id]/ready', () => {
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.player.is_ready).toBe(false)
+  })
+
+  it('calls broadcastPlayerUpdate with campaignId and updated player on success', async () => {
+    ;(createAuthServerClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      auth: { getUser: async () => ({ data: { user: mockUser } }) },
+    })
+    const updatedPlayer = { ...playerWithCharacter, is_ready: true }
+    let callCount = 0
+    const mockDb = {
+      from: vi.fn().mockReturnThis(),
+      select: vi.fn().mockReturnThis(),
+      update: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      single: vi.fn().mockImplementation(() => {
+        callCount++
+        if (callCount === 1) return Promise.resolve({ data: playerWithCharacter, error: null })
+        return Promise.resolve({ data: updatedPlayer, error: null })
+      }),
+    }
+    ;(createServerSupabaseClient as ReturnType<typeof vi.fn>).mockReturnValue(mockDb)
+    await PATCH(makeRequest({ is_ready: true }), makeParams('abc'))
+    expect(broadcastPlayerUpdate).toHaveBeenCalledWith('abc', updatedPlayer)
+  })
+
+  it('does not call broadcastPlayerUpdate when DB update fails', async () => {
+    ;(createAuthServerClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      auth: { getUser: async () => ({ data: { user: mockUser } }) },
+    })
+    let callCount = 0
+    const mockDb = {
+      from: vi.fn().mockReturnThis(),
+      select: vi.fn().mockReturnThis(),
+      update: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      single: vi.fn().mockImplementation(() => {
+        callCount++
+        if (callCount === 1) return Promise.resolve({ data: playerWithCharacter, error: null })
+        return Promise.resolve({ data: null, error: { code: 'WRITE_ERROR' } })
+      }),
+    }
+    ;(createServerSupabaseClient as ReturnType<typeof vi.fn>).mockReturnValue(mockDb)
+    await PATCH(makeRequest({ is_ready: true }), makeParams('abc'))
+    expect(broadcastPlayerUpdate).not.toHaveBeenCalled()
   })
 
   it('verifies the update sets is_ready correctly', async () => {
