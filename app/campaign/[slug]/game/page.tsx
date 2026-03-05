@@ -65,19 +65,38 @@ export default async function GamePage({ params }: Props) {
   // Determine if the opening scene is ready (AI generation may still be in progress)
   const { data: session } = await db
     .from('sessions')
-    .select('opening_situation, scene_image_url')
+    .select('opening_situation')
     .eq('campaign_id', campaign.id)
     .eq('session_number', 1)
     .maybeSingle()
 
+  // Fetch images for initial render (world cover/map, session scene, player portraits)
+  const playerIds = (players ?? []).map((p) => p.id)
+  const imageEntityIds = [world.id, ...(session ? [session.id] : []), ...playerIds]
+
+  const { data: imageRows } = await db
+    .from('images')
+    .select('entity_type, entity_id, image_type, public_url')
+    .eq('status', 'ready')
+    .in('entity_id', imageEntityIds)
+
+  const findImage = (entityId: string, imageType: string) =>
+    imageRows?.find((i) => i.entity_id === entityId && i.image_type === imageType)?.public_url ?? null
+
+  const worldCoverUrl = findImage(world.id, 'cover')
+  const worldMapUrl = findImage(world.id, 'map')
+  const sessionSceneUrl = session ? findImage(session.id, 'scene') : null
+
+  const initialPlayerImages: Record<string, string> = {}
+  for (const p of players ?? []) {
+    const url = findImage(p.id, 'character')
+    if (url) initialPlayerImages[p.id] = url
+  }
+
   const openingReady = !!session?.opening_situation
 
   // Loading background: session scene → world map → world cover
-  const loadingImageUrl =
-    session?.scene_image_url ??
-    world.map_image_url ??
-    world.cover_image_url ??
-    undefined
+  const loadingImageUrl = sessionSceneUrl ?? worldMapUrl ?? worldCoverUrl ?? undefined
 
   return (
     <GameClient
@@ -88,7 +107,9 @@ export default async function GamePage({ params }: Props) {
       currentUserId={user.id}
       openingReady={openingReady}
       loadingImageUrl={loadingImageUrl}
-      sessionCoverImageUrl={session?.scene_image_url ?? undefined}
+      sessionCoverImageUrl={sessionSceneUrl ?? undefined}
+      sessionId={session?.id ?? null}
+      initialPlayerImages={initialPlayerImages}
     />
   )
 }
