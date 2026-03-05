@@ -1,5 +1,6 @@
 import { notFound, redirect } from 'next/navigation'
 import { createAuthServerClient, createServerSupabaseClient } from '@/lib/supabase/server'
+import { pickLatestImageUrl } from '@/lib/image-selection'
 import GameClient from './GameClient'
 
 interface Props {
@@ -76,20 +77,20 @@ export default async function GamePage({ params }: Props) {
 
   const { data: imageRows } = await db
     .from('images')
-    .select('entity_type, entity_id, image_type, public_url')
+    .select('entity_type, entity_id, image_type, public_url, created_at')
     .eq('status', 'ready')
     .in('entity_id', imageEntityIds)
 
-  const findImage = (entityId: string, imageType: string) =>
-    imageRows?.find((i) => i.entity_id === entityId && i.image_type === imageType)?.public_url ?? null
+  const findImage = (entityType: string, entityId: string, imageType: string) =>
+    pickLatestImageUrl(imageRows, entityType, entityId, imageType)
 
-  const worldCoverUrl = findImage(world.id, 'cover')
-  const worldMapUrl = findImage(world.id, 'map')
-  const sessionSceneUrl = session ? findImage(session.id, 'scene') : null
+  const worldCoverUrl = findImage('world', world.id, 'cover')
+  const worldMapUrl = findImage('world', world.id, 'map')
+  const sessionSceneUrl = session ? findImage('session', session.id, 'scene') : null
 
   const initialPlayerImages: Record<string, string> = {}
   for (const p of players ?? []) {
-    const url = findImage(p.id, 'character')
+    const url = findImage('player', p.id, 'character')
     if (url) initialPlayerImages[p.id] = url
   }
 
@@ -107,7 +108,7 @@ export default async function GamePage({ params }: Props) {
       currentUserId={user.id}
       openingReady={openingReady}
       loadingImageUrl={loadingImageUrl}
-      sessionCoverImageUrl={sessionSceneUrl ?? undefined}
+      sessionCoverImageUrl={sessionSceneUrl ?? worldCoverUrl ?? undefined}
       sessionId={session?.id ?? null}
       initialPlayerImages={initialPlayerImages}
     />
