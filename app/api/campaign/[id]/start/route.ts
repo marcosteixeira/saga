@@ -130,13 +130,17 @@ Generate the opening scene for this adventure. Return valid JSON only — no mar
     starting_hooks: string[]
   }
 
-  await supabase
+  const { error: saveError } = await supabase
     .from('sessions')
     .update({
       opening_situation: parsed.opening_situation,
       starting_hooks: parsed.starting_hooks,
     })
     .eq('id', session.id)
+
+  if (saveError) {
+    throw new Error(`[start-campaign] failed to save session content: ${saveError.message}`)
+  }
 
   await broadcastCampaignEvent(campaignId, 'game:started', {
     session_id: session.id,
