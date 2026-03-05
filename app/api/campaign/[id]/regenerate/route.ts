@@ -17,11 +17,12 @@ export async function POST(
   }
 
   const supabase = createServerSupabaseClient()
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
 
   const { data: campaign, error: campaignError } = await supabase
     .from('campaigns')
     .select('id, host_user_id, world_id, worlds(id, description)')
-    .eq('id', id)
+    .eq(isUuid ? 'id' : 'slug', id)
     .single()
 
   if (campaignError || !campaign) {

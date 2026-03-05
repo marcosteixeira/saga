@@ -18,7 +18,7 @@ export function JoinCampaignForm() {
     const match = trimmed.match(/campaign\/([a-zA-Z0-9-]+)/);
     const campaignId = match ? match[1] : trimmed;
     if (!/^[a-zA-Z0-9-]{1,100}$/.test(campaignId)) return;
-    router.push(`/campaign/${campaignId}`);
+    router.push(`/campaign/${campaignId}/lobby`);
   }
 
   return (

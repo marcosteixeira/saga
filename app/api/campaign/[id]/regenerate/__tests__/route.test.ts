@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockGetUser = vi.fn()
+const mockCampaignEq = vi.fn()
 const mockCampaignSingle = vi.fn()
 const mockWorldUpdateEq = vi.fn()
 const mockWorldUpdate = vi.fn()
@@ -19,9 +20,7 @@ vi.mock('@/lib/supabase/server', () => ({
       if (table === 'campaigns') {
         return {
           select: () => ({
-            eq: () => ({
-              single: mockCampaignSingle,
-            }),
+            eq: mockCampaignEq,
           }),
         }
       }
@@ -46,6 +45,7 @@ describe('POST /api/campaign/[id]/regenerate', () => {
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co'
     process.env.GENERATE_WORLD_WEBHOOK_SECRET = 'secret-1'
 
+    mockCampaignEq.mockReturnValue({ single: mockCampaignSingle })
     mockWorldUpdateEq.mockResolvedValue({ error: null })
     mockFetch.mockResolvedValue({ ok: true })
   })
@@ -71,6 +71,18 @@ describe('POST /api/campaign/[id]/regenerate', () => {
     })
 
     expect(res.status).toBe(404)
+  })
+
+  it('looks campaigns up by slug when param is not a uuid', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'user-1' } } })
+    mockCampaignSingle.mockResolvedValue({ data: null, error: { message: 'not found' } })
+
+    const { POST } = await import('../route')
+    await POST(new Request('http://localhost'), {
+      params: Promise.resolve({ id: 'the-king-in-the-north-844f0c' }),
+    })
+
+    expect(mockCampaignEq).toHaveBeenCalledWith('slug', 'the-king-in-the-north-844f0c')
   })
 
   it('returns 403 when user is not the host', async () => {

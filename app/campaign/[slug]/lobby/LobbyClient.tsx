@@ -47,6 +47,122 @@ function parseSection(content: string, heading: string): string {
   return out.join('\n').trim();
 }
 
+// ─── Invite Link ──────────────────────────────────────────────────────────────
+
+function InviteLink({ slug }: { slug: string }) {
+  const [copied, setCopied] = useState(false);
+  const [origin, setOrigin] = useState('');
+  useEffect(() => { setOrigin(window.location.origin); }, []);
+  const url = `${origin}/campaign/${slug}/lobby`;
+
+  function handleCopy() {
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  return (
+    <div
+      style={{
+        background: 'var(--iron)',
+        border: '1px solid var(--gunmetal)',
+        borderLeft: '3px solid var(--copper)',
+        padding: '0.625rem 0.75rem',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '0.75rem',
+        maxWidth: '560px',
+      }}
+    >
+      {/* Label */}
+      <span
+        style={{
+          fontFamily: 'var(--font-mono), monospace',
+          fontSize: '0.6rem',
+          textTransform: 'uppercase',
+          letterSpacing: '0.2em',
+          color: 'var(--copper)',
+          flexShrink: 0,
+          whiteSpace: 'nowrap',
+        }}
+      >
+        Invite
+      </span>
+
+      {/* URL strip */}
+      <span
+        style={{
+          fontFamily: 'var(--font-mono), monospace',
+          fontSize: '0.75rem',
+          color: 'var(--ash)',
+          letterSpacing: '0.03em',
+          flex: 1,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          minWidth: 0,
+        }}
+      >
+        {url}
+      </span>
+
+      {/* Copy stamp button */}
+      <button
+        onClick={handleCopy}
+        aria-label="Copy invite link"
+        style={{
+          flexShrink: 0,
+          padding: '0.3rem 0.65rem',
+          background: copied ? 'rgba(90,122,109,0.15)' : 'var(--smog)',
+          border: `1px solid ${copied ? 'var(--patina)' : 'var(--gunmetal)'}`,
+          color: copied ? 'var(--patina)' : 'var(--ash)',
+          fontFamily: 'var(--font-mono), monospace',
+          fontSize: '0.6rem',
+          textTransform: 'uppercase',
+          letterSpacing: '0.18em',
+          cursor: 'pointer',
+          transition: 'all 200ms ease',
+          clipPath: 'polygon(4px 0%, calc(100% - 4px) 0%, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 0% calc(100% - 4px), 0% 4px)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.3rem',
+          whiteSpace: 'nowrap',
+        }}
+        onMouseEnter={(e) => {
+          if (!copied) {
+            e.currentTarget.style.borderColor = 'var(--brass)';
+            e.currentTarget.style.color = 'var(--brass)';
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (!copied) {
+            e.currentTarget.style.borderColor = 'var(--gunmetal)';
+            e.currentTarget.style.color = 'var(--ash)';
+          }
+        }}
+      >
+        {copied ? (
+          <>
+            <svg width="8" height="8" viewBox="0 0 8 8" fill="none" aria-hidden="true">
+              <path d="M1 4l2 2 4-4" stroke="var(--patina)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            Sent
+          </>
+        ) : (
+          <>
+            <svg width="8" height="8" viewBox="0 0 8 8" fill="none" aria-hidden="true">
+              <rect x="0.5" y="2.5" width="5" height="5" rx="0.5" stroke="currentColor" strokeWidth="1" />
+              <path d="M2.5 2.5V1.5a.5.5 0 0 1 .5-.5h4a.5.5 0 0 1 .5.5v4a.5.5 0 0 1-.5.5H6.5" stroke="currentColor" strokeWidth="1" />
+            </svg>
+            Copy
+          </>
+        )}
+      </button>
+    </div>
+  );
+}
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: PlayerStatus }) {
@@ -464,7 +580,7 @@ export default function LobbyClient({
       .channel(`campaign:${campaign.id}`)
       .on('broadcast', { event: 'game:starting' }, () => {
         if (!mounted) return
-        router.push(`/campaign/${campaign.id}/game`)
+        router.push(`/campaign/${campaign.slug}/game`)
       })
       .on('broadcast', { event: 'player:updated' }, ({ payload }: { payload: DBPlayer }) => {
         if (!mounted) return
@@ -521,7 +637,7 @@ export default function LobbyClient({
         setStarting(false);
         return;
       }
-      router.push(`/campaign/${campaign.id}/game`);
+      router.push(`/campaign/${campaign.slug}/game`);
     } catch {
       setStartError('Failed to start game');
       setStarting(false);
@@ -706,6 +822,14 @@ export default function LobbyClient({
               </div>
             </div>
 
+            {/* Invite link */}
+            <div
+              className="mb-8"
+              style={{ animation: 'fadeInUp 0.55s ease-out 0.12s both' }}
+            >
+              <InviteLink slug={campaign.slug} />
+            </div>
+
             {/* Section heading */}
             <div
               className="mb-6"
@@ -726,21 +850,23 @@ export default function LobbyClient({
               </div>
             </div>
 
-            {/* Roster */}
-            <div className="flex flex-col gap-3 max-w-xl">
-              {players.map((player) =>
-                player.isCurrentUser && !isReady ? (
-                  <DraftPlayerCard
-                    key={player.id}
-                    charName={charName}
-                    charClass={charClass}
-                    username={player.username}
-                    isHost={player.isHost}
-                  />
-                ) : (
-                  <PlayerCard key={player.id} player={player} />
-                )
-              )}
+            {/* Roster — 2-col grid, current user always first */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl">
+              {[...players]
+                .sort((a, b) => (b.isCurrentUser ? 1 : 0) - (a.isCurrentUser ? 1 : 0))
+                .map((player) =>
+                  player.isCurrentUser && !isReady ? (
+                    <DraftPlayerCard
+                      key={player.id}
+                      charName={charName}
+                      charClass={charClass}
+                      username={player.username}
+                      isHost={player.isHost}
+                    />
+                  ) : (
+                    <PlayerCard key={player.id} player={player} />
+                  )
+                )}
               {players.length === 0 && (
                 <DraftPlayerCard
                   charName={charName}
@@ -754,7 +880,7 @@ export default function LobbyClient({
             {/* Host: Start Game */}
             {isHost && (
               <div
-                className="mt-8 max-w-xl"
+                className="mt-8 max-w-2xl"
                 style={{ animation: 'fadeInUp 0.6s ease-out 0.4s both' }}
               >
                 <div className="brass-pipe mb-6" />

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { EmberParticles } from "@/components/ember-particles";
 import { AmbientSmoke } from "@/components/ambient-smoke";
 import { GearDecoration } from "@/components/gear-decoration";
-import { JoinCampaignForm } from "@/components/join-campaign-form";
+import { JoinCampaignModal } from "@/components/join-campaign-modal";
 import { SteamVent } from "@/components/steam-vent";
 
 export default function Home() {
@@ -115,14 +115,7 @@ export default function Home() {
                   />
                 </Link>
               </Button>
-              <Button
-                asChild
-                variant="outline"
-                size="lg"
-                className="border-gunmetal bg-transparent px-10 text-sm uppercase tracking-[0.15em] text-steam/80 transition-all duration-300 hover:border-copper hover:bg-smog/50 hover:text-steam"
-              >
-                <Link href="#join">Join Existing</Link>
-              </Button>
+              <JoinCampaignModal />
             </div>
           </div>
         </div>
@@ -319,38 +312,6 @@ export default function Home() {
 
         {/* I-beam bottom */}
         <div className="i-beam" />
-      </section>
-
-      {/* ═══════════════════════════════════════════
-          SECTION 4 — JOIN: Copper gauge panel
-          ═══════════════════════════════════════════ */}
-      <section id="join" className="relative px-6 py-32">
-        <div className="mx-auto max-w-lg">
-          <div className="gauge-panel p-8">
-            <div className="mb-6 text-center">
-              <div className="brass-nameplate mx-auto mb-4">
-                Join Campaign
-              </div>
-              <h2
-                className="text-2xl tracking-[0.1em] text-primary"
-                style={{ fontFamily: "var(--font-display), sans-serif" }}
-              >
-                ENTER THE FRAY
-              </h2>
-            </div>
-
-            <div className="iron-seam mb-6" />
-
-            <p
-              className="mb-6 text-center text-sm uppercase tracking-[0.15em] text-ash"
-              style={{ fontFamily: "var(--font-mono), monospace" }}
-            >
-              Paste an invite link or campaign ID to join
-            </p>
-
-            <JoinCampaignForm />
-          </div>
-        </div>
       </section>
 
       {/* ═══════════════════════════════════════════
