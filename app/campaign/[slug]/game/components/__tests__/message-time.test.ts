@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { formatMessageTimeUtc } from '@/app/campaign/[slug]/game/components/message-time'
+import { formatMessageTimeLocal } from '@/app/campaign/[slug]/game/components/message-time'
 
-describe('formatMessageTimeUtc', () => {
-  it('returns deterministic HH:MM in UTC', () => {
-    expect(formatMessageTimeUtc('2026-03-05T09:07:00.000Z')).toBe('09:07')
-    expect(formatMessageTimeUtc('2026-03-05T23:59:00.000Z')).toBe('23:59')
+describe('formatMessageTimeLocal', () => {
+  it('formats local time using en-GB 24-hour clock', () => {
+    expect(formatMessageTimeLocal('2026-03-05T09:07:00.000Z', 'UTC')).toBe('09:07')
+    expect(formatMessageTimeLocal('2026-03-05T09:07:00.000Z', 'Africa/Maputo')).toBe('11:07')
   })
 
   it('returns fallback for invalid dates', () => {
-    expect(formatMessageTimeUtc('not-a-date')).toBe('--:--')
+    expect(formatMessageTimeLocal('not-a-date')).toBe('--:--')
   })
 })

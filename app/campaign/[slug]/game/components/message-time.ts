@@ -1,10 +1,12 @@
-export function formatMessageTimeUtc(createdAt: string): string {
+export function formatMessageTimeLocal(createdAt: string, timeZone?: string): string {
   const date = new Date(createdAt);
 
   if (Number.isNaN(date.getTime())) return '--:--';
 
-  const hh = String(date.getUTCHours()).padStart(2, '0');
-  const mm = String(date.getUTCMinutes()).padStart(2, '0');
-
-  return `${hh}:${mm}`;
+  return new Intl.DateTimeFormat('en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    ...(timeZone ? { timeZone } : {}),
+  }).format(date);
 }

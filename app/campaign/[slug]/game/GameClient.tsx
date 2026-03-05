@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { EmberParticles } from '@/components/ember-particles';
 import { AmbientSmoke } from '@/components/ambient-smoke';
 import { GearDecoration } from '@/components/gear-decoration';
-import { fetchSessionOpeningReady } from './session-readiness';
+import { waitForSessionOpeningReady } from './session-readiness';
 import { ImageModal, type ImageModalState } from './components/ImageModal';
 import { MessageBubble } from './components/MessageBubble';
 import { MobileActionBar } from './components/MobileActionBar';
@@ -203,11 +203,15 @@ function LoadingState({
   // Fallback reveal if image never loads
   useEffect(() => {
     if (!backgroundImageUrl) return;
+    let revealContentTimeout: ReturnType<typeof setTimeout> | null = null;
     const t = setTimeout(() => {
       setIrisOpen(true);
-      setTimeout(() => setContentVisible(true), 1800);
+      revealContentTimeout = setTimeout(() => setContentVisible(true), 1800);
     }, 2500);
-    return () => clearTimeout(t);
+    return () => {
+      clearTimeout(t);
+      if (revealContentTimeout) clearTimeout(revealContentTimeout);
+    };
   }, [backgroundImageUrl]);
 
   const hasImage = !!backgroundImageUrl;
@@ -1851,30 +1855,28 @@ export default function GameClient({
       setViewState('active');
       setDevState('active');
     };
-    const reconcileOpeningReadiness = async () => {
-      const ready = await fetchSessionOpeningReady(() =>
-        supabase
-          .from('sessions')
-          .select('opening_situation')
-          .eq('campaign_id', campaign.id)
-          .eq('session_number', 1)
-          .maybeSingle()
-      );
-      if (ready) promoteToActive();
-    };
+    const fetchSession = () =>
+      supabase
+        .from('sessions')
+        .select('opening_situation')
+        .eq('campaign_id', campaign.id)
+        .eq('session_number', 1)
+        .maybeSingle();
 
     const channel = supabase
       .channel(`campaign:${campaign.id}`)
       .on('broadcast', { event: 'game:started' }, () => {
         promoteToActive();
       })
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          void reconcileOpeningReadiness();
-        }
-      });
+      .subscribe();
 
-    void reconcileOpeningReadiness();
+    void waitForSessionOpeningReady(fetchSession, {
+      maxAttempts: 20,
+      delayMs: 1500,
+      shouldStop: () => cancelled,
+    }).then((ready) => {
+      if (ready) promoteToActive();
+    });
 
     return () => {
       cancelled = true;
