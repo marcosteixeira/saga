@@ -72,8 +72,12 @@ describe('broadcastPlayerUpdate', () => {
     await expect(broadcastPlayerUpdate('camp-1', fakePlayer)).resolves.toBeUndefined()
   })
 
-  it('does not throw when fetch returns non-ok status', async () => {
-    mockFetch.mockResolvedValue({ ok: false, status: 500 })
+  it('resolves without throwing when fetch returns non-ok status (fire-and-forget)', async () => {
+    // fetch() resolves normally on HTTP errors — only throws on network failure.
+    // This test confirms the function completes cleanly regardless of HTTP status.
+    mockFetch.mockResolvedValue({ ok: false, status: 500, statusText: 'Internal Server Error' })
     await expect(broadcastPlayerUpdate('camp-1', fakePlayer)).resolves.toBeUndefined()
+    // The fetch was still called (broadcast was attempted)
+    expect(mockFetch).toHaveBeenCalledTimes(1)
   })
 })

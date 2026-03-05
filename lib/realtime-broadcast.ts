@@ -26,6 +26,8 @@ export async function broadcastPlayerUpdate(
         ],
       }),
     })
+    // Non-2xx responses are intentionally ignored — broadcast is fire-and-forget
+    // fetch() does not throw on HTTP error status codes, only on network failures
   } catch {
     // Broadcast failures must never crash the API route
   }
