@@ -1,66 +1,43 @@
 import type { Player } from '@/types/player'
 
-export async function broadcastPlayerJoin(
-  campaignId: string,
-  player: Player
+async function broadcastToTopic(
+  topic: string,
+  event: string,
+  payload: Record<string, unknown>
 ): Promise<void> {
-  try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-    if (!supabaseUrl || !serviceRoleKey) return
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!supabaseUrl || !serviceRoleKey) return
 
+  try {
     await fetch(`${supabaseUrl}/realtime/v1/api/broadcast`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'apikey': serviceRoleKey,
-        'Authorization': `Bearer ${serviceRoleKey}`,
+        apikey: serviceRoleKey,
+        Authorization: `Bearer ${serviceRoleKey}`,
       },
       body: JSON.stringify({
-        messages: [
-          {
-            topic: `campaign:${campaignId}`,
-            event: 'player:joined',
-            payload: player,
-          },
-        ],
+        messages: [{ topic, event, payload }],
       }),
     })
-    // Non-2xx responses are intentionally ignored — broadcast is fire-and-forget
   } catch {
-    // Broadcast failures must never crash the API route
+    // Broadcast failures must never crash the caller.
   }
 }
 
-export async function broadcastPlayerUpdate(
+export async function broadcastCampaignEvent(
   campaignId: string,
-  player: Player
+  event: string,
+  payload: Record<string, unknown>
 ): Promise<void> {
-  try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-    if (!supabaseUrl || !serviceRoleKey) return
+  await broadcastToTopic(`campaign:${campaignId}`, event, payload)
+}
 
-    await fetch(`${supabaseUrl}/realtime/v1/api/broadcast`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': serviceRoleKey,
-        'Authorization': `Bearer ${serviceRoleKey}`,
-      },
-      body: JSON.stringify({
-        messages: [
-          {
-            topic: `campaign:${campaignId}`,
-            event: 'player:updated',
-            payload: player,
-          },
-        ],
-      }),
-    })
-    // Non-2xx responses are intentionally ignored — broadcast is fire-and-forget
-    // fetch() does not throw on HTTP error status codes, only on network failures
-  } catch {
-    // Broadcast failures must never crash the API route
-  }
+export async function broadcastPlayerJoin(campaignId: string, player: Player): Promise<void> {
+  await broadcastToTopic(`campaign:${campaignId}`, 'player:joined', player as unknown as Record<string, unknown>)
+}
+
+export async function broadcastPlayerUpdate(campaignId: string, player: Player): Promise<void> {
+  await broadcastToTopic(`campaign:${campaignId}`, 'player:updated', player as unknown as Record<string, unknown>)
 }

@@ -1,14 +1,15 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { EmberParticles } from '@/components/ember-particles';
 import { AmbientSmoke } from '@/components/ambient-smoke';
 import { GearDecoration } from '@/components/gear-decoration';
 import { Button } from '@/components/ui/button';
+import { createClient } from '@/lib/supabase/client';
 import type { Campaign } from '@/types/campaign';
 import type { Player as DBPlayer } from '@/types/player';
 import type { World, WorldClass } from '@/types/world';
-import { createClient } from '@/lib/supabase/client';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -445,6 +446,10 @@ export default function LobbyClient({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [readying, setReadying] = useState(false);
 
+  const router = useRouter();
+  const [starting, setStarting] = useState(false);
+  const [startError, setStartError] = useState<string | null>(null);
+
   // Derived
   const readyCount = players.filter((p) => p.status === 'ready').length;
   const allReady = players.length > 0 && players.every((p) => p.status === 'ready');
@@ -457,6 +462,10 @@ export default function LobbyClient({
 
     const channel = supabase
       .channel(`campaign:${campaign.id}`)
+      .on('broadcast', { event: 'game:starting' }, () => {
+        if (!mounted) return
+        router.push(`/campaign/${campaign.id}/game`)
+      })
       .on('broadcast', { event: 'player:updated' }, ({ payload }: { payload: DBPlayer }) => {
         if (!mounted) return
         setPlayers((prev) =>
@@ -499,7 +508,25 @@ export default function LobbyClient({
       mounted = false
       supabase.removeChannel(channel)
     }
-  }, [campaign.id])
+  }, [campaign.id, router])
+
+  async function handleStartGame() {
+    setStarting(true);
+    setStartError(null);
+    try {
+      const res = await fetch(`/api/campaign/${campaign.id}/start`, { method: 'POST' });
+      if (!res.ok) {
+        const data = await res.json();
+        setStartError(data.error ?? 'Failed to start game');
+        setStarting(false);
+        return;
+      }
+      router.push(`/campaign/${campaign.id}/game`);
+    } catch {
+      setStartError('Failed to start game');
+      setStarting(false);
+    }
+  }
 
   async function saveCharacter() {
     if (!charName.trim() || !charClass) return;
@@ -733,18 +760,26 @@ export default function LobbyClient({
                 <div className="brass-pipe mb-6" />
                 <Button
                   className="w-full"
-                  disabled
-                  style={{ opacity: 0.4, cursor: 'not-allowed' }}
-                  title="Session start coming soon"
+                  disabled={!allReady || starting}
+                  style={allReady && !starting ? {} : { opacity: 0.4, cursor: 'not-allowed' }}
+                  title={allReady ? undefined : 'Waiting for all players to be ready'}
+                  onClick={handleStartGame}
                 >
-                  Start Game
+                  {starting ? 'Starting…' : 'Start Game'}
                 </Button>
-                <p
-                  className="mt-2 text-center text-sm"
-                  style={{ color: 'var(--gunmetal)' }}
-                >
-                  Session start — coming soon
-                </p>
+                {!allReady && (
+                  <p
+                    className="mt-2 text-center text-sm"
+                    style={{ color: 'var(--gunmetal)' }}
+                  >
+                    Waiting for all players to be ready
+                  </p>
+                )}
+                {startError && (
+                  <p className="mt-2 text-center text-sm" style={{ color: 'var(--furnace)' }}>
+                    {startError}
+                  </p>
+                )}
               </div>
             )}
           </div>
