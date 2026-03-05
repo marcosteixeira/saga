@@ -28,7 +28,7 @@ describe('broadcastPlayerUpdate', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockFetch.mockResolvedValue({ ok: true, status: 200 })
-    vi.stubEnv('SUPABASE_URL', 'https://abc.supabase.co')
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://abc.supabase.co')
     vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'service-role-key')
   })
 
@@ -86,7 +86,7 @@ describe('broadcastPlayerJoin', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockFetch.mockResolvedValue({ ok: true, status: 200 })
-    vi.stubEnv('SUPABASE_URL', 'https://abc.supabase.co')
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://abc.supabase.co')
     vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'service-role-key')
   })
 
