@@ -42,31 +42,42 @@ Deno.serve(async (req: Request) => {
     return new Response("Unauthorized", { status: 401 })
   }
 
-  let body: { campaign_id?: string; world_id?: string }
+  let body: { campaign_id?: string }
   try {
     body = await req.json()
   } catch {
     return new Response("Invalid JSON", { status: 400 })
   }
 
-  const { campaign_id, world_id } = body
-  if (!campaign_id || !world_id) {
-    logInfo("start_campaign.payload_invalid", { requestId, campaign_id, world_id })
+  const { campaign_id } = body
+  if (!campaign_id) {
+    logInfo("start_campaign.payload_invalid", { requestId, campaign_id })
     return new Response("Missing required fields", { status: 400 })
   }
 
-  logInfo("start_campaign.payload_validated", { requestId, campaign_id, world_id })
+  logInfo("start_campaign.payload_validated", { requestId, campaign_id })
 
   try {
-    // 1. Fetch world content
+    // 1. Fetch campaign to get world_id
+    const { data: campaign, error: campaignError } = await supabase
+      .from("campaigns")
+      .select("world_id")
+      .eq("id", campaign_id)
+      .single()
+
+    if (campaignError || !campaign) {
+      throw new Error(`campaign not found: ${campaign_id}`)
+    }
+
+    // 2. Fetch world content
     const { data: world, error: worldError } = await supabase
       .from("worlds")
       .select("name, world_content")
-      .eq("id", world_id)
+      .eq("id", campaign.world_id)
       .single()
 
     if (worldError || !world?.world_content) {
-      throw new Error(`world content not found for world ${world_id}`)
+      throw new Error(`world content not found for world ${campaign.world_id}`)
     }
     logInfo("start_campaign.world_fetched", { requestId, campaign_id, worldName: world.name })
 

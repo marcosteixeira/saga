@@ -16,7 +16,7 @@ export async function POST(
 
   const { data: campaign, error: campaignError } = await supabase
     .from('campaigns')
-    .select('id, host_user_id, status, world_id')
+    .select('id, host_user_id, status')
     .eq('id', campaignId)
     .single()
 
@@ -68,7 +68,6 @@ export async function POST(
     headers,
     body: JSON.stringify({
       campaign_id: campaignId,
-      world_id: campaign.world_id,
     }),
   }).then(async (res) => {
     if (!res.ok) console.error(`[start-campaign] edge function failed HTTP ${res.status}`)
