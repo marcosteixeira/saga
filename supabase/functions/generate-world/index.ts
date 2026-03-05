@@ -190,8 +190,9 @@ Be evocative and specific. Class names should feel native to this world — avoi
         Authorization: `Bearer ${imageWebhookSecret}`,
       },
       body: JSON.stringify({
-        world_id: world.id,
-        type: "cover",
+        entity_type: "world",
+        entity_id: world.id,
+        image_type: "cover",
       }),
     }).then((res) => {
       if (!res.ok) {

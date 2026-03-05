@@ -1,3 +1,7 @@
+import "jsr:@supabase/functions-js/edge-runtime.d.ts"
+import { createClient } from "jsr:@supabase/supabase-js@2"
+import { broadcastToChannel } from "../generate-world/broadcast.ts"
+
 type GeminiResponse = {
   candidates?: Array<{
     content?: {
@@ -9,9 +13,22 @@ type GeminiResponse = {
   }>
 }
 
-// System prompt is fixed and never contains user-controlled content.
-// User content (worlds.world_content) goes only in the user message.
-const IMAGE_SYSTEM_PROMPT = `You are a tabletop RPG background art generator. Generate a single widescreen (16:9 landscape) cinematic scene that will be used as a full-bleed UI background for a web application.
+export function extractImageBytes(response: GeminiResponse): string {
+  const parts = response.candidates?.[0]?.content?.parts ?? []
+  for (const part of parts) {
+    if (part.inlineData?.data) return part.inlineData.data
+  }
+  throw new Error("No image data returned from Gemini")
+}
+
+export function getStoragePath(entityType: string, entityId: string, imageType: string): string {
+  if (entityType === "world") return `worlds/${entityId}/${imageType}.png`
+  if (entityType === "session") return `sessions/${entityId}/${imageType}.png`
+  if (entityType === "player") return `players/${entityId}/${imageType}.png`
+  return `${entityType}s/${entityId}/${imageType}.png`
+}
+
+const WORLD_IMAGE_SYSTEM_PROMPT = `You are a tabletop RPG background art generator. Generate a single widescreen (16:9 landscape) cinematic scene that will be used as a full-bleed UI background for a web application.
 
 CRITICAL COMPOSITION RULES:
 - Fill the entire frame with rich atmospheric scene content — no large empty or black areas
@@ -29,63 +46,131 @@ VISUAL RULES:
 
 Output only the image.`
 
-export function extractImageBytes(response: GeminiResponse): string {
-  const parts = response.candidates?.[0]?.content?.parts ?? []
-  for (const part of parts) {
-    if (part.inlineData?.data) return part.inlineData.data
+const SCENE_IMAGE_SYSTEM_PROMPT = `You are a tabletop RPG scene artist. Generate a single widescreen (16:9 landscape) cinematic scene showing a group of adventurers in the described setting.
+
+CRITICAL COMPOSITION RULES:
+- Fill the entire frame with rich atmospheric scene content — no large empty or black areas
+- The scene should extend edge-to-edge with interesting environmental details
+- Show the party of adventurers as silhouettes or mid-ground figures
+- Add a subtle dark vignette along the bottom edge for UI text readability
+
+VISUAL RULES:
+- Do NOT include any text, titles, logos, or labels anywhere in the image
+- Use deep, rich atmospheric lighting with dramatic shadows
+- Genre must be faithfully rendered from the world description
+
+Output only the image.`
+
+async function buildPrompt(
+  supabase: ReturnType<typeof createClient>,
+  entityType: string,
+  entityId: string,
+  imageType: string,
+): Promise<{ systemPrompt: string; userPrompt: string; campaignId?: string }> {
+  if (entityType === "world") {
+    const { data: world, error } = await supabase
+      .from("worlds")
+      .select("world_content")
+      .eq("id", entityId)
+      .single()
+    if (error || !world?.world_content) throw new Error(`world_content not found for world ${entityId}`)
+    return {
+      systemPrompt: WORLD_IMAGE_SYSTEM_PROMPT,
+      userPrompt: world.world_content as string,
+    }
   }
 
-  throw new Error("No image data returned from Gemini")
-}
+  if (entityType === "session") {
+    const { data: session, error: sessionError } = await supabase
+      .from("sessions")
+      .select("campaign_id")
+      .eq("id", entityId)
+      .single()
+    if (sessionError || !session) throw new Error(`session not found: ${entityId}`)
 
-export function getStoragePath(worldId: string, type: string): string {
-  return `worlds/${worldId}/${type}.png`
-}
+    const { data: campaign, error: campaignError } = await supabase
+      .from("campaigns")
+      .select("world_id")
+      .eq("id", session.campaign_id)
+      .single()
+    if (campaignError || !campaign) throw new Error(`campaign not found for session ${entityId}`)
 
-async function createSupabaseClient() {
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-  const { createClient } = await import("jsr:@supabase/supabase-js@2")
+    const { data: world, error: worldError } = await supabase
+      .from("worlds")
+      .select("name, world_content")
+      .eq("id", campaign.world_id)
+      .single()
+    if (worldError || !world?.world_content) throw new Error(`world not found for campaign ${session.campaign_id}`)
 
-  return {
-    supabaseUrl,
-    serviceRoleKey,
-    supabase: createClient(supabaseUrl, serviceRoleKey),
+    const { data: players } = await supabase
+      .from("players")
+      .select("character_name, character_class, username")
+      .eq("campaign_id", session.campaign_id)
+
+    const playerList = (players ?? [])
+      .map((p) => `- ${p.character_name ?? p.username} (${p.character_class ?? "unknown class"})`)
+      .join("\n")
+
+    return {
+      systemPrompt: SCENE_IMAGE_SYSTEM_PROMPT,
+      userPrompt: `World: ${world.name}\n\n${world.world_content}\n\nParty:\n${playerList}`,
+      campaignId: session.campaign_id,
+    }
   }
+
+  throw new Error(`Unsupported entity_type: ${entityType}`)
+}
+
+async function denormalizeUrl(
+  supabase: ReturnType<typeof createClient>,
+  entityType: string,
+  entityId: string,
+  imageType: string,
+  publicUrl: string,
+): Promise<void> {
+  if (entityType === "world") {
+    const column = imageType === "map" ? "map_image_url" : "cover_image_url"
+    await supabase.from("worlds").update({ [column]: publicUrl }).eq("id", entityId)
+    return
+  }
+  if (entityType === "session") {
+    await supabase.from("sessions").update({ scene_image_url: publicUrl }).eq("id", entityId)
+    return
+  }
+  if (entityType === "player") {
+    await supabase.from("players").update({ character_image_url: publicUrl }).eq("id", entityId)
+    return
+  }
+  console.warn(`[generate-image] denormalizeUrl: unrecognized entity_type '${entityType}' — parent table not updated`)
 }
 
 async function broadcastImageReady(
   supabaseUrl: string,
   serviceRoleKey: string,
-  worldId: string,
-  type: string,
-  url: string,
+  entityType: string,
+  entityId: string,
+  imageType: string,
+  publicUrl: string,
+  campaignId?: string,
 ): Promise<void> {
-  try {
-    const res = await fetch(`${supabaseUrl}/realtime/v1/api/broadcast`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        apikey: serviceRoleKey,
-        Authorization: `Bearer ${serviceRoleKey}`,
-      },
-      body: JSON.stringify({
-        messages: [
-          {
-            topic: `world:${worldId}`,
-            event: "world:image_ready",
-            payload: { type, url },
-          },
-        ],
-      }),
+  if (entityType === "world") {
+    await broadcastToChannel(supabaseUrl, serviceRoleKey, `world:${entityId}`, "world:image_ready", {
+      type: imageType,
+      url: publicUrl,
     })
-
-    if (!res.ok) {
-      console.error(`[generate-image] broadcast failed HTTP ${res.status}`)
-    }
-  } catch (err) {
-    console.error("[generate-image] broadcast threw", err)
+    return
   }
+  if (entityType === "session" && campaignId) {
+    await broadcastToChannel(supabaseUrl, serviceRoleKey, `campaign:${campaignId}`, "image:ready", {
+      type: "scene",
+      url: publicUrl,
+      session_id: entityId,
+    })
+    return
+  }
+  // player: no broadcast emitted — no UI currently listens for character image updates.
+  // To add: broadcastToChannel on `campaign:{campaignId}` with event `image:ready` +
+  // update the lobby/character panel to subscribe and refresh the portrait.
 }
 
 Deno.serve(async (req: Request) => {
@@ -95,44 +180,52 @@ Deno.serve(async (req: Request) => {
     return new Response("Unauthorized", { status: 401 })
   }
 
-  let body: { world_id?: string; type?: string }
+  let body: { entity_type?: string; entity_id?: string; image_type?: string }
   try {
     body = await req.json()
   } catch {
     return new Response("Invalid JSON", { status: 400 })
   }
 
-  const { world_id, type = "cover" } = body
-  if (!world_id) {
-    return new Response("Missing world_id", { status: 400 })
+  const { entity_type, entity_id, image_type } = body
+  if (!entity_type || !entity_id || !image_type) {
+    return new Response("Missing required fields: entity_type, entity_id, image_type", { status: 400 })
   }
 
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+  const { createClient } = await import("jsr:@supabase/supabase-js@2")
+  const supabase = createClient(supabaseUrl, serviceRoleKey)
+
+  // 1. Create images row
+  const { data: imageRow, error: insertError } = await supabase
+    .from("images")
+    .insert({ entity_type, entity_id, image_type, status: "generating" })
+    .select("id")
+    .single()
+
+  if (insertError || !imageRow) {
+    console.error("[generate-image] failed to insert images row", insertError)
+    return new Response("Failed to create image record", { status: 500 })
+  }
+
+  const imageId = imageRow.id
+
   try {
-    const { supabaseUrl, serviceRoleKey, supabase } = await createSupabaseClient()
+    // 2. Build prompt
+    const { systemPrompt, userPrompt, campaignId } = await buildPrompt(supabase, entity_type, entity_id, image_type)
 
-    const { data: worldRow, error: worldError } = await supabase
-      .from("worlds")
-      .select("world_content")
-      .eq("id", world_id)
-      .single()
-
-    if (worldError || !worldRow?.world_content) {
-      throw new Error(`world_content not found for world ${world_id}`)
-    }
-
-    const userPrompt = worldRow.world_content as string
-
+    // 3. Call Gemini
     const { GoogleGenerativeAI } = await import("npm:@google/generative-ai")
     const genai = new GoogleGenerativeAI(Deno.env.get("GEMINI_API_KEY")!)
     const model = genai.getGenerativeModel({
       model: "gemini-3-pro-image-preview",
-      systemInstruction: IMAGE_SYSTEM_PROMPT,
+      systemInstruction: systemPrompt,
     })
 
     const result = await model.generateContent({
       contents: [{ role: "user", parts: [{ text: userPrompt }] }],
       generationConfig: {
-        // responseModalities currently missing from some TS type definitions
         // @ts-ignore
         responseModalities: ["IMAGE"],
       },
@@ -140,33 +233,38 @@ Deno.serve(async (req: Request) => {
 
     const base64Data = extractImageBytes(result.response as GeminiResponse)
     const imageBytes = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0))
-    const storagePath = getStoragePath(world_id, type)
+    const storagePath = getStoragePath(entity_type, entity_id, image_type)
 
+    // 4. Upload to storage
     const { error: uploadError } = await supabase.storage
       .from("campaign-images")
       .upload(storagePath, imageBytes, { contentType: "image/png", upsert: true })
-
     if (uploadError) throw uploadError
 
-    const { data: urlData } = supabase.storage
-      .from("campaign-images")
-      .getPublicUrl(storagePath)
-
+    const { data: urlData } = supabase.storage.from("campaign-images").getPublicUrl(storagePath)
     const publicUrl = urlData.publicUrl
-    const column = type === "map" ? "map_image_url" : "cover_image_url"
 
+    // 5. Update images row
     await supabase
-      .from("worlds")
-      .update({ [column]: publicUrl })
-      .eq("id", world_id)
+      .from("images")
+      .update({ status: "ready", storage_path: storagePath, public_url: publicUrl })
+      .eq("id", imageId)
 
-    await broadcastImageReady(supabaseUrl, serviceRoleKey, world_id, type, publicUrl)
+    // 6. Denormalize URL to parent table
+    await denormalizeUrl(supabase, entity_type, entity_id, image_type, publicUrl)
 
-    return new Response(JSON.stringify({ ok: true, url: publicUrl }), {
+    // 7. Broadcast
+    await broadcastImageReady(supabaseUrl, serviceRoleKey, entity_type, entity_id, image_type, publicUrl, campaignId)
+
+    return new Response(JSON.stringify({ ok: true, url: publicUrl, image_id: imageId }), {
       headers: { "Content-Type": "application/json" },
     })
   } catch (err) {
     console.error("[generate-image] failed", err)
+    await supabase
+      .from("images")
+      .update({ status: "failed", error: String(err) })
+      .eq("id", imageId)
     return new Response("Image generation failed", { status: 500 })
   }
 })

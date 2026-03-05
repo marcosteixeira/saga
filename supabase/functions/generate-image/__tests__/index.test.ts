@@ -10,11 +10,7 @@ describe('extractImageBytes', () => {
     const { extractImageBytes } = await import('../index.ts');
     const fakeResponse = {
       candidates: [
-        {
-          content: {
-            parts: [{ inlineData: { data: 'abc123base64', mimeType: 'image/png' } }]
-          }
-        }
+        { content: { parts: [{ inlineData: { data: 'abc123base64', mimeType: 'image/png' } }] } }
       ]
     };
     expect(extractImageBytes(fakeResponse as any)).toBe('abc123base64');
@@ -30,13 +26,23 @@ describe('extractImageBytes', () => {
 });
 
 describe('getStoragePath', () => {
-  it('returns correct path for cover type', async () => {
+  it('returns correct path for world cover', async () => {
     const { getStoragePath } = await import('../index.ts');
-    expect(getStoragePath('campaign-123', 'cover')).toBe('worlds/campaign-123/cover.png');
+    expect(getStoragePath('world', 'world-123', 'cover')).toBe('worlds/world-123/cover.png');
   });
 
-  it('returns correct path for map type', async () => {
+  it('returns correct path for world map', async () => {
     const { getStoragePath } = await import('../index.ts');
-    expect(getStoragePath('campaign-123', 'map')).toBe('worlds/campaign-123/map.png');
+    expect(getStoragePath('world', 'world-123', 'map')).toBe('worlds/world-123/map.png');
+  });
+
+  it('returns correct path for session scene', async () => {
+    const { getStoragePath } = await import('../index.ts');
+    expect(getStoragePath('session', 'session-456', 'scene')).toBe('sessions/session-456/scene.png');
+  });
+
+  it('returns correct path for player character', async () => {
+    const { getStoragePath } = await import('../index.ts');
+    expect(getStoragePath('player', 'player-789', 'character')).toBe('players/player-789/character.png');
   });
 });

@@ -193,32 +193,30 @@ ${playerList}`
     logInfo("start_campaign.game_started_broadcast_sent", { requestId, campaign_id })
 
     // 8. Fire-and-forget scene image generation
-    const sceneSecret = Deno.env.get("GENERATE_SCENE_IMAGE_WEBHOOK_SECRET")
-    const sceneHeaders: Record<string, string> = { "Content-Type": "application/json" }
-    if (sceneSecret) sceneHeaders.authorization = `Bearer ${sceneSecret}`
+    const imageSecret = Deno.env.get("GENERATE_IMAGE_WEBHOOK_SECRET")
+    const imageHeaders: Record<string, string> = { "Content-Type": "application/json" }
+    if (imageSecret) imageHeaders.authorization = `Bearer ${imageSecret}`
 
-    const imagePromise = fetch(`${supabaseUrl}/functions/v1/generate-scene-image`, {
+    const imagePromise = fetch(`${supabaseUrl}/functions/v1/generate-image`, {
       method: "POST",
-      headers: sceneHeaders,
+      headers: imageHeaders,
       body: JSON.stringify({
-        session_id: session.id,
-        campaign_id,
-        world_name: world.name,
-        world_content: world.world_content,
-        player_list: playerList,
+        entity_type: "session",
+        entity_id: session.id,
+        image_type: "scene",
       }),
     }).then(async (res) => {
       if (!res.ok) {
         logError(
-          "start_campaign.scene_image_failed",
+          "start_campaign.image_failed",
           { requestId, campaign_id, sessionId: session.id, status: res.status },
-          new Error(`generate-scene-image responded with ${res.status}`),
+          new Error(`generate-image responded with ${res.status}`),
         )
       } else {
-        logInfo("start_campaign.scene_image_triggered", { requestId, campaign_id, sessionId: session.id })
+        logInfo("start_campaign.image_triggered", { requestId, campaign_id, sessionId: session.id })
       }
     }).catch((err) => {
-      logError("start_campaign.scene_image_fetch_failed", { requestId, campaign_id }, err)
+      logError("start_campaign.image_fetch_failed", { requestId, campaign_id }, err)
     })
 
     // @ts-ignore — EdgeRuntime is available in Supabase edge function environments
