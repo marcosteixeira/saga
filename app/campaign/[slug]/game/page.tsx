@@ -65,7 +65,7 @@ export default async function GamePage({ params }: Props) {
   // Determine if the opening scene is ready (AI generation may still be in progress)
   const { data: session } = await db
     .from('sessions')
-    .select('opening_situation')
+    .select('id, opening_situation')
     .eq('campaign_id', campaign.id)
     .eq('session_number', 1)
     .maybeSingle()
