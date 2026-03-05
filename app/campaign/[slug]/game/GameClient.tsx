@@ -496,6 +496,45 @@ function InlineVision({ imageUrl, onExpand }: { imageUrl: string; onExpand: () =
   );
 }
 
+function renderNarrationContent(content: string) {
+  const chunks: React.ReactNode[] = [];
+  const tokenRegex = /(\*\*[^*]+\*\*|\*[^*]+\*)/g;
+  let cursor = 0;
+  let tokenIndex = 0;
+
+  for (const match of content.matchAll(tokenRegex)) {
+    const token = match[0];
+    const start = match.index ?? 0;
+
+    if (start > cursor) {
+      chunks.push(content.slice(cursor, start));
+    }
+
+    if (token.startsWith('**') && token.endsWith('**')) {
+      chunks.push(
+        <strong key={`bold-${tokenIndex}`} style={{ color: 'var(--brass)' }}>
+          {token.slice(2, -2)}
+        </strong>,
+      );
+    } else {
+      chunks.push(
+        <em key={`italic-${tokenIndex}`} style={{ color: 'var(--steam)', opacity: 0.9 }}>
+          {token.slice(1, -1)}
+        </em>,
+      );
+    }
+
+    cursor = start + token.length;
+    tokenIndex += 1;
+  }
+
+  if (cursor < content.length) {
+    chunks.push(content.slice(cursor));
+  }
+
+  return chunks;
+}
+
 // ─── Message Bubble ────────────────────────────────────────────────────────────
 
 function MessageBubble({ message, players, onImageClick }: { message: Message; players: Player[]; onImageClick: (state: ImageModalState) => void }) {
@@ -522,15 +561,9 @@ function MessageBubble({ message, players, onImageClick }: { message: Message; p
           <div className="h-px flex-1 bg-gradient-to-r from-brass/20 to-transparent" />
         </div>
         <div className="border-l-2 border-brass/30 py-1 pl-4 pr-2" style={{ borderImage: 'linear-gradient(to bottom, var(--brass), transparent) 1' }}>
-          <p
-            className="text-base leading-loose text-steam sm:text-lg sm:leading-loose"
-            style={{ fontFamily: 'var(--font-body), sans-serif', letterSpacing: '0.01em' }}
-            dangerouslySetInnerHTML={{
-              __html: message.content
-                .replace(/\*\*(.+?)\*\*/g, '<strong style="color:var(--brass)">$1</strong>')
-                .replace(/\*(.+?)\*/g, '<em style="color:var(--steam);opacity:0.9">$1</em>'),
-            }}
-          />
+          <p className="text-base leading-loose text-steam sm:text-lg sm:leading-loose" style={{ fontFamily: 'var(--font-body), sans-serif', letterSpacing: '0.01em' }}>
+            {renderNarrationContent(message.content)}
+          </p>
           {/* Inline vision image */}
           {message.image_url && (
             <InlineVision
@@ -613,8 +646,14 @@ function MobileActionBar({ value, onChange }: { value: string; onChange: (v: str
         <textarea
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          onFocus={() => setExpanded(true)}
-          onBlur={() => setExpanded(false)}
+          onFocus={(e) => {
+            setExpanded(true);
+            e.target.style.borderColor = 'var(--brass)';
+          }}
+          onBlur={(e) => {
+            setExpanded(false);
+            e.target.style.borderColor = 'var(--gunmetal)';
+          }}
           placeholder="Describe your action..."
           rows={expanded ? 3 : 1}
           className="flex-1 resize-none bg-smog/80 px-3 py-2 text-sm text-steam/90 placeholder:text-ash/40 focus:outline-none"
@@ -624,8 +663,6 @@ function MobileActionBar({ value, onChange }: { value: string; onChange: (v: str
             clipPath: 'polygon(5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%, 0 5px)',
             transition: 'border-color 0.2s',
           }}
-          onFocus={(e) => { e.target.style.borderColor = 'var(--brass)'; }}
-          onBlur={(e) => { e.target.style.borderColor = 'var(--gunmetal)'; }}
         />
         <button
           className="flex h-10 w-10 shrink-0 items-center justify-center text-soot active:scale-95"
@@ -768,7 +805,7 @@ function DesktopLeftSidebar({ campaign, players, currentUserId }: { campaign: Ca
 
 // ─── Desktop Right Sidebar ────────────────────────────────────────────────────
 
-function DesktopRightSidebar({ campaign, world, messages, onImageClick }: { campaign: Campaign; world: World; messages: Message[]; onImageClick: (state: ImageModalState) => void }) {
+function DesktopRightSidebar({ world, messages, onImageClick }: { world: World; messages: Message[]; onImageClick: (state: ImageModalState) => void }) {
   const galleryImages = messages.filter((m) => m.image_url);
 
   return (
@@ -902,16 +939,12 @@ function ActiveGameView({
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>(null);
   const [imageModal, setImageModal] = useState<ImageModalState | null>(null);
 
-  // When dev triggers a reveal, open it as modal with the "Vision Received" banner
-  useEffect(() => {
-    if (devShowReveal) {
-      setImageModal({
-        url: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=800&q=80',
-        caption: 'The Iron Serpent Company\'s vessel emerges from the smog — black hull, serpent crest.',
-        isVisionReveal: true,
-      });
-    }
-  }, [devShowReveal]);
+  const revealModal: ImageModalState = {
+    url: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=800&q=80',
+    caption: 'The Iron Serpent Company\'s vessel emerges from the smog — black hull, serpent crest.',
+    isVisionReveal: true,
+  };
+  const displayModal = devShowReveal ? revealModal : imageModal;
 
   useEffect(() => {
     if (feedRef.current) feedRef.current.scrollTop = feedRef.current.scrollHeight;
@@ -923,7 +956,14 @@ function ActiveGameView({
 
   const handlePanelToggle = (panel: MobilePanel) => setMobilePanel((prev) => (prev === panel ? null : panel));
   const handleImageClick = (state: ImageModalState) => setImageModal(state);
-  const handleModalClose = () => { setImageModal(null); if (devShowReveal) onDismissReveal(); };
+  const handleModalClose = () => {
+    if (devShowReveal) {
+      onDismissReveal();
+      return;
+    }
+
+    setImageModal(null);
+  };
 
   const galleryImages = messages.filter((m) => m.image_url);
 
@@ -1007,7 +1047,7 @@ function ActiveGameView({
       </main>
 
       {/* Desktop right */}
-      <DesktopRightSidebar campaign={campaign} world={world} messages={messages} onImageClick={handleImageClick} />
+      <DesktopRightSidebar world={world} messages={messages} onImageClick={handleImageClick} />
 
       {/* Mobile UI */}
       <MobileActionBar value={inputValue} onChange={setInputValue} />
@@ -1077,7 +1117,7 @@ function ActiveGameView({
       </MobilePanel>
 
       {/* Image Modal */}
-      {imageModal && <ImageModal modal={imageModal} onClose={handleModalClose} />}
+      {displayModal && <ImageModal modal={displayModal} onClose={handleModalClose} />}
     </div>
   );
 }

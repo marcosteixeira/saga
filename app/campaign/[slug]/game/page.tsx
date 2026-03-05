@@ -32,6 +32,21 @@ export default async function GamePage({ params }: Props) {
     notFound()
   }
 
+  if (campaign.status !== 'active') {
+    redirect(`/campaign/${slug}/lobby`)
+  }
+
+  const membershipResult = await supabase
+    .from('players')
+    .select('id')
+    .eq('campaign_id', campaign.id)
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  if (membershipResult.error || !membershipResult.data) {
+    notFound()
+  }
+
   // Fetch players
   const db = createServerSupabaseClient()
   const { data: players } = await db
