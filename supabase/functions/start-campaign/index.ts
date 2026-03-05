@@ -15,7 +15,7 @@ const supabaseUrl = Deno.env.get("SUPABASE_URL")!
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
 const supabase = createClient(supabaseUrl, serviceRoleKey)
 
-const SYSTEM_PROMPT = `You are a Game Master for a tabletop RPG campaign. Given a world description and a list of player characters, generate the opening scene for Session 1.
+const SYSTEM_PROMPT = `You are a Game Master for a tabletop RPG campaign. Given a world description and a list of player characters, generate the campaign's opening scene.
 
 Return ONLY valid JSON — no markdown, no explanation, no code fences:
 {

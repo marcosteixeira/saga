@@ -100,7 +100,7 @@ export default async function GamePage({ params }: Props) {
       currentUserId={user.id}
       openingReady={openingReady}
       loadingImageUrl={loadingImageUrl}
-      sessionCoverImageUrl={campaignCoverUrl ?? worldCoverUrl ?? undefined}
+      campaignCoverImageUrl={campaignCoverUrl ?? worldCoverUrl ?? undefined}
       initialPlayerImages={initialPlayerImages}
     />
   )

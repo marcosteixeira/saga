@@ -1,6 +1,6 @@
 export type ImageStatus = 'pending' | 'generating' | 'ready' | 'failed'
 
-export type ImageEntityType = 'world' | 'session' | 'player' | 'message'
+export type ImageEntityType = 'world' | 'campaign' | 'player' | 'message'
 
 export type ImageType = 'cover' | 'map' | 'scene' | 'character' | 'inline'
 
