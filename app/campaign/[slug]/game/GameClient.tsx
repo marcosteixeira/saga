@@ -4,6 +4,9 @@ import { useState, useEffect, useRef } from 'react';
 import { EmberParticles } from '@/components/ember-particles';
 import { AmbientSmoke } from '@/components/ambient-smoke';
 import { GearDecoration } from '@/components/gear-decoration';
+import { ImageModal, type ImageModalState } from './components/ImageModal';
+import { MessageBubble } from './components/MessageBubble';
+import { MobileActionBar } from './components/MobileActionBar';
 import type { Campaign } from '@/types/campaign';
 import type { Player } from '@/types/player';
 import type { World } from '@/types/world';
@@ -21,12 +24,6 @@ interface GameClientProps {
 
 type GameViewState = 'loading' | 'active' | 'image-reveal';
 type MobilePanel = null | 'crew' | 'log';
-
-interface ImageModalState {
-  url: string;
-  caption?: string;
-  isVisionReveal?: boolean; // true = show "Vision Received" banner
-}
 
 // ─── Mock data ────────────────────────────────────────────────────────────────
 
@@ -386,220 +383,6 @@ function PlayerCard({ player, isCurrentUser, compact = false }: { player: Player
   );
 }
 
-// ─── Fullscreen Image Modal ────────────────────────────────────────────────────
-
-function ImageModal({ modal, onClose }: { modal: ImageModalState; onClose: () => void }) {
-  const [visible, setVisible] = useState(false);
-  useEffect(() => { const t = setTimeout(() => setVisible(true), 30); return () => clearTimeout(t); }, []);
-
-  // Close on Escape
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [onClose]);
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: 'rgba(13,12,10,0.95)', opacity: visible ? 1 : 0, transition: 'opacity 0.4s' }}
-      onClick={onClose}
-    >
-      <div
-        className="relative mx-auto flex w-full max-w-3xl flex-col items-center gap-4 sm:gap-6"
-        style={{ transform: visible ? 'translateY(0) scale(1)' : 'translateY(16px) scale(0.98)', transition: 'transform 0.4s cubic-bezier(0.16,1,0.3,1)' }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Banner — only for vision reveal */}
-        {modal.isVisionReveal && (
-          <div className="flex items-center gap-4">
-            <div className="h-px w-10 bg-gradient-to-r from-transparent to-brass sm:w-16" />
-            <span className="text-xs uppercase tracking-[0.35em] text-brass" style={{ fontFamily: 'var(--font-mono), monospace' }}>
-              Vision Received
-            </span>
-            <div className="h-px w-10 bg-gradient-to-l from-transparent to-brass sm:w-16" />
-          </div>
-        )}
-
-        {/* Image frame */}
-        <div
-          className="relative w-full overflow-hidden border-2 border-brass/60"
-          style={{
-            clipPath: 'polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px)',
-            boxShadow: '0 0 80px rgba(196,148,61,0.2), inset 0 0 40px rgba(13,12,10,0.4)',
-          }}
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={modal.url} alt="Campaign vision" className="block max-h-[60vh] w-full object-cover sm:max-h-[70vh]" />
-          <div className="pointer-events-none absolute inset-0" style={{ background: 'linear-gradient(0deg, rgba(13,12,10,0.4) 0%, transparent 35%)' }} />
-          {['top-1 left-1', 'top-1 right-1', 'bottom-1 left-1', 'bottom-1 right-1'].map((pos) => (
-            <div key={pos} className={`absolute ${pos} h-3 w-3 rounded-full border border-brass/60`} style={{ background: 'radial-gradient(circle at 30% 30%, var(--brass), var(--gunmetal))' }} />
-          ))}
-        </div>
-
-        {modal.caption && (
-          <p className="px-4 text-center text-sm italic text-steam/70" style={{ fontFamily: 'var(--font-body), sans-serif' }}>
-            {modal.caption}
-          </p>
-        )}
-
-        <button
-          onClick={onClose}
-          className="border border-gunmetal bg-iron px-6 py-2 text-xs uppercase tracking-[0.2em] text-ash transition-all duration-300 hover:border-brass hover:text-brass active:scale-95"
-          style={{ fontFamily: 'var(--font-mono), monospace', clipPath: 'polygon(4px 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%, 0 4px)' }}
-        >
-          {modal.isVisionReveal ? 'Dismiss Vision' : 'Close'}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ─── Inline Vision (image in feed) ────────────────────────────────────────────
-
-function InlineVision({ imageUrl, onExpand }: { imageUrl: string; onExpand: () => void }) {
-  return (
-    <button
-      onClick={onExpand}
-      className="group relative mt-3 block w-full overflow-hidden border border-brass/30 transition-all duration-300 hover:border-brass/70"
-      style={{
-        clipPath: 'polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)',
-        boxShadow: '0 0 20px rgba(196,148,61,0.08)',
-      }}
-    >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={imageUrl} alt="" className="block h-44 w-full object-cover transition-transform duration-500 group-hover:scale-[1.02] sm:h-56" />
-      {/* Overlay */}
-      <div
-        className="absolute inset-0 transition-opacity duration-300"
-        style={{ background: 'linear-gradient(0deg, rgba(13,12,10,0.6) 0%, rgba(13,12,10,0.1) 50%, transparent 100%)' }}
-      />
-      {/* Expand hint */}
-      <div
-        className="absolute bottom-3 right-3 flex items-center gap-1.5 border border-brass/50 bg-soot/70 px-2 py-1 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
-        style={{ clipPath: 'polygon(3px 0, 100% 0, 100% calc(100% - 3px), calc(100% - 3px) 100%, 0 100%, 0 3px)', backdropFilter: 'blur(4px)' }}
-      >
-        <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-          <path d="M1 9L9 1M9 1H4M9 1V6" stroke="var(--brass)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-        <span className="text-[9px] uppercase tracking-[0.15em] text-brass" style={{ fontFamily: 'var(--font-mono), monospace' }}>View</span>
-      </div>
-      {/* Vision label */}
-      <div
-        className="absolute left-3 top-3 flex h-5 items-center gap-1.5 border border-brass/40 bg-soot/80 px-2"
-        style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 4px) 100%, 0 100%)', backdropFilter: 'blur(4px)' }}
-      >
-        <div className="h-1.5 w-1.5 rounded-full bg-amber" style={{ boxShadow: '0 0 4px var(--amber)' }} />
-        <span className="text-[9px] uppercase tracking-[0.2em] text-brass" style={{ fontFamily: 'var(--font-mono), monospace' }}>Vision</span>
-      </div>
-    </button>
-  );
-}
-
-function renderNarrationContent(content: string) {
-  const chunks: React.ReactNode[] = [];
-  const tokenRegex = /(\*\*[^*]+\*\*|\*[^*]+\*)/g;
-  let cursor = 0;
-  let tokenIndex = 0;
-
-  for (const match of content.matchAll(tokenRegex)) {
-    const token = match[0];
-    const start = match.index ?? 0;
-
-    if (start > cursor) {
-      chunks.push(content.slice(cursor, start));
-    }
-
-    if (token.startsWith('**') && token.endsWith('**')) {
-      chunks.push(
-        <strong key={`bold-${tokenIndex}`} style={{ color: 'var(--brass)' }}>
-          {token.slice(2, -2)}
-        </strong>,
-      );
-    } else {
-      chunks.push(
-        <em key={`italic-${tokenIndex}`} style={{ color: 'var(--steam)', opacity: 0.9 }}>
-          {token.slice(1, -1)}
-        </em>,
-      );
-    }
-
-    cursor = start + token.length;
-    tokenIndex += 1;
-  }
-
-  if (cursor < content.length) {
-    chunks.push(content.slice(cursor));
-  }
-
-  return chunks;
-}
-
-// ─── Message Bubble ────────────────────────────────────────────────────────────
-
-function MessageBubble({ message, players, onImageClick }: { message: Message; players: Player[]; onImageClick: (state: ImageModalState) => void }) {
-  const player = players.find((p) => p.id === message.player_id);
-
-  if (message.type === 'system') {
-    return (
-      <div className="flex items-center gap-3 py-1">
-        <div className="h-px flex-1 bg-gunmetal/60" />
-        <span className="shrink-0 text-[10px] uppercase tracking-[0.2em] text-ash/60" style={{ fontFamily: 'var(--font-mono), monospace' }}>{message.content}</span>
-        <div className="h-px flex-1 bg-gunmetal/60" />
-      </div>
-    );
-  }
-
-  if (message.type === 'narration') {
-    return (
-      <div className="group relative">
-        <div className="mb-2 flex items-center gap-2">
-          <div className="flex h-5 items-center gap-1.5 border border-brass/40 bg-brass/10 px-2" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 4px) 100%, 0 100%)' }}>
-            <div className="h-1.5 w-1.5 rounded-full bg-amber" style={{ boxShadow: '0 0 4px var(--amber)' }} />
-            <span className="text-[9px] uppercase tracking-[0.2em] text-brass" style={{ fontFamily: 'var(--font-mono), monospace' }}>Game Master</span>
-          </div>
-          <div className="h-px flex-1 bg-gradient-to-r from-brass/20 to-transparent" />
-        </div>
-        <div className="border-l-2 border-brass/30 py-1 pl-4 pr-2" style={{ borderImage: 'linear-gradient(to bottom, var(--brass), transparent) 1' }}>
-          <p className="text-base leading-loose text-steam sm:text-lg sm:leading-loose" style={{ fontFamily: 'var(--font-body), sans-serif', letterSpacing: '0.01em' }}>
-            {renderNarrationContent(message.content)}
-          </p>
-          {/* Inline vision image */}
-          {message.image_url && (
-            <InlineVision
-              imageUrl={message.image_url}
-              onExpand={() => onImageClick({ url: message.image_url!, caption: undefined })}
-            />
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // Player action
-  return (
-    <div className="group flex items-start gap-3 pl-2 sm:pl-4">
-      <div
-        className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center border border-gunmetal bg-smog text-xs font-bold text-ash"
-        style={{ clipPath: 'polygon(3px 0, 100% 0, 100% calc(100% - 3px), calc(100% - 3px) 100%, 0 100%, 0 3px)', fontFamily: 'var(--font-display), sans-serif' }}
-      >
-        {((player?.character_name ?? player?.username ?? '?')[0]).toUpperCase()}
-      </div>
-      <div className="flex flex-col gap-1">
-        <div className="flex items-baseline gap-2">
-          <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-copper" style={{ fontFamily: 'var(--font-mono), monospace' }}>
-            {player?.character_name ?? player?.username ?? 'Unknown'}
-          </span>
-          <span className="text-[9px] text-ash/40" style={{ fontFamily: 'var(--font-mono), monospace' }}>
-            {new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-          </span>
-        </div>
-        <p className="text-base italic leading-loose text-steam/80 sm:text-lg" style={{ fontFamily: 'var(--font-body), sans-serif', letterSpacing: '0.01em' }}>{message.content}</p>
-      </div>
-    </div>
-  );
-}
-
 // ─── Mobile Slide Panel ────────────────────────────────────────────────────────
 
 function MobilePanel({ open, title, onClose, children }: { open: boolean; title: string; onClose: () => void; children: React.ReactNode }) {
@@ -633,51 +416,6 @@ function MobilePanel({ open, title, onClose, children }: { open: boolean; title:
         <div className="flex-1 overflow-y-auto p-4">{children}</div>
       </div>
     </>
-  );
-}
-
-// ─── Mobile Action Bar ─────────────────────────────────────────────────────────
-
-function MobileActionBar({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const [expanded, setExpanded] = useState(false);
-  return (
-    <div className="fixed inset-x-0 z-20 border-t border-gunmetal bg-iron/90 lg:hidden" style={{ bottom: '56px', backdropFilter: 'blur(8px)' }}>
-      <div className="flex items-end gap-2 p-3">
-        <textarea
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          onFocus={(e) => {
-            setExpanded(true);
-            e.target.style.borderColor = 'var(--brass)';
-          }}
-          onBlur={(e) => {
-            setExpanded(false);
-            e.target.style.borderColor = 'var(--gunmetal)';
-          }}
-          placeholder="Describe your action..."
-          rows={expanded ? 3 : 1}
-          className="flex-1 resize-none bg-smog/80 px-3 py-2 text-sm text-steam/90 placeholder:text-ash/40 focus:outline-none"
-          style={{
-            fontFamily: 'var(--font-body), sans-serif',
-            border: '1px solid var(--gunmetal)',
-            clipPath: 'polygon(5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%, 0 5px)',
-            transition: 'border-color 0.2s',
-          }}
-        />
-        <button
-          className="flex h-10 w-10 shrink-0 items-center justify-center text-soot active:scale-95"
-          style={{
-            background: 'linear-gradient(135deg, var(--copper), var(--brass))',
-            clipPath: 'polygon(5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%, 0 5px)',
-            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.15)',
-          }}
-        >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M14 8L2 2l3 6-3 6 12-6z" fill="currentColor" />
-          </svg>
-        </button>
-      </div>
-    </div>
   );
 }
 
