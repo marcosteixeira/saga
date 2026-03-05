@@ -88,6 +88,7 @@ export default async function GamePage({ params }: Props) {
       currentUserId={user.id}
       openingReady={openingReady}
       loadingImageUrl={loadingImageUrl}
+      sessionCoverImageUrl={session?.scene_image_url ?? undefined}
     />
   )
 }

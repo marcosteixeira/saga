@@ -9,68 +9,140 @@ export interface ImageModalState {
 }
 
 export function ImageModal({ modal, onClose }: { modal: ImageModalState; onClose: () => void }) {
-  const [visible, setVisible] = useState(false);
+  const [imgLoaded, setImgLoaded] = useState(false);
+  const [irisOpen, setIrisOpen] = useState(false);
+  const [contentVisible, setContentVisible] = useState(false);
+  const [closing, setClosing] = useState(false);
+
+  // Iris reveal after image loads
   useEffect(() => {
-    const t = setTimeout(() => setVisible(true), 30);
-    return () => clearTimeout(t);
+    if (!imgLoaded) return;
+    const t1 = setTimeout(() => setIrisOpen(true), 60);
+    const t2 = setTimeout(() => setContentVisible(true), 1400);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [imgLoaded]);
+
+  // Fallback if image never fires onLoad
+  useEffect(() => {
+    const t1 = setTimeout(() => setIrisOpen(true), 400);
+    const t2 = setTimeout(() => setContentVisible(true), 2000);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
   }, []);
 
+  const handleClose = () => {
+    setClosing(true);
+    setTimeout(onClose, 500);
+  };
+
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') handleClose(); };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [onClose]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: 'rgba(13,12,10,0.95)', opacity: visible ? 1 : 0, transition: 'opacity 0.4s' }}
-      onClick={onClose}
+      className="fixed inset-0 z-50 overflow-hidden bg-soot"
+      style={{ opacity: closing ? 0 : 1, transition: closing ? 'opacity 0.5s ease' : 'none' }}
+      onClick={handleClose}
     >
+      {/* Full-bleed image with iris reveal */}
       <div
-        className="relative mx-auto flex w-full max-w-3xl flex-col items-center gap-4 sm:gap-6"
-        style={{ transform: visible ? 'translateY(0) scale(1)' : 'translateY(16px) scale(0.98)', transition: 'transform 0.4s cubic-bezier(0.16,1,0.3,1)' }}
-        onClick={(e) => e.stopPropagation()}
+        className="pointer-events-none absolute inset-0"
+        style={{
+          clipPath: irisOpen ? 'circle(120% at 50% 50%)' : 'circle(5vmin at 50% 50%)',
+          transition: irisOpen ? 'clip-path 2s cubic-bezier(0.16, 1, 0.3, 1)' : 'none',
+        }}
       >
-        {modal.isVisionReveal && (
-          <div className="flex items-center gap-4">
-            <div className="h-px w-10 bg-gradient-to-r from-transparent to-brass sm:w-16" />
-            <span className="text-xs uppercase tracking-[0.35em] text-brass" style={{ fontFamily: 'var(--font-mono), monospace' }}>
-              Vision Received
-            </span>
-            <div className="h-px w-10 bg-gradient-to-l from-transparent to-brass sm:w-16" />
-          </div>
-        )}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={modal.url}
+          alt={modal.caption ?? 'Campaign vision'}
+          onLoad={() => setImgLoaded(true)}
+          className="absolute inset-0 h-full w-full object-cover"
+          style={{ filter: 'saturate(0.85) brightness(0.72)' }}
+        />
+      </div>
 
+      {/* Atmospheric gradient overlays */}
+      <div
+        className="pointer-events-none absolute inset-x-0 top-0 h-1/3"
+        style={{
+          background: 'linear-gradient(180deg, rgba(13,12,10,0.85) 0%, transparent 100%)',
+          opacity: contentVisible ? 1 : 0,
+          transition: 'opacity 1s ease',
+        }}
+      />
+      <div
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-2/5"
+        style={{
+          background: 'linear-gradient(0deg, rgba(13,12,10,0.95) 0%, rgba(13,12,10,0.6) 45%, transparent 100%)',
+          opacity: contentVisible ? 1 : 0,
+          transition: 'opacity 1s ease',
+        }}
+      />
+      {/* Ember glow at bottom */}
+      <div
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3"
+        style={{
+          background: 'radial-gradient(ellipse 80% 50% at 50% 100%, rgba(212,98,42,0.18) 0%, transparent 70%)',
+          opacity: contentVisible ? 1 : 0,
+          transition: 'opacity 1.5s ease',
+        }}
+      />
+
+      {/* Vision label — top center */}
+      {modal.isVisionReveal && (
         <div
-          className="relative w-full overflow-hidden border-2 border-brass/60"
+          className="absolute inset-x-0 top-8 flex items-center justify-center gap-4"
           style={{
-            clipPath: 'polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px)',
-            boxShadow: '0 0 80px rgba(196,148,61,0.2), inset 0 0 40px rgba(13,12,10,0.4)',
+            opacity: contentVisible ? 1 : 0,
+            transform: contentVisible ? 'translateY(0)' : 'translateY(-8px)',
+            transition: 'opacity 0.8s ease, transform 0.8s ease',
           }}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={modal.url} alt="Campaign vision" className="block max-h-[60vh] w-full object-cover sm:max-h-[70vh]" />
-          <div className="pointer-events-none absolute inset-0" style={{ background: 'linear-gradient(0deg, rgba(13,12,10,0.4) 0%, transparent 35%)' }} />
-          {['top-1 left-1', 'top-1 right-1', 'bottom-1 left-1', 'bottom-1 right-1'].map((pos) => (
-            <div key={pos} className={`absolute ${pos} h-3 w-3 rounded-full border border-brass/60`} style={{ background: 'radial-gradient(circle at 30% 30%, var(--brass), var(--gunmetal))' }} />
-          ))}
+          <div className="h-px w-12 bg-gradient-to-r from-transparent to-brass/70 sm:w-20" />
+          <span
+            className="text-[10px] uppercase tracking-[0.4em] text-brass/90"
+            style={{ fontFamily: 'var(--font-mono), monospace' }}
+          >
+            Vision Received
+          </span>
+          <div className="h-px w-12 bg-gradient-to-l from-transparent to-brass/70 sm:w-20" />
         </div>
+      )}
 
+      {/* Bottom content: caption + dismiss */}
+      <div
+        className="absolute inset-x-0 bottom-0 flex flex-col items-center gap-5 pb-10 sm:pb-14"
+        style={{
+          opacity: contentVisible ? 1 : 0,
+          transform: contentVisible ? 'translateY(0)' : 'translateY(12px)',
+          transition: 'opacity 0.9s ease 0.1s, transform 0.9s cubic-bezier(0.16,1,0.3,1) 0.1s',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
         {modal.caption && (
-          <p className="px-4 text-center text-sm italic text-steam/70" style={{ fontFamily: 'var(--font-body), sans-serif' }}>
+          <p
+            className="max-w-lg px-6 text-center text-sm italic text-steam/75 sm:text-base"
+            style={{ fontFamily: 'var(--font-body), sans-serif' }}
+          >
             {modal.caption}
           </p>
         )}
 
         <button
-          onClick={onClose}
-          className="border border-gunmetal bg-iron px-6 py-2 text-xs uppercase tracking-[0.2em] text-ash transition-all duration-300 hover:border-brass hover:text-brass active:scale-95"
-          style={{ fontFamily: 'var(--font-mono), monospace', clipPath: 'polygon(4px 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%, 0 4px)' }}
+          onClick={handleClose}
+          className="group flex items-center gap-3 border border-gunmetal bg-soot/60 px-6 py-2.5 text-[10px] uppercase tracking-[0.3em] text-ash/80 transition-all duration-300 hover:border-brass/60 hover:text-brass active:scale-95"
+          style={{
+            fontFamily: 'var(--font-mono), monospace',
+            clipPath: 'polygon(5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%, 0 5px)',
+            backdropFilter: 'blur(6px)',
+          }}
         >
-          {modal.isVisionReveal ? 'Dismiss Vision' : 'Close'}
+          <span>{modal.isVisionReveal ? 'Dismiss Vision' : 'Close'}</span>
+          <span className="text-gunmetal group-hover:text-brass/50 transition-colors duration-300">ESC</span>
         </button>
       </div>
     </div>
