@@ -66,7 +66,7 @@ async function buildPrompt(
   entityType: string,
   entityId: string,
   imageType: string,
-): Promise<{ systemPrompt: string; userPrompt: string; campaignId?: string }> {
+): Promise<{ systemPrompt: string; userPrompt: string; worldId: string }> {
   if (entityType === "world") {
     const { data: world, error } = await supabase
       .from("worlds")
@@ -77,6 +77,7 @@ async function buildPrompt(
     return {
       systemPrompt: WORLD_IMAGE_SYSTEM_PROMPT,
       userPrompt: world.world_content as string,
+      worldId: entityId,
     }
   }
 
@@ -114,63 +115,30 @@ async function buildPrompt(
     return {
       systemPrompt: SCENE_IMAGE_SYSTEM_PROMPT,
       userPrompt: `World: ${world.name}\n\n${world.world_content}\n\nParty:\n${playerList}`,
-      campaignId: session.campaign_id,
+      worldId: campaign.world_id,
     }
   }
 
   throw new Error(`Unsupported entity_type: ${entityType}`)
 }
 
-async function denormalizeUrl(
-  supabase: ReturnType<typeof createClient>,
-  entityType: string,
-  entityId: string,
-  imageType: string,
-  publicUrl: string,
-): Promise<void> {
-  if (entityType === "world") {
-    const column = imageType === "map" ? "map_image_url" : "cover_image_url"
-    await supabase.from("worlds").update({ [column]: publicUrl }).eq("id", entityId)
-    return
-  }
-  if (entityType === "session") {
-    await supabase.from("sessions").update({ scene_image_url: publicUrl }).eq("id", entityId)
-    return
-  }
-  if (entityType === "player") {
-    await supabase.from("players").update({ character_image_url: publicUrl }).eq("id", entityId)
-    return
-  }
-  console.warn(`[generate-image] denormalizeUrl: unrecognized entity_type '${entityType}' — parent table not updated`)
-}
-
-async function broadcastImageReady(
+export async function broadcastImageReady(
   supabaseUrl: string,
   serviceRoleKey: string,
+  worldId: string,
   entityType: string,
   entityId: string,
   imageType: string,
   publicUrl: string,
-  campaignId?: string,
+  imageId: string,
 ): Promise<void> {
-  if (entityType === "world") {
-    await broadcastToChannel(supabaseUrl, serviceRoleKey, `world:${entityId}`, "world:image_ready", {
-      type: imageType,
-      url: publicUrl,
-    })
-    return
-  }
-  if (entityType === "session" && campaignId) {
-    await broadcastToChannel(supabaseUrl, serviceRoleKey, `campaign:${campaignId}`, "image:ready", {
-      type: "scene",
-      url: publicUrl,
-      session_id: entityId,
-    })
-    return
-  }
-  // player: no broadcast emitted — no UI currently listens for character image updates.
-  // To add: broadcastToChannel on `campaign:{campaignId}` with event `image:ready` +
-  // update the lobby/character panel to subscribe and refresh the portrait.
+  await broadcastToChannel(supabaseUrl, serviceRoleKey, `world:${worldId}`, "image:ready", {
+    entity_type: entityType,
+    entity_id: entityId,
+    image_type: imageType,
+    url: publicUrl,
+    image_id: imageId,
+  })
 }
 
 Deno.serve(async (req: Request) => {
@@ -213,7 +181,7 @@ Deno.serve(async (req: Request) => {
 
   try {
     // 2. Build prompt
-    const { systemPrompt, userPrompt, campaignId } = await buildPrompt(supabase, entity_type, entity_id, image_type)
+    const { systemPrompt, userPrompt, worldId } = await buildPrompt(supabase, entity_type, entity_id, image_type)
 
     // 3. Call Gemini
     const { GoogleGenerativeAI } = await import("npm:@google/generative-ai")
@@ -250,11 +218,8 @@ Deno.serve(async (req: Request) => {
       .update({ status: "ready", storage_path: storagePath, public_url: publicUrl })
       .eq("id", imageId)
 
-    // 6. Denormalize URL to parent table
-    await denormalizeUrl(supabase, entity_type, entity_id, image_type, publicUrl)
-
-    // 7. Broadcast
-    await broadcastImageReady(supabaseUrl, serviceRoleKey, entity_type, entity_id, image_type, publicUrl, campaignId)
+    // 6. Broadcast
+    await broadcastImageReady(supabaseUrl, serviceRoleKey, worldId, entity_type, entity_id, image_type, publicUrl, imageId)
 
     return new Response(JSON.stringify({ ok: true, url: publicUrl, image_id: imageId }), {
       headers: { "Content-Type": "application/json" },
