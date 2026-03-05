@@ -3,6 +3,7 @@
 import type { Message } from '@/types/message';
 import type { Player } from '@/types/player';
 import type { ImageModalState } from './ImageModal';
+import { formatMessageTimeLocal } from './message-time';
 
 function InlineVision({ imageUrl, onExpand }: { imageUrl: string; onExpand: () => void }) {
   return (
@@ -131,7 +132,7 @@ export function MessageBubble({ message, players, onImageClick }: { message: Mes
             {player?.character_name ?? player?.username ?? 'Unknown'}
           </span>
           <span className="text-[9px] text-ash/40" style={{ fontFamily: 'var(--font-mono), monospace' }}>
-            {new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            {formatMessageTimeLocal(message.created_at)}
           </span>
         </div>
         <p className="text-base italic leading-loose text-steam/80 sm:text-lg" style={{ fontFamily: 'var(--font-body), sans-serif', letterSpacing: '0.01em' }}>{message.content}</p>
