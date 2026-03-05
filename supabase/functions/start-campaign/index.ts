@@ -92,16 +92,33 @@ Deno.serve(async (req: Request) => {
     }
     logInfo("start_campaign.players_fetched", { requestId, campaign_id, playerCount: players.length })
 
-    // 3. Create session row
-    const { data: session, error: sessionError } = await supabase
+    // 3. Create session row (idempotent — return existing if already started)
+    const { data: existingSession } = await supabase
       .from("sessions")
-      .insert({
-        campaign_id,
-        session_number: 1,
-        present_player_ids: players.map((p) => p.id),
+      .select("id, opening_situation")
+      .eq("campaign_id", campaign_id)
+      .eq("session_number", 1)
+      .maybeSingle()
+
+    if (existingSession?.opening_situation) {
+      logInfo("start_campaign.already_started", { requestId, campaign_id, sessionId: existingSession.id })
+      return new Response(JSON.stringify({ ok: true, session_id: existingSession.id }), {
+        headers: { "Content-Type": "application/json" },
       })
-      .select("id")
-      .single()
+    }
+
+    const sessionToUse = existingSession ?? null
+    const { data: session, error: sessionError } = sessionToUse
+      ? { data: sessionToUse, error: null }
+      : await supabase
+          .from("sessions")
+          .insert({
+            campaign_id,
+            session_number: 1,
+            present_player_ids: players.map((p) => p.id),
+          })
+          .select("id")
+          .single()
 
     if (sessionError || !session) {
       throw new Error(`failed to create session: ${sessionError?.message}`)
@@ -147,7 +164,8 @@ ${playerList}`
       outputLength: text.length,
     })
 
-    const parsed = JSON.parse(text) as {
+    const jsonText = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim()
+    const parsed = JSON.parse(jsonText) as {
       opening_situation: string
       starting_hooks: string[]
     }
