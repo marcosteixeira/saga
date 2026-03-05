@@ -39,15 +39,15 @@ Deno.serve(async (req: Request) => {
     return new Response('Unauthorized', { status: 401 })
   }
 
-  let body: { campaign_id?: string; world_id?: string; players?: Player[] }
+  let body: { campaign_id?: string; world_id?: string }
   try {
     body = await req.json()
   } catch {
     return new Response('Invalid JSON', { status: 400 })
   }
 
-  const { campaign_id, world_id, players } = body
-  if (!campaign_id || !world_id || !players) {
+  const { campaign_id, world_id } = body
+  if (!campaign_id || !world_id) {
     return new Response('Missing required fields', { status: 400 })
   }
 
@@ -56,6 +56,15 @@ Deno.serve(async (req: Request) => {
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const { createClient } = await import('jsr:@supabase/supabase-js@2')
     const supabase = createClient(supabaseUrl, serviceRoleKey)
+
+    const { data: players, error: playersError } = await supabase
+      .from('players')
+      .select('id, character_name, character_class, character_backstory, username')
+      .eq('campaign_id', campaign_id)
+
+    if (playersError || !players) {
+      throw new Error(`failed to fetch players for campaign ${campaign_id}`)
+    }
 
     // 1. Fetch world content
     const { data: world, error: worldError } = await supabase

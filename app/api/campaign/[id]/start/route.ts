@@ -69,7 +69,6 @@ export async function POST(
     body: JSON.stringify({
       campaign_id: campaignId,
       world_id: campaign.world_id,
-      players: players ?? [],
     }),
   }).then(async (res) => {
     if (!res.ok) console.error(`[start-campaign] edge function failed HTTP ${res.status}`)
