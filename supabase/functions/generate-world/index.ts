@@ -181,35 +181,40 @@ Be evocative and specific. Class names should feel native to this world — avoi
       status: "ready",
     })
 
-    // Trigger cover and map image generation in parallel
+    // Trigger image generation
     const imageWebhookSecret = Deno.env.get("GENERATE_IMAGE_WEBHOOK_SECRET")
-
-    function triggerImage(type: string): Promise<void> {
-      return fetch(`${supabaseUrl}/functions/v1/generate-image`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${imageWebhookSecret}`,
-        },
-        body: JSON.stringify({ world_id: world.id, type }),
-      }).then((res) => {
-        if (!res.ok) {
-          logError(
-            "generate_world.image_trigger_failed",
-            { requestId, worldId: world.id, type, status: res.status },
-            new Error(`generate-image responded with ${res.status}`),
-          )
-        } else {
-          logInfo("generate_world.image_trigger_succeeded", { requestId, worldId: world.id, type })
-        }
-      }).catch((err) => {
-        logError("generate_world.image_trigger_failed", { requestId, worldId: world.id, type }, err)
-      })
-    }
-
-    const imagesPromise = Promise.all([triggerImage("cover"), triggerImage("map")])
+    const imagePromise = fetch(`${supabaseUrl}/functions/v1/generate-image`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${imageWebhookSecret}`,
+      },
+      body: JSON.stringify({
+        world_id: world.id,
+        type: "cover",
+      }),
+    }).then((res) => {
+      if (!res.ok) {
+        logError(
+          "generate_world.image_trigger_failed",
+          { requestId, worldId: world.id, status: res.status },
+          new Error(`generate-image responded with ${res.status}`),
+        )
+      } else {
+        logInfo("generate_world.image_trigger_succeeded", {
+          requestId,
+          worldId: world.id,
+        })
+      }
+    }).catch((err) => {
+      logError(
+        "generate_world.image_trigger_failed",
+        { requestId, worldId: world.id },
+        err,
+      )
+    })
     // @ts-ignore — EdgeRuntime is available in Supabase edge function environments
-    EdgeRuntime.waitUntil(imagesPromise)
+    EdgeRuntime.waitUntil(imagePromise)
 
     logInfo("generate_world.completed", {
       requestId,
