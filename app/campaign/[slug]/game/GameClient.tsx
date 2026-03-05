@@ -5,7 +5,6 @@ import { createClient } from '@/lib/supabase/client';
 import { EmberParticles } from '@/components/ember-particles';
 import { AmbientSmoke } from '@/components/ambient-smoke';
 import { GearDecoration } from '@/components/gear-decoration';
-import { waitForSessionOpeningReady } from './session-readiness';
 import { ImageModal, type ImageModalState } from './components/ImageModal';
 import { MessageBubble } from './components/MessageBubble';
 import { MobileActionBar } from './components/MobileActionBar';
@@ -1810,31 +1809,13 @@ export default function GameClient({
 
     const supabase = createClient();
     let cancelled = false;
-    const promoteToActive = () => {
-      if (cancelled) return;
-      setViewState('active');
-    };
-    const fetchSession = () =>
-      supabase
-        .from('campaigns')
-        .select('opening_situation')
-        .eq('id', campaign.id)
-        .maybeSingle();
 
     const channel = supabase
       .channel(`campaign:${campaign.id}`)
       .on('broadcast', { event: 'game:started' }, () => {
-        promoteToActive();
+        if (!cancelled) setViewState('active');
       })
       .subscribe();
-
-    void waitForSessionOpeningReady(fetchSession, {
-      maxAttempts: 20,
-      delayMs: 1500,
-      shouldStop: () => cancelled,
-    }).then((ready) => {
-      if (ready) promoteToActive();
-    });
 
     return () => {
       cancelled = true;
