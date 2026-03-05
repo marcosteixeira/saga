@@ -26,8 +26,8 @@ function statusMessage(status: WorldStatus | string): string {
 }
 
 export default function CampaignSetupPage() {
-  const params = useParams<{ id: string }>()
-  const campaignId = params.id
+  const params = useParams<{ slug: string }>()
+  const campaignId = params.slug
   const router = useRouter()
 
   const supabase = useMemo(() => createClient(), [])
@@ -338,7 +338,7 @@ export default function CampaignSetupPage() {
               {isComplete && (
                 <Button
                   className="w-full"
-                  onClick={() => router.push(`/campaign/${campaign!.id}/lobby`)}
+                  onClick={() => router.push(`/campaign/${campaign!.slug}/lobby`)}
                 >
                   Enter Lobby
                 </Button>

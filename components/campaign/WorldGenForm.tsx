@@ -103,7 +103,7 @@ export function WorldGenForm() {
         return
       }
 
-      router.push(`/campaign/${campaignData.id}/setup`)
+      router.push(`/campaign/${campaignData.slug}/setup`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Forge failure. Try again.')
       setIsGenerating(false)

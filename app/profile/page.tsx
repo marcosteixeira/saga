@@ -9,22 +9,18 @@ import { GearDecoration } from '@/components/gear-decoration'
 import { createClient } from '@/lib/supabase/client'
 import type { Campaign } from '@/types'
 
-type ProfileCampaign = Pick<Campaign, 'id' | 'name' | 'status' | 'created_at'> & {
+type ProfileCampaign = Pick<Campaign, 'id' | 'slug' | 'name' | 'status' | 'created_at'> & {
   is_host: boolean
 }
 
 function actionForCampaign(campaign: ProfileCampaign): { href: string; label: string } {
   if (campaign.status === 'lobby') {
-    return {
-      href: `/campaign/${campaign.id}/lobby`,
-      label: 'Open',
-    }
+    return { href: `/campaign/${campaign.slug}/lobby`, label: 'Open Lobby' }
   }
-
-  return {
-    href: `/campaign/${campaign.id}`,
-    label: 'Open',
+  if (campaign.status === 'active') {
+    return { href: `/campaign/${campaign.slug}/game`, label: 'Resume Game' }
   }
+  return { href: `/campaign/${campaign.slug}/lobby`, label: 'Open' }
 }
 
 export default function ProfilePage() {

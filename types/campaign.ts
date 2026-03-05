@@ -1,5 +1,6 @@
 export type Campaign = {
   id: string;
+  slug: string;
   name: string;
   host_username: string;
   host_user_id: string;

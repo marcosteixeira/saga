@@ -1,37 +1,54 @@
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { createAuthServerClient, createServerSupabaseClient } from '@/lib/supabase/server'
 import LobbyClient from './LobbyClient'
 
 interface Props {
-  params: Promise<{ id: string }>
+  params: Promise<{ slug: string }>
 }
 
 export default async function LobbyPage({ params }: Props) {
-  const { id } = await params
+  const { slug } = await params
   const supabase = await createAuthServerClient()
 
   const { data: { user } } = await supabase.auth.getUser()
-  const currentUserId = user?.id ?? null
 
-  const [campaignResult, playersResult] = await Promise.all([
-    supabase.from('campaigns').select('*, worlds(*)').eq('id', id).single(),
-    supabase.from('players').select('*').eq('campaign_id', id),
-  ])
+  if (!user) {
+    redirect(`/login?redirect=${encodeURIComponent(`/campaign/${slug}/lobby`)}`)
+  }
+
+  const currentUserId = user.id
+
+  const campaignResult = await supabase
+    .from('campaigns')
+    .select('*, worlds(*)')
+    .eq('slug', slug)
+    .single()
 
   if (campaignResult.error || !campaignResult.data) {
     notFound()
   }
 
-  if (playersResult.error) {
-    notFound()
-  }
-
   const { worlds: world, ...campaign } = campaignResult.data
-  let players = playersResult.data ?? []
+  const campaignId = campaign.id
+
+  if (campaign.status === 'active') {
+    redirect(`/campaign/${slug}/game`)
+  }
 
   if (!world) {
     notFound()
   }
+
+  const playersResult = await supabase
+    .from('players')
+    .select('*')
+    .eq('campaign_id', campaignId)
+
+  if (playersResult.error) {
+    notFound()
+  }
+
+  let players = playersResult.data ?? []
 
   // If the current user has no player row yet, create one now
   if (user && !players.find((p) => p.user_id === user.id)) {
@@ -41,7 +58,7 @@ export default async function LobbyPage({ params }: Props) {
     const db = createServerSupabaseClient()
     const { data: newPlayer } = await db
       .from('players')
-      .insert({ campaign_id: id, user_id: user.id, username, is_host: isHost })
+      .insert({ campaign_id: campaignId, user_id: user.id, username, is_host: isHost })
       .select('*')
       .single()
 

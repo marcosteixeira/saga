@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAuthServerClient, createServerSupabaseClient } from '@/lib/supabase/server'
 import type { Campaign } from '@/types'
 
-type ProfileCampaign = Pick<Campaign, 'id' | 'name' | 'status' | 'host_user_id' | 'created_at'> & {
+type ProfileCampaign = Pick<Campaign, 'id' | 'slug' | 'name' | 'status' | 'host_user_id' | 'created_at'> & {
   is_host: boolean
 }
 
@@ -20,7 +20,7 @@ export async function GET() {
 
   const { data: hostedCampaigns, error: hostError } = await supabase
     .from('campaigns')
-    .select('id,name,status,host_user_id,created_at')
+    .select('id,slug,name,status,host_user_id,created_at')
     .eq('host_user_id', user.id)
 
   if (hostError) {
@@ -47,12 +47,12 @@ export async function GET() {
     new Set((playerRows ?? []).map((p) => p.campaign_id).filter((id) => !hostedIds.has(id)))
   )
 
-  let joinedCampaigns: Array<Pick<Campaign, 'id' | 'name' | 'status' | 'host_user_id' | 'created_at'>> = []
+  let joinedCampaigns: Array<Pick<Campaign, 'id' | 'slug' | 'name' | 'status' | 'host_user_id' | 'created_at'>> = []
 
   if (joinedIds.length > 0) {
     const { data, error } = await supabase
       .from('campaigns')
-      .select('id,name,status,host_user_id,created_at')
+      .select('id,slug,name,status,host_user_id,created_at')
       .in('id', joinedIds)
 
     if (error) {

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createServerSupabaseClient, createAuthServerClient } from '@/lib/supabase/server'
+import { generateSlug } from '@/lib/slug'
 
 export async function POST(req: Request) {
   const authClient = await createAuthServerClient()
@@ -38,20 +39,35 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'World not found' }, { status: 404 })
   }
 
-  const { data, error } = await supabase
-    .from('campaigns')
-    .insert({
-      name,
-      host_username,
-      host_user_id: user.id,
-      world_id,
-      system_description: system_description || null,
-      status: 'lobby',
-    })
-    .select('id')
-    .single()
+  // Retry up to 3 times on slug collision (unique constraint violation code: 23505)
+  let data: { id: string; slug: string } | null = null
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const slug = generateSlug(name)
+    const { data: inserted, error } = await supabase
+      .from('campaigns')
+      .insert({
+        name,
+        slug,
+        host_username,
+        host_user_id: user.id,
+        world_id,
+        system_description: system_description || null,
+        status: 'lobby',
+      })
+      .select('id, slug')
+      .single()
 
-  if (error || !data) {
+    if (!error) {
+      data = inserted
+      break
+    }
+    if (error.code !== '23505') {
+      return NextResponse.json({ error: 'Failed to create campaign' }, { status: 500 })
+    }
+    // 23505 = unique_violation — slug collision, retry with a new slug
+  }
+
+  if (!data) {
     return NextResponse.json({ error: 'Failed to create campaign' }, { status: 500 })
   }
 
@@ -63,5 +79,5 @@ export async function POST(req: Request) {
     is_host: true,
   })
 
-  return NextResponse.json({ id: data.id }, { status: 201 })
+  return NextResponse.json({ id: data.id, slug: data.slug }, { status: 201 })
 }
