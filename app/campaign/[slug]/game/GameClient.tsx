@@ -21,7 +21,6 @@ interface GameClientProps {
   players: Player[];
   messages: Message[];
   currentUserId: string;
-  openingReady: boolean;
   loadingImageUrl?: string;
   campaignCoverImageUrl?: string;
 }
@@ -1803,21 +1802,16 @@ export default function GameClient({
   players: dbPlayers,
   messages: dbMessages,
   currentUserId,
-  openingReady,
   loadingImageUrl,
   campaignCoverImageUrl,
 }: GameClientProps) {
-  const [viewState, setViewState] = useState<GameViewState>(
-    openingReady ? 'active' : 'loading'
-  );
+  const [viewState, setViewState] = useState<GameViewState>('loading');
 
   const players = dbPlayers.length > 0 ? dbPlayers : MOCK_PLAYERS;
   const messages = dbMessages.length > 0 ? dbMessages : MOCK_MESSAGES;
 
   // Listen for game:started to leave the loading state
   useEffect(() => {
-    if (openingReady) return;
-
     const supabase = createClient();
     let cancelled = false;
 
@@ -1832,7 +1826,7 @@ export default function GameClient({
       cancelled = true;
       supabase.removeChannel(channel);
     };
-  }, [campaign.id, openingReady]);
+  }, [campaign.id]);
 
   const isCampaignReady = viewState !== 'loading';
 
