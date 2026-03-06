@@ -77,6 +77,8 @@ export async function POST(
       entity_id: campaignId,
       image_type: 'cover',
     }),
+  }).then((res) => {
+    if (!res.ok) console.error(`[start] cover image trigger failed HTTP ${res.status}`)
   }).catch((err) => console.error('[start] cover image trigger failed:', err))
 
   return NextResponse.json({ ok: true }, { status: 200 })
