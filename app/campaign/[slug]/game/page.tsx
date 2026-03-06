@@ -76,7 +76,6 @@ export default async function GamePage({ params }: Props) {
       openingReady={openingReady}
       loadingImageUrl={loadingImageUrl}
       campaignCoverImageUrl={campaignWithImages.cover_url ?? worldWithImages.cover_url ?? undefined}
-      initialPlayerImages={{}}
     />
   )
 }

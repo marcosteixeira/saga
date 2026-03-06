@@ -7,6 +7,11 @@ const mockPlayersEq = vi.fn()
 const mockPlayersSelect = vi.fn(() => ({ eq: mockPlayersEq }))
 const mockJoinedCampaignsIn = vi.fn()
 const mockJoinedCampaignsSelect = vi.fn(() => ({ in: mockJoinedCampaignsIn }))
+const mockImagesNot = vi.fn()
+const mockImagesIn = vi.fn(() => ({ not: mockImagesNot }))
+const mockImagesEqStatus = vi.fn(() => ({ in: mockImagesIn }))
+const mockImagesEqImageType = vi.fn(() => ({ eq: mockImagesEqStatus }))
+const mockImagesEqEntityType = vi.fn(() => ({ eq: mockImagesEqImageType }))
 let campaignsSelectCallCount = 0
 
 vi.mock('@/lib/supabase/server', () => ({
@@ -32,6 +37,11 @@ vi.mock('@/lib/supabase/server', () => ({
           select: mockPlayersSelect,
         }
       }
+      if (table === 'images') {
+        return {
+          select: () => ({ eq: mockImagesEqEntityType }),
+        }
+      }
 
       throw new Error(`Unexpected table: ${table}`)
     },
@@ -42,6 +52,7 @@ describe('GET /api/profile/campaigns', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     campaignsSelectCallCount = 0
+    mockImagesNot.mockResolvedValue({ data: [], error: null })
   })
 
   it('returns 401 when user is not authenticated', async () => {
@@ -76,6 +87,10 @@ describe('GET /api/profile/campaigns', () => {
       ],
       error: null,
     })
+    mockImagesNot.mockResolvedValue({
+      data: [{ entity_id: 'c2', public_url: 'https://img/c2-cover.png' }],
+      error: null,
+    })
 
     const { GET } = await import('../route')
     const res = await GET()
@@ -83,7 +98,7 @@ describe('GET /api/profile/campaigns', () => {
     expect(res.status).toBe(200)
     const data = await res.json()
     expect(data.campaigns).toHaveLength(2)
-    expect(data.campaigns[0]).toMatchObject({ id: 'c1', is_host: true })
-    expect(data.campaigns[1]).toMatchObject({ id: 'c2', is_host: false })
+    expect(data.campaigns[0]).toMatchObject({ id: 'c1', is_host: true, cover_image_url: null })
+    expect(data.campaigns[1]).toMatchObject({ id: 'c2', is_host: false, cover_image_url: 'https://img/c2-cover.png' })
   })
 })

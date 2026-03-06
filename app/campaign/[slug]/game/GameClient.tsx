@@ -24,7 +24,6 @@ interface GameClientProps {
   openingReady: boolean;
   loadingImageUrl?: string;
   campaignCoverImageUrl?: string;
-  initialPlayerImages: Record<string, string>;
 }
 
 type GameViewState = 'loading' | 'active' | 'image-reveal';
@@ -170,9 +169,12 @@ function LoadingState({
   // Iris reveal: open after image loads (or immediately for no-image)
   useEffect(() => {
     if (!backgroundImageUrl) {
-      setIrisOpen(true);
-      const t = setTimeout(() => setContentVisible(true), 200);
-      return () => clearTimeout(t);
+      const openTimeout = setTimeout(() => setIrisOpen(true), 0);
+      const contentTimeout = setTimeout(() => setContentVisible(true), 200);
+      return () => {
+        clearTimeout(openTimeout);
+        clearTimeout(contentTimeout);
+      };
     }
   }, [backgroundImageUrl]);
 
@@ -819,12 +821,10 @@ function PlayerCard({
   player,
   isCurrentUser,
   compact = false,
-  playerImages = {}
 }: {
   player: Player;
   isCurrentUser: boolean;
   compact?: boolean;
-  playerImages?: Record<string, string>;
 }) {
   const isLowHp = player.stats.hp / player.stats.hp_max < 0.25;
   return (
@@ -839,24 +839,15 @@ function PlayerCard({
               'polygon(4px 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%, 0 4px)'
           }}
         >
-          {playerImages[player.id] ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={playerImages[player.id]}
-              alt={player.character_name ?? ''}
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            <span
-              className="font-bold text-ash"
-              style={{
-                fontSize: compact ? '0.875rem' : '1rem',
-                fontFamily: 'var(--font-display), sans-serif'
-              }}
-            >
-              {(player.character_name ?? player.username)[0].toUpperCase()}
-            </span>
-          )}
+          <span
+            className="font-bold text-ash"
+            style={{
+              fontSize: compact ? '0.875rem' : '1rem',
+              fontFamily: 'var(--font-display), sans-serif'
+            }}
+          >
+            {(player.character_name ?? player.username)[0].toUpperCase()}
+          </span>
           {player.is_host && (
             <div className="absolute right-0 top-0 flex h-3 w-3 items-center justify-center bg-brass">
               <span className="text-[6px] font-bold text-soot">H</span>
@@ -1114,12 +1105,10 @@ function DesktopLeftSidebar({
   campaign,
   players,
   currentUserId,
-  playerImages = {}
 }: {
   campaign: Campaign;
   players: Player[];
   currentUserId: string;
-  playerImages?: Record<string, string>;
 }) {
   return (
     <aside
@@ -1145,7 +1134,6 @@ function DesktopLeftSidebar({
             player={player}
             isCurrentUser={player.user_id === currentUserId}
             compact
-            playerImages={playerImages}
           />
         ))}
       </div>
@@ -1188,12 +1176,10 @@ function DesktopLeftSidebar({
 
 function DesktopRightSidebar({
   world,
-  messages,
   onImageClick,
   coverImageUrl,
 }: {
   world: World;
-  messages: Message[];
   onImageClick: (state: ImageModalState) => void;
   coverImageUrl: string | null;
 }) {
@@ -1425,7 +1411,6 @@ function ActiveGameView({
   messages: initialMessages,
   currentUserId,
   campaignCoverImageUrl: initialCampaignCoverImageUrl,
-  initialPlayerImages,
 }: {
   campaign: Campaign;
   world: World;
@@ -1433,7 +1418,6 @@ function ActiveGameView({
   messages: Message[];
   currentUserId: string;
   campaignCoverImageUrl?: string;
-  initialPlayerImages: Record<string, string>;
 }) {
   const feedRef = useRef<HTMLDivElement>(null);
   const [inputValue, setInputValue] = useState('');
@@ -1441,7 +1425,6 @@ function ActiveGameView({
   const [imageModal, setImageModal] = useState<ImageModalState | null>(null);
   const [liveMessages, setLiveMessages] = useState<Message[]>(initialMessages);
   const [liveCoverUrl, setLiveCoverUrl] = useState<string | undefined>(initialCampaignCoverImageUrl);
-  const [playerImages, setPlayerImages] = useState<Record<string, string>>(initialPlayerImages);
 
   // Subscribe to messages and image updates
   useEffect(() => {
@@ -1486,8 +1469,6 @@ function ActiveGameView({
           setLiveCoverUrl(url);
         } else if (entity_type === 'world' && entity_id === world.id && image_type === 'cover') {
           setLiveCoverUrl(url);
-        } else if (entity_type === 'player') {
-          setPlayerImages((prev) => ({ ...prev, [entity_id]: url }));
         }
       })
       .subscribe();
@@ -1524,7 +1505,6 @@ function ActiveGameView({
         campaign={campaign}
         players={players}
         currentUserId={currentUserId}
-        playerImages={playerImages}
       />
 
       {/* Center */}
@@ -1658,7 +1638,6 @@ function ActiveGameView({
       {/* Desktop right */}
       <DesktopRightSidebar
         world={world}
-        messages={liveMessages}
         onImageClick={handleImageClick}
         coverImageUrl={liveCoverUrl ?? null}
       />
@@ -1683,7 +1662,6 @@ function ActiveGameView({
               key={player.id}
               player={player}
               isCurrentUser={player.user_id === currentUserId}
-              playerImages={playerImages}
             />
           ))}
         </div>
@@ -1699,7 +1677,7 @@ function ActiveGameView({
         <button
           onClick={() => {
             const url = liveCoverUrl;
-            url && handleImageClick({ url, caption: world.name });
+            if (url) handleImageClick({ url, caption: world.name });
           }}
           className="group relative mb-4 block w-full overflow-hidden border border-gunmetal"
           style={{
@@ -1828,7 +1806,6 @@ export default function GameClient({
   openingReady,
   loadingImageUrl,
   campaignCoverImageUrl,
-  initialPlayerImages,
 }: GameClientProps) {
   const [viewState, setViewState] = useState<GameViewState>(
     openingReady ? 'active' : 'loading'
@@ -1871,7 +1848,6 @@ export default function GameClient({
       messages={messages}
       currentUserId={currentUserId}
       campaignCoverImageUrl={campaignCoverImageUrl}
-      initialPlayerImages={initialPlayerImages}
     />
   );
 }

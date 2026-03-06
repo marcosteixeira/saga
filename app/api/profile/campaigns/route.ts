@@ -72,7 +72,7 @@ export async function GET() {
   ].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
 
   const allIds = allCampaigns.map((c) => c.id)
-  let coverImagesByCampaignId: Record<string, string> = {}
+  const coverImagesByCampaignId: Record<string, string> = {}
 
   if (allIds.length > 0) {
     const { data: imageRows } = await supabase
