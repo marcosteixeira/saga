@@ -12,7 +12,127 @@
 
 ---
 
-### Task 1: Remove History/Factions/Tone from required world sections
+### Task 1: Extract generate-world system prompt to prompt.ts
+
+**Files:**
+- Create: `supabase/functions/generate-world/prompt.ts`
+- Modify: `supabase/functions/generate-world/index.ts`
+
+No new tests needed — the system prompt is a pure string constant. Extraction is a structural refactor; correctness is verified by the existing test suite.
+
+**Step 1: Create `generate-world/prompt.ts`**
+
+Move the `systemPrompt` string out of `index.ts` and into a named export. Note: the system prompt currently lives inside the `Deno.serve` handler — extract it to module scope as a constant.
+
+```typescript
+// supabase/functions/generate-world/prompt.ts
+
+export const GENERATE_WORLD_SYSTEM_PROMPT = `You are a world-builder for tabletop RPG campaigns...`
+// (full prompt text — copy exactly from index.ts, do not change content yet)
+```
+
+**Step 2: Update `generate-world/index.ts`**
+
+Replace the inline `systemPrompt` variable with an import:
+
+```typescript
+import { GENERATE_WORLD_SYSTEM_PROMPT } from './prompt.ts'
+// ...
+const aiResponse = await anthropic.messages.create({
+  model: 'claude-haiku-4-5-20251001',
+  max_tokens: WORLD_GEN_MAX_TOKENS,
+  system: GENERATE_WORLD_SYSTEM_PROMPT,
+  // ...
+})
+```
+
+**Step 3: Run full test suite**
+
+```bash
+yarn vitest
+```
+
+Expected: all PASS (no behavior change).
+
+**Step 4: Commit**
+
+```bash
+git add supabase/functions/generate-world/prompt.ts supabase/functions/generate-world/index.ts
+git commit -m "refactor: extract generate-world system prompt to prompt.ts"
+```
+
+---
+
+### Task 2: Extract generate-image prompts to prompt.ts
+
+**Files:**
+- Create: `supabase/functions/generate-image/prompt.ts`
+- Modify: `supabase/functions/generate-image/index.ts`
+- Modify: `supabase/functions/generate-image/__tests__/index.test.ts`
+
+**Step 1: Create `generate-image/prompt.ts`**
+
+Move all three prompt constants and the `buildPromptForCampaign` function (currently inline in `buildPrompt`) into this file as named exports:
+
+```typescript
+// supabase/functions/generate-image/prompt.ts
+
+export const WORLD_MAP_IMAGE_SYSTEM_PROMPT = `...` // copy from index.ts
+export const WORLD_IMAGE_SYSTEM_PROMPT = `...`      // copy from index.ts
+export const SCENE_IMAGE_SYSTEM_PROMPT = `...`      // copy from index.ts
+
+export interface ImagePlayer {
+  character_name: string | null
+  character_class: string | null
+  character_backstory: string | null
+  username?: string | null
+}
+
+export function buildPromptForCampaign(
+  worldName: string,
+  worldContent: string,
+  players: ImagePlayer[]
+): string {
+  const characterList = players
+    .map((p) => {
+      const name = p.character_name ?? p.username ?? 'Unknown'
+      const cls = p.character_class ?? 'unknown class'
+      const backstory = p.character_backstory ? `: ${p.character_backstory}` : ''
+      return `- ${name} (${cls})${backstory}`
+    })
+    .join('\n')
+  return `World: ${worldName}\n\n${worldContent}\n\nCharacters:\n${characterList}`
+}
+```
+
+**Step 2: Update `generate-image/index.ts`**
+
+Import from `prompt.ts` instead of defining inline. Remove the three prompt constants and inline player-list building from `index.ts`.
+
+**Step 3: Update tests to import from prompt.ts**
+
+In `generate-image/__tests__/index.test.ts`, update the `buildPromptForCampaign` import to come from `../prompt.ts` instead of `../index.ts`.
+
+**Step 4: Run full test suite**
+
+```bash
+yarn vitest
+```
+
+Expected: all PASS.
+
+**Step 5: Commit**
+
+```bash
+git add supabase/functions/generate-image/prompt.ts supabase/functions/generate-image/index.ts supabase/functions/generate-image/__tests__/index.test.ts
+git commit -m "refactor: extract generate-image prompts and campaign prompt builder to prompt.ts"
+```
+
+---
+
+### Task 3: Remove History/Factions/Tone from required world sections
+
+> Run after Task 1 — modifies `generate-world/prompt.ts` (now extracted).
 
 **Files:**
 - Modify: `supabase/functions/generate-world/world-content.ts`
@@ -101,7 +221,9 @@ git commit -m "feat: remove History/Factions/Tone from required world sections"
 
 ---
 
-### Task 2: Remove History/Factions/Tone from generate-world system prompt
+### Task 4: Remove History/Factions/Tone from generate-world system prompt
+
+> Run after Task 1 — modifies `generate-world/prompt.ts` (now extracted).
 
 **Files:**
 - Modify: `supabase/functions/generate-world/index.ts`
@@ -135,7 +257,9 @@ git commit -m "feat: remove History/Factions/Tone from world generation — move
 
 ---
 
-### Task 3: Update campaign cover image to focus on characters
+### Task 5: Update campaign cover image to focus on characters
+
+> Run after Task 2 — modifies `generate-image/prompt.ts` (now extracted).
 
 **Files:**
 - Modify: `supabase/functions/generate-image/index.ts`
@@ -238,7 +362,7 @@ git commit -m "feat: campaign cover image focuses on individual characters with 
 
 ---
 
-### Task 4: Update Next.js start route — replace start-campaign with cover image trigger
+### Task 6: Update Next.js start route — replace start-campaign with cover image trigger
 
 **Files:**
 - Modify: `app/api/campaign/[id]/start/route.ts`
@@ -331,7 +455,7 @@ git commit -m "feat: start route triggers campaign cover image directly, removes
 
 ---
 
-### Task 5: Drop opening_situation and starting_hooks DB columns
+### Task 7: Drop opening_situation and starting_hooks DB columns
 
 **Files:**
 - Create: `supabase/migrations/YYYYMMDD_drop_opening_situation_starting_hooks.sql`
@@ -395,7 +519,7 @@ git commit -m "feat: drop opening_situation and starting_hooks columns — field
 
 ---
 
-### Task 6: Delete start-campaign edge function
+### Task 8: Delete start-campaign edge function
 
 **Files:**
 - Delete: `supabase/functions/start-campaign/index.ts`
@@ -424,7 +548,7 @@ git commit -m "feat: delete start-campaign edge function — responsibilities mo
 
 ---
 
-### Task 7: game-session — GM system prompt builder
+### Task 9: game-session — GM system prompt builder
 
 This task creates the prompt builder module for game-session. The broader game-session WebSocket server is described in `docs/plans/2026-03-06-gameplay-design.md`; this task covers only the prompt and first-call schema.
 
@@ -656,7 +780,7 @@ git commit -m "feat: game-session GM prompt builder with engagement rules and fi
 
 ---
 
-### Task 8: game-session — first call response handling
+### Task 10: game-session — first call response handling
 
 This task ensures the game-session server reads `world_context`/`opening_situation`/`starting_hooks` from the first call response without broadcasting them to clients. This integrates with the broader `openai.ts` module described in the gameplay design plan.
 
