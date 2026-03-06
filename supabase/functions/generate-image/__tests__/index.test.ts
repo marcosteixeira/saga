@@ -52,6 +52,27 @@ describe('getStoragePath', () => {
   });
 });
 
+describe('buildPromptForCampaign', () => {
+  it('includes character backstory in user prompt', async () => {
+    const { buildPromptForCampaign } = await import('../prompt.ts')
+    const players = [
+      { character_name: 'Aria', character_class: 'Rogue', character_backstory: 'A former spy.' },
+      { character_name: 'Brom', character_class: 'Fighter', character_backstory: null },
+    ]
+    const result = buildPromptForCampaign('Ironhold', 'A dying empire...', players)
+    expect(result).toContain('A former spy.')
+    expect(result).toContain('Aria (Rogue)')
+    expect(result).toContain('Brom (Fighter)')
+  })
+
+  it('includes world name and content', async () => {
+    const { buildPromptForCampaign } = await import('../prompt.ts')
+    const result = buildPromptForCampaign('Ironhold', 'A dying empire...', [])
+    expect(result).toContain('World: Ironhold')
+    expect(result).toContain('A dying empire...')
+  })
+})
+
 describe('broadcastImageReady', () => {
   beforeEach(() => {
     vi.clearAllMocks();
