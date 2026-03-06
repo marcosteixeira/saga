@@ -52,13 +52,6 @@ Deno.serve(async (req: Request) => {
     descriptionLength: world.description.length,
   })
 
-  // Find the campaign linked to this world (needed to initialize campaign files)
-  const { data: campaign } = await supabase
-    .from("campaigns")
-    .select("id")
-    .eq("world_id", world.id)
-    .single()
-
   const worldChannel = `world:${world.id}`
 
   try {
@@ -170,26 +163,6 @@ Output ONLY the Markdown document, no preamble.`
       .update({ world_content: cleanWorldContent, classes: parsedClasses, status: "ready" })
       .eq("id", world.id)
     logInfo("generate_world.world_content_saved", { requestId, worldId: world.id })
-
-    // Initialize campaign memory files (4 files — WORLD.md is now on the world record)
-    if (campaign?.id) {
-      const files = [
-        { campaign_id: campaign.id, filename: "CHARACTERS.md", content: "" },
-        { campaign_id: campaign.id, filename: "NPCS.md", content: "" },
-        { campaign_id: campaign.id, filename: "LOCATIONS.md", content: "" },
-        { campaign_id: campaign.id, filename: "MEMORY.md", content: "Campaign just started." },
-      ]
-      for (const file of files) {
-        await supabase
-          .from("campaign_files")
-          .upsert(file, { onConflict: "campaign_id,filename" })
-        logInfo("generate_world.db_file_upserted", {
-          requestId,
-          campaignId: campaign.id,
-          filename: file.filename,
-        })
-      }
-    }
 
     await broadcastToChannel(supabaseUrl, serviceRoleKey, worldChannel, "world:complete", {
       status: "ready",

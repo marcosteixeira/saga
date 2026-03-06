@@ -91,8 +91,10 @@ The prompt includes:
 ```
 <role>
 You are the Game Master for a tabletop RPG campaign. Narrate the story in second person,
-immersive prose. React to all player actions collectively. Write in the language
-of the world description.
+immersive prose. React to all player actions collectively. Detect the language used in
+the world description and write all narration entirely in that language. If the world is
+described in Portuguese, narrate in Portuguese. If in Spanish, narrate in Spanish. If in
+English, narrate in English. Match the language exactly.
 </role>
 
 <world>
@@ -116,6 +118,21 @@ of the world description.
 - D20 rolls determine success on contested or risky actions.
 - Describe dice outcomes narratively — never expose raw numbers.
 </mechanics-rules>
+
+<output-format>
+Every response must be a JSON object. No markdown fences, no text outside the JSON.
+
+Schema:
+{
+  "actions": [
+    { "clientId": "string", "playerName": "string", "content": "string" }
+  ],
+  "narration": ["string"]
+}
+
+- `actions`: echo back each received player action exactly, preserving the original clientId.
+- `narration`: one or more narration paragraphs, each as a separate string in the array.
+</output-format>
 ```
 
 This prompt is constructed in the `start-campaign` edge function and passed to OpenAI's `instructions` field.
@@ -200,12 +217,22 @@ The Supabase auth token is sent as a query parameter (WebSocket connections cann
 wss://[project].supabase.co/functions/v1/game-session?campaignId={id}&token={supabase_access_token}
 ```
 
+### Deployment Requirement
+
+The function must be deployed with `--no-verify-jwt` to bypass Supabase's default header-based JWT verification — WebSocket upgrade requests have no `Authorization` header, so the default behavior would reject every connection before the function code runs:
+
+```bash
+supabase functions deploy game-session --no-verify-jwt
+```
+
+JWT verification is handled manually inside the function (see below).
+
 ### Server-Side Authentication
 
 On each WebSocket upgrade request, the `game-session` function:
 
 1. Extracts `campaignId` and `token` from query parameters
-2. Verifies the JWT using Supabase's auth — rejects with 401 if invalid or expired
+2. Verifies the JWT using `supabase.auth.getClaims(token)` — rejects with 401 if invalid or expired
 3. Queries `players` table: `SELECT id, character_name, username FROM players WHERE campaign_id = ? AND user_id = ?`
 4. Rejects with 403 if no player record found — only campaign participants can connect
 5. If valid, upgrades the connection and registers the socket
@@ -268,21 +295,39 @@ const sessions = new Map<string, CampaignSession>()
 12. Server fetches campaigns.last_response_id from DB
 
 13. Server logs: [campaign:{id}] calling OpenAI (previous_response_id: {id})
-14. Server formats bundled input:
-    "Aragorn: I draw my sword and charge\nGandalf: I cast a protective shield\nLegolas: I fire two arrows"
+14. Server formats bundled input as a JSON array:
+    [
+      { "clientId": "...", "playerName": "Aragorn", "content": "I draw my sword and charge" },
+      { "clientId": "...", "playerName": "Gandalf", "content": "I cast a protective shield" },
+      { "clientId": "...", "playerName": "Legolas", "content": "I fire two arrows" }
+    ]
 
 15. Server calls OpenAI Responses API:
-    { previous_response_id: lastResponseId, input: bundledInput, stream: true }
+    {
+      previous_response_id: lastResponseId,
+      input: JSON.stringify(pendingMessages),
+      response_format: { type: 'json_schema', json_schema: roundResponseSchema },
+      stream: true
+    }
 
-16. As tokens stream in, server broadcasts to ALL connected clients:
+16. As tokens stream in, server accumulates the full JSON response.
+    Simultaneously, server extracts narration tokens as they appear in the stream
+    and broadcasts each to ALL connected clients:
     { type: 'chunk', content: '...token...' }
+    (Server detects the start of the "narration" field in the streaming JSON and
+    forwards delta content from that point; stops at the closing bracket.)
 
-17. Stream completes
+17. Stream completes. Server parses the complete JSON response:
+    {
+      actions: [{ clientId, playerName, content }, ...],
+      narration: ["paragraph 1", "paragraph 2", ...]
+    }
 18. Server logs: [campaign:{id}] stream complete, saving {n} messages to DB
 
 19. Server saves atomically to DB (single transaction):
-    a. INSERT each pending player message as type='action', player_id=playerId
-    b. INSERT GM narration as type='narration', player_id=null
+    a. For each action in response.actions: INSERT as type='action', player_id=playerId
+       (player_id resolved by matching clientId → playerId from pendingMessages)
+    b. For each narration paragraph: INSERT as type='narration', player_id=null
 
 20. Server updates campaigns.last_response_id = newResponse.id
 
@@ -294,6 +339,7 @@ const sessions = new Map<string, CampaignSession>()
       messages: [
         { clientId: '...', dbMessage: { id: '...', content: '...', type: 'action', ... } },
         { clientId: '...', dbMessage: { id: '...', content: '...', type: 'action', ... } },
+        { clientId: null,  dbMessage: { id: '...', content: '...', type: 'narration', ... } },
         { clientId: null,  dbMessage: { id: '...', content: '...', type: 'narration', ... } }
       ]
     }
@@ -302,7 +348,7 @@ const sessions = new Map<string, CampaignSession>()
     a. Receives round:saved
     b. Matches each clientId to its optimistic message in local state
     c. Replaces optimistic message with the DB-confirmed version (real UUID, real created_at)
-    d. Appends GM narration message (which was streaming — now replaced with the confirmed DB version)
+    d. Replaces streaming narration with the confirmed DB narration messages
 ```
 
 ### Debounce Timer Semantics
@@ -392,16 +438,53 @@ const response = await openai.responses.create({
 ### Subsequent Calls (in `game-session` edge function)
 
 ```typescript
+const roundResponseSchema = {
+  name: 'round_response',
+  strict: true,
+  schema: {
+    type: 'object',
+    properties: {
+      actions: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            clientId:   { type: 'string' },
+            playerName: { type: 'string' },
+            content:    { type: 'string' },
+          },
+          required: ['clientId', 'playerName', 'content'],
+          additionalProperties: false,
+        },
+      },
+      narration: {
+        type: 'array',
+        items: { type: 'string' },
+      },
+    },
+    required: ['actions', 'narration'],
+    additionalProperties: false,
+  },
+}
+
+const input = JSON.stringify(
+  pendingMessages.map(m => ({ clientId: m.clientId, playerName: m.playerName, content: m.content }))
+)
+
 const response = await openai.responses.create({
   model: 'gpt-4o',
   previous_response_id: campaign.last_response_id,
-  input: bundledPlayerActions,  // "Name: action\nName: action"
-  stream: true
+  input,
+  response_format: { type: 'json_schema', json_schema: roundResponseSchema },
+  stream: true,
 })
+// parse response JSON → { actions, narration }
 // update campaigns.last_response_id = response.id
 ```
 
 The `instructions` field is omitted on subsequent calls. OpenAI retains the system prompt as part of the conversation state identified by `previous_response_id`.
+
+The same `roundResponseSchema` is used for the opening narration call in `start-campaign`, except `actions` will be an empty array (no player actions have been taken yet).
 
 ### Streaming
 
