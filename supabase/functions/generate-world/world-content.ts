@@ -1,10 +1,7 @@
 export const REQUIRED_WORLD_SECTIONS = [
   '## World Name',
   '## Overview',
-  '## History',
   '## Geography',
-  '## Factions',
-  '## Tone',
   '## Classes',
 ] as const
 

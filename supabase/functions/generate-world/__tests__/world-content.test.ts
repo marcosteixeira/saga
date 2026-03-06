@@ -17,17 +17,8 @@ Ironhold
 ## Overview
 A dying empire...
 
-## History
-Once great...
-
 ## Geography
 Mountains and fog...
-
-## Factions
-The Guild controls...
-
-## Tone
-Dark, industrial, hopeless.
 
 ## Classes
 \`\`\`json
@@ -36,26 +27,30 @@ ${VALID_CLASSES_JSON}
 `
 
 describe('REQUIRED_WORLD_SECTIONS', () => {
-  it('contains exactly 7 sections', () => {
-    expect(REQUIRED_WORLD_SECTIONS).toHaveLength(7)
+  it('contains exactly 4 sections', () => {
+    expect(REQUIRED_WORLD_SECTIONS).toHaveLength(4)
   })
 
-  it('does not include Current Situation', () => {
-    expect(REQUIRED_WORLD_SECTIONS).not.toContain('## Current Situation')
+  it('does not include History', () => {
+    expect(REQUIRED_WORLD_SECTIONS).not.toContain('## History')
   })
 
-  it('does not include Starting Hooks', () => {
-    expect(REQUIRED_WORLD_SECTIONS).not.toContain('## Starting Hooks')
+  it('does not include Factions', () => {
+    expect(REQUIRED_WORLD_SECTIONS).not.toContain('## Factions')
+  })
+
+  it('does not include Tone', () => {
+    expect(REQUIRED_WORLD_SECTIONS).not.toContain('## Tone')
   })
 })
 
 describe('hasAllRequiredSections', () => {
-  it('returns true when all 6 sections are present', () => {
+  it('returns true when all 4 sections are present', () => {
     expect(hasAllRequiredSections(VALID_WORLD_MD)).toBe(true)
   })
 
   it('returns false when a required section is missing', () => {
-    const incomplete = VALID_WORLD_MD.replace('## Factions', '')
+    const incomplete = VALID_WORLD_MD.replace('## Geography', '')
     expect(hasAllRequiredSections(incomplete)).toBe(false)
   })
 })
@@ -66,8 +61,8 @@ describe('getMissingRequiredSections', () => {
   })
 
   it('returns missing section names', () => {
-    const incomplete = VALID_WORLD_MD.replace('## Tone', '')
-    expect(getMissingRequiredSections(incomplete)).toEqual(['## Tone'])
+    const incomplete = VALID_WORLD_MD.replace('## Geography', '')
+    expect(getMissingRequiredSections(incomplete)).toEqual(['## Geography'])
   })
 })
 
@@ -78,17 +73,8 @@ Ironhold
 ## Overview
 A dying empire...
 
-## History
-Once great...
-
 ## Geography
 Mountains and fog...
-
-## Factions
-The Guild controls...
-
-## Tone
-Dark, industrial, hopeless.
 `
 
 // --- parseClassesFromContent ---
@@ -100,17 +86,8 @@ Ironhold
 ## Overview
 A dying empire...
 
-## History
-Once great...
-
 ## Geography
 Mountains and fog...
-
-## Factions
-The Guild controls...
-
-## Tone
-Dark, industrial, hopeless.
 
 ## Classes
 \`\`\`json
@@ -140,7 +117,7 @@ describe('stripClassesFromContent', () => {
     const stripped = stripClassesFromContent(VALID_CONTENT_WITH_CLASSES)
     expect(stripped).not.toContain('## Classes')
     expect(stripped).not.toContain('```json')
-    expect(stripped).toContain('## Tone')
+    expect(stripped).toContain('## Geography')
   })
 
   it('returns original content unchanged when no ## Classes section exists', () => {
