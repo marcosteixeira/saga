@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { createClient } from "jsr:@supabase/supabase-js@2"
 import { broadcastToChannel } from "../generate-world/broadcast.ts"
+import { WORLD_MAP_IMAGE_SYSTEM_PROMPT, WORLD_IMAGE_SYSTEM_PROMPT, SCENE_IMAGE_SYSTEM_PROMPT, buildPromptForCampaign } from "./prompt.ts"
 
 type GeminiResponse = {
   candidates?: Array<{
@@ -28,54 +29,6 @@ export function getStoragePath(entityType: string, entityId: string, imageType: 
   return `${entityType}s/${entityId}/${imageType}.png`
 }
 
-const WORLD_MAP_IMAGE_SYSTEM_PROMPT = `You are a tabletop RPG cartographer. Generate a single widescreen (16:9 landscape) illustrated map that will be used as a full-bleed UI background for a web application.
-
-CRITICAL COMPOSITION RULES:
-- Fill the entire frame with a richly detailed illustrated map — no empty or black areas
-- The map should show the world's geography: regions, landmarks, cities, terrain features, and points of interest
-- Include decorative elements appropriate to the genre: compass rose, border ornamentation, region labels, and legend markers consistent with the world's lore
-- The overall style must match the genre — never default to generic fantasy parchment
-
-VISUAL RULES:
-- Do NOT include any UI chrome, logos, or non-map elements
-- Do NOT render a blank, modern-style, or generic map — this must look like an artifact or document from within the world
-- Genre must be faithfully rendered: fantasy gets a classic illustrated parchment map with ink linework and terrain icons; sci-fi gets a star chart or sector map with holographic/blueprint aesthetics; crime gets a gritty city district map with hand-marked annotations; horror gets a dark, unsettling cartographic document — never default to generic fantasy
-- Match color palette, materials, and visual language to the world's tone
-
-Output only the image.`
-
-const WORLD_IMAGE_SYSTEM_PROMPT = `You are a tabletop RPG background art generator. Generate a single widescreen (16:9 landscape) cinematic scene that will be used as a full-bleed UI background for a web application.
-
-CRITICAL COMPOSITION RULES:
-- Fill the entire frame with rich atmospheric scene content — no large empty or black areas
-- The scene should extend edge-to-edge with interesting environmental details throughout
-- The LEFT third should have the primary focal point or character
-- The RIGHT third can be slightly less busy but must still contain atmospheric scene elements (background, environment, light, fog, etc.) — not darkness or emptiness
-- Add only a very subtle dark vignette along the far right edge (last 10% of image width) to help UI text readability
-- Add a subtle dark vignette along the bottom edge
-
-VISUAL RULES:
-- Do NOT include any text, titles, logos, labels, or typographic elements anywhere in the image
-- Do NOT render book cover or movie poster layouts — this is environmental/atmospheric art
-- Use deep, rich atmospheric lighting with dramatic shadows
-- Genre must be faithfully rendered: crime gets gritty urban realism, sci-fi gets cold tech aesthetics, fantasy gets painterly drama, horror gets dark texture — never default to generic fantasy
-
-Output only the image.`
-
-const SCENE_IMAGE_SYSTEM_PROMPT = `You are a tabletop RPG scene artist. Generate a single widescreen (16:9 landscape) cinematic scene showing a group of adventurers in the described setting.
-
-CRITICAL COMPOSITION RULES:
-- Fill the entire frame with rich atmospheric scene content — no large empty or black areas
-- The scene should extend edge-to-edge with interesting environmental details
-- Show the party of adventurers as silhouettes or mid-ground figures
-- Add a subtle dark vignette along the bottom edge for UI text readability
-
-VISUAL RULES:
-- Do NOT include any text, titles, logos, or labels anywhere in the image
-- Use deep, rich atmospheric lighting with dramatic shadows
-- Genre must be faithfully rendered from the world description
-
-Output only the image.`
 
 async function buildPrompt(
   supabase: ReturnType<typeof createClient>,
@@ -118,16 +71,12 @@ async function buildPrompt(
 
     const { data: players } = await supabase
       .from("players")
-      .select("character_name, character_class, username")
+      .select("character_name, character_class, character_backstory, username")
       .eq("campaign_id", entityId)
-
-    const playerList = (players ?? [])
-      .map((p) => `- ${p.character_name ?? p.username} (${p.character_class ?? "unknown class"})`)
-      .join("\n")
 
     return {
       systemPrompt: SCENE_IMAGE_SYSTEM_PROMPT,
-      userPrompt: `World: ${world.name}\n\n${world.world_content}\n\nParty:\n${playerList}`,
+      userPrompt: buildPromptForCampaign(world.name, world.world_content as string, players ?? []),
       worldId: campaign.world_id,
     }
   }

@@ -61,8 +61,6 @@ export default async function GamePage({ params }: Props) {
   const worldWithImages = { ...world, cover_url: findUrl('world', world.id, 'cover'), map_url: findUrl('world', world.id, 'map') }
   const campaignWithImages = { ...campaign, cover_url: findUrl('campaign', campaign.id, 'cover') }
 
-  const openingReady = !!campaign.opening_situation
-
   // Loading background: campaign cover → world cover → world map
   const loadingImageUrl = campaignWithImages.cover_url ?? worldWithImages.cover_url ?? worldWithImages.map_url ?? undefined
 
@@ -73,7 +71,6 @@ export default async function GamePage({ params }: Props) {
       players={playersResult.data ?? []}
       messages={messagesResult.data ?? []}
       currentUserId={user.id}
-      openingReady={openingReady}
       loadingImageUrl={loadingImageUrl}
       campaignCoverImageUrl={campaignWithImages.cover_url ?? worldWithImages.cover_url ?? undefined}
     />
