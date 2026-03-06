@@ -63,21 +63,21 @@ export async function POST(
 
   await broadcastCampaignEvent(campaignId, 'game:starting', {})
 
-  // Fire-and-forget: edge function handles session creation + AI generation
-  const functionUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/start-campaign`
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-  if (process.env.START_CAMPAIGN_WEBHOOK_SECRET) {
-    headers.authorization = `Bearer ${process.env.START_CAMPAIGN_WEBHOOK_SECRET}`
+  // Fire-and-forget: campaign cover image
+  const imageUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/generate-image`
+  const imageHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (process.env.GENERATE_IMAGE_WEBHOOK_SECRET) {
+    imageHeaders.authorization = `Bearer ${process.env.GENERATE_IMAGE_WEBHOOK_SECRET}`
   }
-  fetch(functionUrl, {
+  fetch(imageUrl, {
     method: 'POST',
-    headers,
+    headers: imageHeaders,
     body: JSON.stringify({
-      campaign_id: campaignId,
+      entity_type: 'campaign',
+      entity_id: campaignId,
+      image_type: 'cover',
     }),
-  }).then(async (res) => {
-    if (!res.ok) console.error(`[start-campaign] edge function failed HTTP ${res.status}`)
-  }).catch((err) => console.error('[start-campaign] edge function fetch failed:', err))
+  }).catch((err) => console.error('[start] cover image trigger failed:', err))
 
   return NextResponse.json({ ok: true }, { status: 200 })
 }

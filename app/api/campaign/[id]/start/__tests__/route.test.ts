@@ -155,9 +155,15 @@ describe('POST /api/campaign/[id]/start', () => {
     expect(updateQuery.eq).toHaveBeenNthCalledWith(2, 'status', 'lobby')
     expect(broadcastCampaignEvent).toHaveBeenCalledWith('abc', 'game:starting', {})
     expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining('/functions/v1/start-campaign'),
-      expect.objectContaining({ method: 'POST' })
+      expect.stringContaining('/functions/v1/generate-image'),
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ entity_type: 'campaign', entity_id: 'abc', image_type: 'cover' }),
+      })
     )
+    // must NOT call the deleted start-campaign function
+    const startCampaignCall = fetchMock.mock.calls.find(([url]: [string]) => String(url).includes('start-campaign'))
+    expect(startCampaignCall).toBeUndefined()
     const body = await res.json()
     expect(body).toEqual({ ok: true })
   })
