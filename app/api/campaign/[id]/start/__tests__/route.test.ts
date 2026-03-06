@@ -162,7 +162,7 @@ describe('POST /api/campaign/[id]/start', () => {
       })
     )
     // must NOT call the deleted start-campaign function
-    const startCampaignCall = fetchMock.mock.calls.find(([url]: [string]) => String(url).includes('start-campaign'))
+    const startCampaignCall = fetchMock.mock.calls.find((args: unknown[]) => String(args[0]).includes('start-campaign'))
     expect(startCampaignCall).toBeUndefined()
     const body = await res.json()
     expect(body).toEqual({ ok: true })
