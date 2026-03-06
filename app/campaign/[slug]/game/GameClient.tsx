@@ -1805,19 +1805,23 @@ export default function GameClient({
   loadingImageUrl,
   campaignCoverImageUrl,
 }: GameClientProps) {
-  const [viewState, setViewState] = useState<GameViewState>('loading');
+  const [viewState, setViewState] = useState<GameViewState>(
+    campaign.status === 'active' || dbMessages.length > 0 ? 'active' : 'loading'
+  );
 
   const players = dbPlayers.length > 0 ? dbPlayers : MOCK_PLAYERS;
   const messages = dbMessages.length > 0 ? dbMessages : MOCK_MESSAGES;
 
-  // Listen for game:started to leave the loading state
+  // Fallback: if user is waiting here, game:starting can unlock the view.
   useEffect(() => {
+    if (viewState === 'active') return;
+
     const supabase = createClient();
     let cancelled = false;
 
     const channel = supabase
       .channel(`campaign:${campaign.id}`)
-      .on('broadcast', { event: 'game:started' }, () => {
+      .on('broadcast', { event: 'game:starting' }, () => {
         if (!cancelled) setViewState('active');
       })
       .subscribe();
@@ -1826,7 +1830,7 @@ export default function GameClient({
       cancelled = true;
       supabase.removeChannel(channel);
     };
-  }, [campaign.id]);
+  }, [campaign.id, viewState]);
 
   const isCampaignReady = viewState !== 'loading';
 
