@@ -4,6 +4,7 @@ import type { Campaign } from '@/types'
 
 type ProfileCampaign = Pick<Campaign, 'id' | 'slug' | 'name' | 'status' | 'host_user_id' | 'created_at'> & {
   is_host: boolean
+  cover_image_url: string | null
 }
 
 export async function GET() {
@@ -65,10 +66,33 @@ export async function GET() {
     joinedCampaigns = data ?? []
   }
 
-  const campaigns: ProfileCampaign[] = [
-    ...(hostedCampaigns ?? []).map((campaign) => ({ ...campaign, is_host: true })),
-    ...joinedCampaigns.map((campaign) => ({ ...campaign, is_host: false })),
+  const allCampaigns = [
+    ...(hostedCampaigns ?? []).map((c) => ({ ...c, is_host: true })),
+    ...joinedCampaigns.map((c) => ({ ...c, is_host: false })),
   ].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
+
+  const allIds = allCampaigns.map((c) => c.id)
+  const coverImagesByCampaignId: Record<string, string> = {}
+
+  if (allIds.length > 0) {
+    const { data: imageRows } = await supabase
+      .from('images')
+      .select('entity_id, public_url')
+      .eq('entity_type', 'campaign')
+      .eq('image_type', 'cover')
+      .eq('status', 'ready')
+      .in('entity_id', allIds)
+      .not('public_url', 'is', null)
+
+    for (const row of imageRows ?? []) {
+      if (row.public_url) coverImagesByCampaignId[row.entity_id] = row.public_url
+    }
+  }
+
+  const campaigns: ProfileCampaign[] = allCampaigns.map((c) => ({
+    ...c,
+    cover_image_url: coverImagesByCampaignId[c.id] ?? null,
+  }))
 
   return NextResponse.json({ campaigns })
 }

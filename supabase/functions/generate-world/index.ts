@@ -9,7 +9,7 @@ const anthropic = new Anthropic({
   apiKey: Deno.env.get("ANTHROPIC_API_KEY")!,
 })
 
-const WORLD_GEN_MAX_TOKENS = 4096
+const WORLD_GEN_MAX_TOKENS = 2048
 const WORLD_GEN_MAX_ATTEMPTS = 3
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!
@@ -66,26 +66,40 @@ Deno.serve(async (req: Request) => {
       status: "generating",
     })
 
-    const systemPrompt = `You are a world-builder for tabletop RPG campaigns. Generate a rich WORLD.md document faithful to the genre, tone, and setting described by the player. Do NOT impose a fantasy genre — if the player describes a sci-fi, horror, Western, crime, or any other setting, match it exactly.
+    const systemPrompt = `You are a world-builder for tabletop RPG campaigns. Generate a WORLD.md document faithful to the genre, tone, and setting described by the player. Do NOT impose a fantasy genre — match sci-fi, horror, Western, crime, or any other setting exactly.
 
-Output a Markdown document with exactly these sections (use ## headings):
+Output a Markdown document with exactly these sections in this order (use ## headings). Follow the length limits strictly — do not exceed them:
+
 ## World Name
-## Overview
-## History
-## Geography
-## Factions
-## Tone
-## Classes
+One evocative name. No subtitle.
 
-The ## Classes section must contain a JSON code block with exactly 6 character classes specific to this world's lore, tone, and setting. Format:
+## Classes
+Exactly 6 character classes as a JSON code block. This section is mandatory and must be complete.
 \`\`\`json
 [
-  { "name": "Class Name", "description": "One sentence flavor description." },
-  ...
+  { "name": "Class Name", "description": "One sentence flavor description." }
 ]
 \`\`\`
+Class names must feel native to this world — no generic names like "Warrior" or "Mage".
 
-Be evocative and specific. Class names should feel native to this world — avoid generic names like "Warrior" or "Mage". Output ONLY the Markdown document, no preamble.`
+## Overview
+2–3 sentences. What this world is and what makes it distinctive.
+
+## History
+4–6 bullet points. Key events that shaped the current state of the world.
+
+## Geography
+4–6 bullet points. Notable regions, locations, or terrain features.
+
+## Factions
+4–6 bullet points. Major powers, groups, or organizations and their agendas.
+
+## Tone
+2–3 sentences. The mood, themes, and feel of adventures in this world.
+
+Detect the language used in the player's description and write the entire document in that language. If the description is in Portuguese, write in Portuguese. If in Spanish, write in Spanish. If in English, write in English. Match the language exactly.
+
+Output ONLY the Markdown document, no preamble.`
 
     let worldContent = ""
     let missingSections: string[] = []
@@ -181,41 +195,44 @@ Be evocative and specific. Class names should feel native to this world — avoi
       status: "ready",
     })
 
-    // Trigger image generation
+    // Trigger image generation (cover + map)
     const imageWebhookSecret = Deno.env.get("GENERATE_IMAGE_WEBHOOK_SECRET")
-    const imagePromise = fetch(`${supabaseUrl}/functions/v1/generate-image`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${imageWebhookSecret}`,
-      },
-      body: JSON.stringify({
-        entity_type: "world",
-        entity_id: world.id,
-        image_type: "cover",
-      }),
-    }).then((res) => {
-      if (!res.ok) {
+    const triggerImage = (imageType: string) =>
+      fetch(`${supabaseUrl}/functions/v1/generate-image`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${imageWebhookSecret}`,
+        },
+        body: JSON.stringify({
+          entity_type: "world",
+          entity_id: world.id,
+          image_type: imageType,
+        }),
+      }).then((res) => {
+        if (!res.ok) {
+          logError(
+            "generate_world.image_trigger_failed",
+            { requestId, worldId: world.id, imageType, status: res.status },
+            new Error(`generate-image responded with ${res.status}`),
+          )
+        } else {
+          logInfo("generate_world.image_trigger_succeeded", {
+            requestId,
+            worldId: world.id,
+            imageType,
+          })
+        }
+      }).catch((err) => {
         logError(
           "generate_world.image_trigger_failed",
-          { requestId, worldId: world.id, status: res.status },
-          new Error(`generate-image responded with ${res.status}`),
+          { requestId, worldId: world.id, imageType },
+          err,
         )
-      } else {
-        logInfo("generate_world.image_trigger_succeeded", {
-          requestId,
-          worldId: world.id,
-        })
-      }
-    }).catch((err) => {
-      logError(
-        "generate_world.image_trigger_failed",
-        { requestId, worldId: world.id },
-        err,
-      )
-    })
+      })
+
     // @ts-ignore — EdgeRuntime is available in Supabase edge function environments
-    EdgeRuntime.waitUntil(imagePromise)
+    EdgeRuntime.waitUntil(Promise.all([triggerImage("cover"), triggerImage("map")]))
 
     logInfo("generate_world.completed", {
       requestId,

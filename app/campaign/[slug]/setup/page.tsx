@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { pickLatestImageUrl } from '@/lib/image-selection'
 import { Button } from '@/components/ui/button'
 import { EmberParticles } from '@/components/ember-particles'
 import type { Campaign, World, WorldStatus } from '@/types'
@@ -11,6 +10,8 @@ import type { Campaign, World, WorldStatus } from '@/types'
 type CampaignPayload = {
   campaign: Campaign
   world: World
+  world_cover_url: string | null
+  campaign_cover_url: string | null
 }
 
 function statusMessage(status: WorldStatus | string): string {
@@ -51,19 +52,7 @@ export default function CampaignSetupPage() {
     const data = (await res.json()) as CampaignPayload
     setCampaign(data.campaign)
     setWorld(data.world)
-    const { data: imageRows } = await supabase
-      .from('images')
-      .select('entity_type, entity_id, image_type, public_url, created_at')
-      .eq('entity_type', 'world')
-      .eq('entity_id', data.campaign.world_id)
-      .eq('status', 'ready')
-
-    const coverUrl = pickLatestImageUrl(
-      imageRows,
-      'world',
-      data.campaign.world_id,
-      'cover'
-    )
+    const coverUrl = data.campaign_cover_url ?? data.world_cover_url
     if (coverUrl) {
       setCoverImageUrl(`${coverUrl}?t=${Date.now()}`)
     }
@@ -149,7 +138,9 @@ export default function CampaignSetupPage() {
             }) => {
               if (!mounted) return
               const { entity_type, entity_id, image_type, url } = message.payload
-              if (entity_type === 'world' && entity_id === data.campaign.world_id && image_type === 'cover') {
+              const isCampaignCover = entity_type === 'campaign' && entity_id === data.campaign.id && image_type === 'cover'
+              const isWorldCover = entity_type === 'world' && entity_id === data.campaign.world_id && image_type === 'cover'
+              if (isCampaignCover || isWorldCover) {
                 setImageLoaded(false)
                 setCoverImageUrl(url)
               }
