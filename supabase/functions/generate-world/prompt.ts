@@ -17,17 +17,8 @@ Class names must feel native to this world — no generic names like "Warrior" o
 ## Overview
 2–3 sentences. What this world is and what makes it distinctive.
 
-## History
-4–6 bullet points. Key events that shaped the current state of the world.
-
 ## Geography
 4–6 bullet points. Notable regions, locations, or terrain features.
-
-## Factions
-4–6 bullet points. Major powers, groups, or organizations and their agendas.
-
-## Tone
-2–3 sentences. The mood, themes, and feel of adventures in this world.
 
 Detect the language used in the player's description and write the entire document in that language. If the description is in Portuguese, write in Portuguese. If in Spanish, write in Spanish. If in English, write in English. Match the language exactly.
 
