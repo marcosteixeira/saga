@@ -33,12 +33,23 @@ export function getOrCreateSession(campaignId: string): CampaignSession {
 
 export function registerConnection(campaignId: string, playerId: string, socket: WebSocket): void {
   const session = getOrCreateSession(campaignId)
+  const previous = session.connections.get(playerId)
+  if (previous && previous !== socket) {
+    try {
+      previous.close(1000, "replaced_by_new_connection")
+    } catch {
+      // ignore close errors on stale sockets
+    }
+  }
   session.connections.set(playerId, socket)
 }
 
-export function removeConnection(campaignId: string, playerId: string): void {
+export function removeConnection(campaignId: string, playerId: string, socket?: WebSocket): void {
   const session = sessions.get(campaignId)
   if (!session) return
+  const current = session.connections.get(playerId)
+  if (!current) return
+  if (socket && current !== socket) return
   session.connections.delete(playerId)
   if (session.connections.size === 0 && session.pendingMessages.length === 0 && !session.isProcessing) {
     sessions.delete(campaignId)

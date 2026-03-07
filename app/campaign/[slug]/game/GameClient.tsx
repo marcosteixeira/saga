@@ -1777,13 +1777,26 @@ export default function GameClient({
     let reconnectAttempt = 0;
     let unmounted = false;
 
+    const scheduleReconnect = () => {
+      if (unmounted) return;
+      setWsStatus('disconnected');
+      const delay = Math.min(1000 * 2 ** reconnectAttempt, 30000);
+      reconnectAttempt++;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      reconnectTimer = setTimeout(connect, delay);
+    };
+
     const connect = async () => {
       if (unmounted) return;
       setWsStatus('connecting');
 
       const supabase = createClient();
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token || unmounted) return;
+      if (unmounted) return;
+      if (!session?.access_token) {
+        scheduleReconnect();
+        return;
+      }
 
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
       const wsBase = supabaseUrl.replace(/^https/, 'wss').replace(/^http/, 'ws');
@@ -1849,10 +1862,7 @@ export default function GameClient({
       ws.onclose = () => {
         wsRef.current = null;
         if (unmounted) return;
-        setWsStatus('disconnected');
-        const delay = Math.min(1000 * 2 ** reconnectAttempt, 30000);
-        reconnectAttempt++;
-        reconnectTimer = setTimeout(connect, delay);
+        scheduleReconnect();
       };
     };
 

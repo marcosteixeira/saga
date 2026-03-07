@@ -26,6 +26,16 @@ function logError(event: string, meta: LogMeta = {}, err: unknown): void {
   console.error(JSON.stringify({ level: "error", event, ...meta, error }))
 }
 
+async function clearPendingFirstCall(campaignId: string): Promise<void> {
+  const { error } = await supabase
+    .from("campaigns")
+    .update({ last_response_id: null })
+    .eq("id", campaignId)
+  if (error) {
+    logError("game_session.db_error", { campaignId, reason: "clear_pending_failed" }, error)
+  }
+}
+
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
 const openaiApiKey = Deno.env.get("OPENAI_API_KEY")!
@@ -129,44 +139,50 @@ async function runFirstCall(campaignId: string): Promise<void> {
   }
 
   // Re-fetch to confirm we won the race
-  const { data: campaign } = await supabase
+  const { data: campaign, error: campaignError } = await supabase
     .from("campaigns")
     .select("last_response_id, world_id")
     .eq("id", campaignId)
     .single()
+
+  if (campaignError) {
+    logError("game_session.db_error", { campaignId, reason: "recheck_pending_failed" }, campaignError)
+    await clearPendingFirstCall(campaignId)
+    return
+  }
 
   if (!campaign || campaign.last_response_id !== "pending") {
     logInfo("game_session.first_call_skipped", { campaignId, reason: "race_lost" })
     return
   }
 
-  const { data: world } = await supabase
-    .from("worlds")
-    .select("world_content")
-    .eq("id", campaign.world_id)
-    .single()
-
-  if (!world?.world_content) {
-    logError("game_session.openai_call_failed", { campaignId }, new Error("world_content missing"))
-    return
-  }
-
-  const { data: players } = await supabase
-    .from("players")
-    .select("character_name, character_class, character_backstory, username")
-    .eq("campaign_id", campaignId)
-
-  if (!players?.length) {
-    logError("game_session.openai_call_failed", { campaignId }, new Error("no players found"))
-    return
-  }
-
-  const systemPrompt = buildGMSystemPrompt(world.world_content as string, players)
-  const input = buildFirstCallInput()
-
-  logInfo("game_session.openai_call_started", { campaignId, previousResponseId: null })
-
   try {
+    const { data: world, error: worldError } = await supabase
+      .from("worlds")
+      .select("world_content")
+      .eq("id", campaign.world_id)
+      .single()
+
+    if (worldError) throw worldError
+    if (!world?.world_content) {
+      throw new Error("world_content missing")
+    }
+
+    const { data: players, error: playersError } = await supabase
+      .from("players")
+      .select("character_name, character_class, character_backstory, username")
+      .eq("campaign_id", campaignId)
+
+    if (playersError) throw playersError
+    if (!players?.length) {
+      throw new Error("no players found")
+    }
+
+    const systemPrompt = buildGMSystemPrompt(world.world_content as string, players)
+    const input = buildFirstCallInput()
+
+    logInfo("game_session.openai_call_started", { campaignId, previousResponseId: null })
+
     const rawStream = await openai.responses.create({
       model: "gpt-4o",
       instructions: systemPrompt,
@@ -227,7 +243,7 @@ async function runFirstCall(campaignId: string): Promise<void> {
   } catch (err) {
     logError("game_session.openai_call_failed", { campaignId }, err)
     // Reset so the next connection can retry rather than hanging on 'pending' forever.
-    await supabase.from("campaigns").update({ last_response_id: null }).eq("id", campaignId)
+    await clearPendingFirstCall(campaignId)
     broadcastToAll(campaignId, { type: "error", message: "Failed to generate opening narration" })
   }
 }
@@ -451,7 +467,7 @@ Deno.serve(async (req: Request) => {
 
   socket.onclose = (event) => {
     logInfo("game_session.connection_closed", { campaignId, playerId, reason: event.reason || "normal" })
-    removeConnection(campaignId, playerId)
+    removeConnection(campaignId, playerId, socket)
   }
 
   socket.onerror = (event) => {

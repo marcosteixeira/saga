@@ -8,10 +8,11 @@ import {
 } from '../state.ts'
 
 // Minimal WebSocket mock
-function makeMockSocket(): { send: ReturnType<typeof vi.fn>; sentMessages: string[] } {
+function makeMockSocket(): { send: ReturnType<typeof vi.fn>; close: ReturnType<typeof vi.fn>; sentMessages: string[] } {
   const sentMessages: string[] = []
   return {
     send: vi.fn((msg: string) => sentMessages.push(msg)),
+    close: vi.fn(),
     sentMessages,
   }
 }
@@ -76,6 +77,19 @@ describe('removeConnection', () => {
     })
     removeConnection('campaign-1', 'player-1')
     expect(sessions.has('campaign-1')).toBe(true)
+  })
+
+  it('does not remove a newer socket when a stale socket closes later', () => {
+    const oldSocket = makeMockSocket()
+    const newSocket = makeMockSocket()
+
+    registerConnection('campaign-1', 'player-1', oldSocket as unknown as WebSocket)
+    registerConnection('campaign-1', 'player-1', newSocket as unknown as WebSocket)
+
+    removeConnection('campaign-1', 'player-1', oldSocket as unknown as WebSocket)
+
+    const session = sessions.get('campaign-1')
+    expect(session?.connections.get('player-1')).toBe(newSocket)
   })
 })
 
