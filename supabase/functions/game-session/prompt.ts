@@ -104,6 +104,8 @@ export function isFirstCallResponse(response: unknown): response is FirstCallRes
   return (
     typeof response === 'object' &&
     response !== null &&
-    'world_context' in response
+    'world_context' in response &&
+    typeof (response as Record<string, unknown>).world_context === 'object' &&
+    (response as Record<string, unknown>).world_context !== null
   )
 }

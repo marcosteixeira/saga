@@ -121,8 +121,10 @@ async function runFirstCall(campaignId: string): Promise<void> {
     .eq("id", campaignId)
     .is("last_response_id", null)
 
+  // Note: Supabase .update() does not error when zero rows match (race-lost case).
+  // Only a true DB connectivity error reaches here. The re-fetch below is the actual guard.
   if (pendingError) {
-    logError("game_session.openai_call_failed", { campaignId, reason: "pending_update_failed" }, pendingError)
+    logError("game_session.db_error", { campaignId, reason: "pending_update_db_error" }, pendingError)
     return
   }
 
@@ -224,6 +226,8 @@ async function runFirstCall(campaignId: string): Promise<void> {
     })
   } catch (err) {
     logError("game_session.openai_call_failed", { campaignId }, err)
+    // Reset so the next connection can retry rather than hanging on 'pending' forever.
+    await supabase.from("campaigns").update({ last_response_id: null }).eq("id", campaignId)
     broadcastToAll(campaignId, { type: "error", message: "Failed to generate opening narration" })
   }
 }
@@ -312,8 +316,19 @@ async function runRound(campaignId: string, pending: PendingMessage[]): Promise<
     const savedActions = saved.filter((m) => m.type === "action")
     const savedNarration = saved.filter((m) => m.type === "narration")
 
+    // Match saved DB rows back to clientIds using (player_id, content) as a key.
+    // This avoids relying on DB insert-order which Postgres does not guarantee.
+    const contentKeyToClientId = new Map<string, string>()
+    for (const a of actions) {
+      const pId = clientIdToPlayerId.get(a.clientId)
+      if (pId) contentKeyToClientId.set(`${pId}:${a.content}`, a.clientId)
+    }
+
     const roundMessages: Array<{ clientId: string | null; dbMessage: DbMessage }> = [
-      ...savedActions.map((m, i) => ({ clientId: actions[i]?.clientId ?? null, dbMessage: m })),
+      ...savedActions.map((m) => ({
+        clientId: m.player_id ? contentKeyToClientId.get(`${m.player_id}:${m.content}`) ?? null : null,
+        dbMessage: m,
+      })),
       ...savedNarration.map((m) => ({ clientId: null, dbMessage: m })),
     ]
 
@@ -353,7 +368,14 @@ async function fireDebounce(campaignId: string): Promise<void> {
 Deno.serve(async (req: Request) => {
   const url = new URL(req.url)
   const campaignId = url.searchParams.get("campaignId")
-  const token = url.searchParams.get("token")
+
+  // Browser WebSocket API cannot set custom headers; token is passed via
+  // Sec-WebSocket-Protocol as "jwt-<token>" (Supabase recommended approach).
+  const protocols = (req.headers.get("Sec-WebSocket-Protocol") ?? "")
+    .split(",")
+    .map((p) => p.trim())
+  const jwtProtocol = protocols.find((p) => p.startsWith("jwt-"))
+  const token = jwtProtocol ? jwtProtocol.slice(4) : null
 
   if (!campaignId || !token) {
     return new Response("Missing campaignId or token", { status: 400 })

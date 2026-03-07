@@ -37,114 +37,6 @@ interface OptimisticMessage {
   isOwn: boolean
 }
 
-// ─── Mock data ────────────────────────────────────────────────────────────────
-
-const MOCK_MESSAGES: Message[] = [
-  {
-    id: '6',
-    campaign_id: 'c1',
-    player_id: null,
-    content: 'Campaign started. Campaign mode: Free Play. Turn timer disabled.',
-    type: 'system',
-    created_at: '2026-03-05T11:54:00.000Z'
-  },
-  {
-    id: '1',
-    campaign_id: 'c1',
-    player_id: null,
-    content:
-      'The airship *Ironclad Meridian* shudders as it pierces through a low-hanging cloudbank above the smog-choked sprawl of Gearfordshire. Through streaked portholes, you can see the city below — a labyrinth of copper pipes, towering smokestacks, and gas-lamp streets. Your destination: the Foundry District, where the Brass Consortium keeps its most dangerous secrets.',
-    type: 'narration',
-    created_at: '2026-03-05T11:55:00.000Z'
-  },
-  {
-    id: '2',
-    campaign_id: 'c1',
-    player_id: 'p1',
-    content:
-      'I pull out my compass and check our bearing. "How much time before we dock at the Meridian Tower?"',
-    type: 'action',
-    created_at: '2026-03-05T11:56:00.000Z'
-  },
-  {
-    id: '3',
-    campaign_id: 'c1',
-    player_id: null,
-    content:
-      'The compass needle spins lazily — the aetherite interference from the district\'s power cores makes navigation unreliable here. Captain Mira calls back from the helm: *"Fifteen minutes, give or take. And pray the Corsair Guild isn\'t running checkpoints today."* A low rumble shakes the hull as a rival vessel passes uncomfortably close.',
-    type: 'narration',
-    created_at: '2026-03-05T11:57:00.000Z'
-  },
-  {
-    id: '4',
-    campaign_id: 'c1',
-    player_id: 'p2',
-    content:
-      'I move to the starboard side and peer through my spyglass at the rival vessel. Can I make out their markings?',
-    type: 'action',
-    created_at: '2026-03-05T11:58:00.000Z'
-  },
-  {
-    id: '5',
-    campaign_id: 'c1',
-    player_id: null,
-    content:
-      "Roll Perception. The spyglass reveals a black hull with a serpent-and-gear sigil — the **Iron Serpent Company**, private enforcers for the Brass Consortium. They haven't spotted you yet, but they're running dark: no running lights, no registry beacon. Whatever they're doing out here isn't official business.",
-    type: 'narration',
-    created_at: '2026-03-05T11:59:00.000Z'
-  }
-];
-
-const MOCK_PLAYERS: Player[] = [
-  {
-    id: 'p1',
-    campaign_id: 'c1',
-    user_id: 'u1',
-    username: 'Ironforge',
-    character_name: 'Vex Ashbury',
-    character_class: 'Artificer',
-    character_backstory: 'Former guild engineer turned rogue inventor.',
-    stats: { hp: 18, hp_max: 20 },
-    status: 'active',
-    absence_mode: 'skip',
-    is_host: true,
-    is_ready: true,
-    last_seen_at: new Date().toISOString(),
-    joined_at: new Date(Date.now() - 3600000).toISOString()
-  },
-  {
-    id: 'p2',
-    campaign_id: 'c1',
-    user_id: 'u2',
-    username: 'SkyWarden',
-    character_name: 'Lyra Copperfield',
-    character_class: 'Scout',
-    character_backstory: 'Ex-corsair pilot who now hunts her former crew.',
-    stats: { hp: 12, hp_max: 20 },
-    status: 'active',
-    absence_mode: 'skip',
-    is_host: false,
-    is_ready: true,
-    last_seen_at: new Date().toISOString(),
-    joined_at: new Date(Date.now() - 3500000).toISOString()
-  },
-  {
-    id: 'p3',
-    campaign_id: 'c1',
-    user_id: 'u3',
-    username: 'GrimCoil',
-    character_name: 'Barnabas Grime',
-    character_class: 'Brawler',
-    character_backstory: 'Retired prizefighter from the Soot Pits.',
-    stats: { hp: 5, hp_max: 20 },
-    status: 'active',
-    absence_mode: 'skip',
-    is_host: false,
-    is_ready: true,
-    last_seen_at: new Date(Date.now() - 120000).toISOString(),
-    joined_at: new Date(Date.now() - 3400000).toISOString()
-  }
-];
 
 // ─── Loading State ─────────────────────────────────────────────────────────────
 
@@ -1322,13 +1214,15 @@ function DesktopActionConsole({
   value,
   onChange,
   onSend,
+  disabled,
 }: {
   value: string;
   onChange: (v: string) => void;
   onSend: (content: string) => void;
+  disabled?: boolean;
 }) {
   const handleSend = () => {
-    if (!value.trim()) return;
+    if (!value.trim() || disabled) return;
     onSend(value.trim());
     onChange('');
   };
@@ -1380,7 +1274,8 @@ function DesktopActionConsole({
           />
           <button
             onClick={handleSend}
-            className="flex shrink-0 flex-col items-center justify-center gap-1 px-6 py-3 text-soot transition-all duration-300 hover:shadow-[0_0_20px_rgba(196,148,61,0.4)] active:scale-[0.97]"
+            disabled={disabled}
+            className="flex shrink-0 flex-col items-center justify-center gap-1 px-6 py-3 text-soot transition-all duration-300 hover:shadow-[0_0_20px_rgba(196,148,61,0.4)] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40"
             style={{
               background:
                 'linear-gradient(135deg, var(--copper), var(--brass), var(--copper))',
@@ -1437,6 +1332,7 @@ function ActiveGameView({
   isStreaming,
   currentUserId,
   campaignCoverImageUrl: initialCampaignCoverImageUrl,
+  wsStatus,
   onSend,
 }: {
   campaign: Campaign;
@@ -1448,6 +1344,7 @@ function ActiveGameView({
   isStreaming: boolean;
   currentUserId: string;
   campaignCoverImageUrl?: string;
+  wsStatus: 'connecting' | 'connected' | 'disconnected';
   onSend: (content: string) => void;
 }) {
   const feedRef = useRef<HTMLDivElement>(null);
@@ -1603,6 +1500,14 @@ function ActiveGameView({
           </div>
         </header>
 
+        {/* Disconnected banner */}
+        {wsStatus !== 'connected' && (
+          <div className="flex items-center justify-center gap-2 border-b border-furnace/40 bg-furnace/10 px-4 py-1.5 text-[11px] text-furnace/80" style={{ fontFamily: 'var(--font-mono), monospace' }}>
+            <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-furnace/80" />
+            {wsStatus === 'connecting' ? 'Connecting...' : 'Reconnecting...'}
+          </div>
+        )}
+
         {/* Feed */}
         <div
           ref={feedRef}
@@ -1672,7 +1577,7 @@ function ActiveGameView({
           </div>
         </div>
 
-        <DesktopActionConsole value={inputValue} onChange={setInputValue} onSend={onSend} />
+        <DesktopActionConsole value={inputValue} onChange={setInputValue} onSend={onSend} disabled={wsStatus !== 'connected'} />
       </main>
 
       {/* Desktop right */}
@@ -1683,7 +1588,7 @@ function ActiveGameView({
       />
 
       {/* Mobile UI */}
-      <MobileActionBar value={inputValue} onChange={setInputValue} onSend={onSend} />
+      <MobileActionBar value={inputValue} onChange={setInputValue} onSend={onSend} disabled={wsStatus !== 'connected'} />
       <MobileTabBar
         mobilePanel={mobilePanel}
         onPanelToggle={handlePanelToggle}
@@ -1859,27 +1764,38 @@ export default function GameClient({
   const [optimisticMessages, setOptimisticMessages] = useState<OptimisticMessage[]>([]);
   const [streamingContent, setStreamingContent] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
+  const [wsStatus, setWsStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
   const wsRef = useRef<WebSocket | null>(null);
 
-  const players = dbPlayers.length > 0 ? dbPlayers : MOCK_PLAYERS;
   const currentPlayer = dbPlayers.find((p) => p.user_id === currentUserId);
   const playerName = currentPlayer?.character_name ?? currentPlayer?.username ?? 'Unknown';
 
-  // WebSocket connection
+  // WebSocket connection with exponential-backoff reconnection
   useEffect(() => {
     let ws: WebSocket | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let reconnectAttempt = 0;
+    let unmounted = false;
 
     const connect = async () => {
+      if (unmounted) return;
+      setWsStatus('connecting');
+
       const supabase = createClient();
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) return;
+      if (!session?.access_token || unmounted) return;
 
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
       const wsBase = supabaseUrl.replace(/^https/, 'wss').replace(/^http/, 'ws');
-      const wsUrl = `${wsBase}/functions/v1/game-session?campaignId=${campaign.id}&token=${encodeURIComponent(session.access_token)}`;
+      const wsUrl = `${wsBase}/functions/v1/game-session?campaignId=${campaign.id}`;
 
-      ws = new WebSocket(wsUrl);
+      ws = new WebSocket(wsUrl, [`jwt-${session.access_token}`]);
       wsRef.current = ws;
+
+      ws.onopen = () => {
+        reconnectAttempt = 0;
+        setWsStatus('connected');
+      };
 
       ws.onmessage = (event: MessageEvent) => {
         let msg: { type: string; [key: string]: unknown };
@@ -1932,18 +1848,25 @@ export default function GameClient({
 
       ws.onclose = () => {
         wsRef.current = null;
+        if (unmounted) return;
+        setWsStatus('disconnected');
+        const delay = Math.min(1000 * 2 ** reconnectAttempt, 30000);
+        reconnectAttempt++;
+        reconnectTimer = setTimeout(connect, delay);
       };
     };
 
     connect();
 
     return () => {
+      unmounted = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
       ws?.close();
     };
   }, [campaign.id]);
 
   const handleSend = (content: string) => {
-    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN || wsStatus !== 'connected') return;
     const id = crypto.randomUUID();
     const timestamp = Date.now();
 
@@ -1959,8 +1882,6 @@ export default function GameClient({
     wsRef.current.send(JSON.stringify({ type: 'action', id, content, timestamp }));
   };
 
-  const displayMessages = liveMessages.length > 0 ? liveMessages : (gameAlreadyStarted ? MOCK_MESSAGES : []);
-
   if (viewState === 'loading') {
     return <LoadingState campaignName={campaign.name} backgroundImageUrl={loadingImageUrl} />;
   }
@@ -1969,13 +1890,14 @@ export default function GameClient({
     <ActiveGameView
       campaign={campaign}
       world={world}
-      players={players}
-      liveMessages={displayMessages}
+      players={dbPlayers}
+      liveMessages={liveMessages}
       optimisticMessages={optimisticMessages}
       streamingContent={streamingContent}
       isStreaming={isStreaming}
       currentUserId={currentUserId}
       campaignCoverImageUrl={campaignCoverImageUrl}
+      wsStatus={wsStatus}
       onSend={handleSend}
     />
   );

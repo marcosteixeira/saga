@@ -2,11 +2,11 @@
 
 import { useState } from 'react';
 
-export function MobileActionBar({ value, onChange, onSend }: { value: string; onChange: (v: string) => void; onSend: (content: string) => void }) {
+export function MobileActionBar({ value, onChange, onSend, disabled }: { value: string; onChange: (v: string) => void; onSend: (content: string) => void; disabled?: boolean }) {
   const [expanded, setExpanded] = useState(false);
 
   const handleSend = () => {
-    if (!value.trim()) return;
+    if (!value.trim() || disabled) return;
     onSend(value.trim());
     onChange('');
   };
@@ -43,7 +43,8 @@ export function MobileActionBar({ value, onChange, onSend }: { value: string; on
         />
         <button
           onClick={handleSend}
-          className="flex h-10 w-10 shrink-0 items-center justify-center text-soot active:scale-95"
+          disabled={disabled}
+          className="flex h-10 w-10 shrink-0 items-center justify-center text-soot active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
           style={{
             background: 'linear-gradient(135deg, var(--copper), var(--brass))',
             clipPath: 'polygon(5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%, 0 5px)',
