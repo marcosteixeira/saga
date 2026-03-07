@@ -16,7 +16,8 @@ export default async function GamePage({ params }: Props) {
     redirect(`/login?redirect=${encodeURIComponent(`/campaign/${slug}/game`)}`)
   }
 
-  const campaignResult = await supabase
+  const db = createServerSupabaseClient()
+  const campaignResult = await db
     .from('campaigns')
     .select('*, worlds(*)')
     .eq('slug', slug)
@@ -47,7 +48,6 @@ export default async function GamePage({ params }: Props) {
     notFound()
   }
 
-  const db = createServerSupabaseClient()
   const [playersResult, messagesResult, imagesResult] = await Promise.all([
     db.from('players').select('*').eq('campaign_id', campaign.id),
     db.from('messages').select('*').eq('campaign_id', campaign.id).order('created_at', { ascending: true }).limit(50),

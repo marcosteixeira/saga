@@ -1,7 +1,7 @@
 # Gameplay Design: Real-Time AI Game Session
 
 **Date:** 2026-03-06
-**Status:** Approved
+**Status:** Partially implemented — see implementation notes inline
 **Branch:** `feature/gameplay`
 
 ---
@@ -43,9 +43,11 @@ supabase/functions/game-session  (Deno, long-lived WebSocket server)
 
 | Role | Provider | When |
 |------|----------|------|
-| World/campaign generation | Claude (existing) | Before game starts |
-| Live game narration | OpenAI gpt-4o (Responses API) | Every round |
-| Image generation | Gemini (existing) | On demand |
+| World generation | Claude (existing, `generate-world`) | Campaign creation |
+| Image generation | Gemini (existing, `generate-image`) | On demand |
+| Live game narration — first call + all rounds | OpenAI gpt-4o (Responses API, `game-session`) | Game start + every round |
+
+> **Note:** `start-campaign` edge function was deleted. The opening narration and all AI calls are now handled entirely by `game-session` on first WebSocket connection.
 
 ---
 
@@ -56,11 +58,17 @@ supabase/functions/game-session  (Deno, long-lived WebSocket server)
 ```sql
 ALTER TABLE campaigns
   ADD COLUMN last_response_id TEXT;
+
+-- opening_situation and starting_hooks columns were dropped:
+-- these fields now live in the game-session AI chain (first-call response), not in the DB
+ALTER TABLE campaigns
+  DROP COLUMN IF EXISTS opening_situation,
+  DROP COLUMN IF EXISTS starting_hooks;
 ```
 
 `last_response_id` stores the OpenAI `response.id` from the most recently completed GM narration. It is:
 
-- `NULL` until the campaign's opening narration has been generated and saved
+- `NULL` until `game-session` completes the first OpenAI call (opening narration)
 - Set to `'pending'` while the first narration is being generated (prevents duplicate starts)
 - Set to the real OpenAI `response.id` once the first narration is complete
 - Updated after every subsequent GM narration round
@@ -84,17 +92,15 @@ created_at    timestamptz
 
 ## GM System Prompt
 
-The system prompt is built once per campaign at game start and sent as the `instructions` parameter on the first OpenAI Responses API call. It is not resent on subsequent calls — OpenAI retains it as part of the conversation state.
+The system prompt is built once per campaign by `buildGMSystemPrompt()` in `supabase/functions/game-session/prompt.ts` and sent as the `instructions` parameter on the first OpenAI Responses API call from `game-session`. It is not resent on subsequent calls — OpenAI retains it as part of the conversation state.
 
-The prompt includes:
+The actual prompt (as implemented):
 
 ```
 <role>
 You are the Game Master for a tabletop RPG campaign. Narrate the story in second person,
 immersive prose. React to all player actions collectively. Detect the language used in
-the world description and write all narration entirely in that language. If the world is
-described in Portuguese, narrate in Portuguese. If in Spanish, narrate in Spanish. If in
-English, narrate in English. Match the language exactly.
+the world description and write all narration entirely in that language.
 </role>
 
 <world>
@@ -111,6 +117,24 @@ English, narrate in English. Match the language exactly.
 - End each narration with a clear situation: what the players see, hear, or face next.
 - If a player's action is impossible or fails, narrate the failure dramatically.
 - Never break character. Never acknowledge you are an AI.
+
+Player placement: Players may begin together, in small groups, or alone — honor the
+opening situation exactly. When players are split, narrate each group's location and
+immediate reality. Bring them together only when the story earns it.
+
+Opening narration: The first narration must establish the world vividly — atmosphere,
+place, what is at stake — and make each player's position and situation immediately clear.
+Do not waste the opening on generic scene-setting.
+
+Story hooks: The starting hooks are the spine of this campaign. Reference them, develop
+them, escalate them. Every 2-3 narrations, at least one hook should be visibly in motion —
+named, felt, or pressing closer.
+
+World texture: Weave world-specific details (locations, factions, creatures, history) into
+every narration. The world should feel alive and specific, not generic.
+
+Pacing: This campaign is meant to be short and intense. Drive toward meaningful moments —
+confrontations, revelations, decisions. Avoid filler. If the players stall, a hook tightens.
 </narration-rules>
 
 <mechanics-rules>
@@ -122,70 +146,73 @@ English, narrate in English. Match the language exactly.
 <output-format>
 Every response must be a JSON object. No markdown fences, no text outside the JSON.
 
-Schema:
+First response schema:
 {
-  "actions": [
-    { "clientId": "string", "playerName": "string", "content": "string" }
-  ],
+  "world_context": { "history": "string", "factions": "string", "tone": "string" },
+  "opening_situation": "string",
+  "starting_hooks": ["string", "string", "string"],
+  "actions": [],
   "narration": ["string"]
 }
 
-- `actions`: echo back each received player action exactly, preserving the original clientId.
-- `narration`: one or more narration paragraphs, each as a separate string in the array.
+All subsequent responses:
+{
+  "actions": [{ "clientId": "string", "playerName": "string", "content": "string" }],
+  "narration": ["string"]
+}
 </output-format>
 ```
 
-This prompt is constructed in the `start-campaign` edge function and passed to OpenAI's `instructions` field.
+The first call input (from `buildFirstCallInput()`):
+
+```
+Generate this world's History, Factions, and Tone. Then establish the opening situation
+and starting hooks for this campaign. Then narrate the opening scene.
+Respond using the first response schema.
+```
+
+The `world_context`, `opening_situation`, and `starting_hooks` from the first call are **not persisted to the DB** — they live only in the OpenAI conversation chain and inform subsequent narrations.
 
 ---
 
 ## Flow 1: Start Campaign
 
-The existing `start-campaign` edge function is extended. The Next.js route (`POST /api/campaign/[id]/start`) is also modified.
+> **Implementation note:** `start-campaign` edge function has been **deleted**. All OpenAI calls moved to `game-session`. The start route is simplified.
 
-### Next.js Route Changes (`app/api/campaign/[id]/start/route.ts`)
-
-**Current behavior:**
-1. Validate host + all players ready
-2. Set `campaigns.status = 'active'`
-3. Broadcast `game:starting`
-4. Fire edge function async (fire-and-forget)
-5. Return 200
-
-**New behavior:**
-1. Validate host + all players ready
-2. Broadcast `game:starting` (clients redirect to game room immediately)
-3. Fire edge function async (fire-and-forget) — **do not set status here**
-4. Return 200
-
-The status transition to `'active'` is moved to the edge function as the final step, ensuring `active` only means "game is fully ready to play."
-
-### Edge Function Changes (`supabase/functions/start-campaign/index.ts`)
-
-Extended with steps 6–10 appended after the existing Claude generation:
+### Next.js Route (`app/api/campaign/[id]/start/route.ts`) — as implemented
 
 ```
-1. [EXISTING] Fetch world content + players
-2. [EXISTING] Idempotency check
-3. [EXISTING] Call Claude → generate opening_situation + starting_hooks
-4. [EXISTING] Save opening_situation + starting_hooks to campaigns
-5. [EXISTING] Fire image generation (fire-and-forget via EdgeRuntime.waitUntil)
-
-6. [NEW] Build GM system prompt from world content + players
-7. [NEW] Set campaigns.last_response_id = 'pending'  (prevents duplicate starts)
-8. [NEW] Call OpenAI Responses API (first call — no previous_response_id):
-         instructions: GM system prompt
-         input: opening_situation + "The adventure begins."
-         stream: true
-9. [NEW] Stream opening narration tokens → broadcast via WebSocket to any connected clients
-         (clients connecting early will see it stream in)
-10. [NEW] Save opening narration → messages table (type: 'narration', player_id: null)
-11. [NEW] Update campaigns.last_response_id = response.id
-12. [NEW] Set campaigns.status = 'active'  ← LAST step
-13. [NEW] Broadcast game:ready on campaign:{id} channel
+1. Validate host is authenticated
+2. Fetch campaign (must exist, status must be 'lobby')
+3. Validate all players are ready
+4. Set campaigns.status = 'active' (optimistic — atomic with status check)
+5. Broadcast game:starting
+6. Fire-and-forget: POST to generate-image (campaign cover)
+7. Return 200
 ```
 
-If step 8–12 fails, `last_response_id` stays `'pending'` and `status` stays `'lobby'`. The host can retry by hitting "Start Game" again. The idempotency check in step 2 prevents duplicate Claude calls.
+The first OpenAI call (opening narration) is **not triggered here**. It happens in `game-session` on the first client WebSocket connection.
+
+### First OpenAI Call — in `game-session` on first connection
+
+When the first player connects after `status = 'active'` and `last_response_id` is `NULL`:
+
+```
+1. Set campaigns.last_response_id = 'pending'  (prevents duplicate first calls)
+2. Build GM system prompt from world content + players  (buildGMSystemPrompt)
+3. Call OpenAI Responses API — first call (no previous_response_id):
+     instructions: GM system prompt
+     input: buildFirstCallInput()
+     stream: true
+4. Stream narration tokens → broadcast chunks to connected clients
+5. Parse first-call response: { world_context, opening_situation, starting_hooks, actions, narration }
+   — world_context/opening_situation/starting_hooks live in the AI chain, not persisted to DB
+6. Save opening narration paragraphs → messages table (type: 'narration', player_id: null)
+7. Update campaigns.last_response_id = response.id
+8. Broadcast round:saved with DB-confirmed narration messages
+```
+
+If step 3–7 fails, `last_response_id` stays `'pending'`. On reconnect, `game-session` should detect the pending state and retry the first call (implementation TBD).
 
 ---
 
@@ -198,12 +225,14 @@ On game room load, the client:
 1. Reads `campaign.last_response_id` from the page props (server-rendered)
 2. If `null` or `'pending'`:
    - Renders loading screen
-   - Subscribes to Supabase Realtime channel `campaign:{id}` for `game:ready`
-   - On `game:ready` received → reload page data → proceed to step 3
-3. If a real response ID is set:
+   - Opens WebSocket to `game-session` immediately — the edge function handles the first call
+   - (The loading screen clears once `round:saved` arrives with the opening narration)
+3. If a real response ID is set (game already in progress / page refresh):
    - Loads full message history from DB (existing messages)
    - Opens WebSocket to `game-session` edge function
    - Renders game room UI, ready to play
+
+> **Implementation note:** `GameClient.tsx` currently uses `openingReady` state was removed — the game always starts via the `game:started` event / WebSocket flow. The `loading` view state is shown until the first narration arrives.
 
 ### WebSocket Connection URL
 
@@ -423,48 +452,40 @@ All messages are JSON strings.
 
 ## OpenAI Responses API Integration
 
-### First Call (in `start-campaign` edge function)
+### First Call (in `game-session` edge function — on first WebSocket connection)
 
 ```typescript
 const response = await openai.responses.create({
   model: 'gpt-4o',
-  instructions: gmSystemPrompt,   // full GM system prompt — only sent once
-  input: openingNarrationPrompt,  // opening_situation + player list
+  instructions: buildGMSystemPrompt(worldContent, players),   // only sent once
+  input: buildFirstCallInput(),
   stream: true
 })
+// parse response JSON → { world_context, opening_situation, starting_hooks, actions, narration }
+// save narration paragraphs → messages
 // save response.id → campaigns.last_response_id
 ```
+
+The `FirstCallResponse` type (from `game-session/prompt.ts`):
+
+```typescript
+interface FirstCallResponse {
+  world_context: { history: string; factions: string; tone: string }
+  opening_situation: string
+  starting_hooks: string[]
+  actions: []
+  narration: string[]
+}
+```
+
+`world_context`, `opening_situation`, and `starting_hooks` are **not stored in the DB** — they inform subsequent narrations through the OpenAI conversation chain (`previous_response_id`).
 
 ### Subsequent Calls (in `game-session` edge function)
 
 ```typescript
-const roundResponseSchema = {
-  name: 'round_response',
-  strict: true,
-  schema: {
-    type: 'object',
-    properties: {
-      actions: {
-        type: 'array',
-        items: {
-          type: 'object',
-          properties: {
-            clientId:   { type: 'string' },
-            playerName: { type: 'string' },
-            content:    { type: 'string' },
-          },
-          required: ['clientId', 'playerName', 'content'],
-          additionalProperties: false,
-        },
-      },
-      narration: {
-        type: 'array',
-        items: { type: 'string' },
-      },
-    },
-    required: ['actions', 'narration'],
-    additionalProperties: false,
-  },
+interface RoundResponse {
+  actions: Array<{ clientId: string; playerName: string; content: string }>
+  narration: string[]
 }
 
 const input = JSON.stringify(
@@ -483,8 +504,6 @@ const response = await openai.responses.create({
 ```
 
 The `instructions` field is omitted on subsequent calls. OpenAI retains the system prompt as part of the conversation state identified by `previous_response_id`.
-
-The same `roundResponseSchema` is used for the opening narration call in `start-campaign`, except `actions` will be an empty array (no player actions have been taken yet).
 
 ### Streaming
 
@@ -572,38 +591,47 @@ The displayed message list is the union of `messages` + `optimisticMessages`, so
 
 ## Files to Create or Modify
 
-| File | Change |
-|------|--------|
-| `supabase/migrations/YYYYMMDD_add_last_response_id.sql` | **New** — add `last_response_id` to campaigns |
-| `types/campaign.ts` | **Modify** — add `last_response_id: string \| null` |
-| `app/api/campaign/[id]/start/route.ts` | **Modify** — remove `status = 'active'` update (move to edge function) |
-| `supabase/functions/start-campaign/index.ts` | **Modify** — add steps 6–13: build GM prompt, call OpenAI, save narration, set response_id, set status active |
-| `supabase/functions/game-session/index.ts` | **New** — Deno WebSocket server (main handler) |
-| `supabase/functions/game-session/state.ts` | **New** — in-memory CampaignSession map, connection management |
-| `supabase/functions/game-session/openai.ts` | **New** — OpenAI Responses API call + streaming |
-| `supabase/functions/game-session/debounce.ts` | **New** — debounce timer logic |
-| `app/campaign/[slug]/game/GameClient.tsx` | **Modify** — WebSocket connection, optimistic messages, streaming UI |
-| `app/campaign/[slug]/game/page.tsx` | **Modify** — pass `last_response_id` to client, handle loading state |
+| File | Change | Status |
+|------|--------|--------|
+| `supabase/migrations/YYYYMMDD_add_last_response_id.sql` | **New** — add `last_response_id`, drop `opening_situation`/`starting_hooks` | TODO |
+| `types/campaign.ts` | **Modify** — add `last_response_id: string \| null`, remove `opening_situation`/`starting_hooks` | Done |
+| `app/api/campaign/[id]/start/route.ts` | **Modify** — set `status = 'active'`, broadcast `game:starting`, fire cover image | Done |
+| `supabase/functions/start-campaign/index.ts` | **Deleted** — responsibilities split: cover image → start route, OpenAI → game-session | Done |
+| `supabase/functions/generate-image/index.ts` | **Modify** — cover image uses character backstories, prompt extracted to `prompt.ts` | Done |
+| `supabase/functions/generate-image/prompt.ts` | **New** — image prompt builders + campaign prompt builder | Done |
+| `supabase/functions/generate-world/index.ts` | **Modify** — removed History/Factions/Tone from required sections | Done |
+| `supabase/functions/generate-world/prompt.ts` | **New** — system prompt extracted | Done |
+| `supabase/functions/game-session/prompt.ts` | **New** — `buildGMSystemPrompt`, `buildFirstCallInput`, `FirstCallResponse`/`RoundResponse` types | Done |
+| `supabase/functions/game-session/openai.ts` | **New** — `extractNarration` helper (full OpenAI call logic TBD in index.ts) | Partial |
+| `supabase/functions/game-session/index.ts` | **New** — Deno WebSocket server (main handler, first-call logic, game loop) | TODO |
+| `supabase/functions/game-session/state.ts` | **New** — in-memory CampaignSession map, connection management | TODO |
+| `supabase/functions/game-session/debounce.ts` | **New** — debounce timer logic | TODO |
+| `app/campaign/[slug]/game/GameClient.tsx` | **Modify** — removed `openingReady`, fixed permanent loading on refresh | Done |
+| `app/campaign/[slug]/game/page.tsx` | **Modify** — pass `last_response_id` to client, handle loading state | Done |
 
 ---
 
 ## Testing Strategy
 
-| What | How |
-|------|-----|
-| `start-campaign` — OpenAI call with correct system prompt | Unit test (mock openai) |
-| `start-campaign` — saves opening narration to messages | Unit test |
-| `start-campaign` — sets `last_response_id` and `status = 'active'` as last step | Unit test |
-| `game-session` — rejects connection with invalid JWT | Unit test |
-| `game-session` — rejects connection for non-player user | Unit test |
-| `game-session` — debounce fires after DEBOUNCE_SECONDS of silence | Unit test (fake timers) |
-| `game-session` — debounce resets on new message | Unit test (fake timers) |
-| `game-session` — bundles all pending messages into one OpenAI call | Unit test (mock openai) |
-| `game-session` — broadcasts chunks to all connected clients | Unit test (mock WebSocket) |
-| `game-session` — saves messages atomically on round complete | Unit test |
-| `game-session` — updates `last_response_id` after each round | Unit test |
-| `game-session` — broadcasts `round:saved` with correct clientId mapping | Unit test |
-| Client optimistic message display | Visual/manual |
-| Client message replacement on `round:saved` | Visual/manual |
-| Client streaming narration display | Visual/manual |
-| End-to-end: 2 players, 1 round, full flow | Manual (local Supabase) |
+| What | How | Status |
+|------|-----|--------|
+| `game-session/prompt` — `buildGMSystemPrompt` includes world + players + all rule sections | Unit test | Done |
+| `game-session/prompt` — `buildFirstCallInput` returns correct instruction string | Unit test | Done |
+| `game-session/prompt` — `isFirstCallResponse` correctly identifies first-call vs round response | Unit test | Done |
+| `game-session/openai` — `extractNarration` returns narration array from valid response | Unit test | Done |
+| `game-session` — rejects connection with invalid JWT | Unit test | TODO |
+| `game-session` — rejects connection for non-player user | Unit test | TODO |
+| `game-session` — first call triggered when `last_response_id` is null | Unit test | TODO |
+| `game-session` — sets `last_response_id = 'pending'` before first OpenAI call | Unit test | TODO |
+| `game-session` — saves opening narration paragraphs to messages after first call | Unit test | TODO |
+| `game-session` — debounce fires after DEBOUNCE_SECONDS of silence | Unit test (fake timers) | TODO |
+| `game-session` — debounce resets on new message | Unit test (fake timers) | TODO |
+| `game-session` — bundles all pending messages into one OpenAI call | Unit test (mock openai) | TODO |
+| `game-session` — broadcasts chunks to all connected clients | Unit test (mock WebSocket) | TODO |
+| `game-session` — saves messages atomically on round complete | Unit test | TODO |
+| `game-session` — updates `last_response_id` after each round | Unit test | TODO |
+| `game-session` — broadcasts `round:saved` with correct clientId mapping | Unit test | TODO |
+| Client optimistic message display | Visual/manual | TODO |
+| Client message replacement on `round:saved` | Visual/manual | TODO |
+| Client streaming narration display | Visual/manual | TODO |
+| End-to-end: 2 players, 1 round, full flow | Manual (local Supabase) | TODO |

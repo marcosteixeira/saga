@@ -9,6 +9,7 @@ export type Campaign = {
   status: 'lobby' | 'active' | 'paused' | 'ended';
   turn_mode: 'free' | 'sequential';
   turn_timer_seconds: number;
+  last_response_id: string | null;
   created_at: string;
   cover_url?: string | null;
 };
