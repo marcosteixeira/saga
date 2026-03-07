@@ -2,14 +2,27 @@
 
 import { useState } from 'react';
 
-export function MobileActionBar({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+export function MobileActionBar({ value, onChange, onSend }: { value: string; onChange: (v: string) => void; onSend: (content: string) => void }) {
   const [expanded, setExpanded] = useState(false);
+
+  const handleSend = () => {
+    if (!value.trim()) return;
+    onSend(value.trim());
+    onChange('');
+  };
+
   return (
     <div className="fixed inset-x-0 z-20 border-t border-gunmetal bg-iron/90 lg:hidden" style={{ bottom: '56px', backdropFilter: 'blur(8px)' }}>
       <div className="flex items-end gap-2 p-3">
         <textarea
           value={value}
           onChange={(e) => onChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              handleSend();
+            }
+          }}
           onFocus={(e) => {
             setExpanded(true);
             e.target.style.borderColor = 'var(--brass)';
@@ -29,6 +42,7 @@ export function MobileActionBar({ value, onChange }: { value: string; onChange: 
           }}
         />
         <button
+          onClick={handleSend}
           className="flex h-10 w-10 shrink-0 items-center justify-center text-soot active:scale-95"
           style={{
             background: 'linear-gradient(135deg, var(--copper), var(--brass))',

@@ -28,6 +28,15 @@ interface GameClientProps {
 type GameViewState = 'loading' | 'active' | 'image-reveal';
 type MobilePanel = null | 'crew' | 'log';
 
+interface OptimisticMessage {
+  id: string
+  playerId: string
+  playerName: string
+  content: string
+  timestamp: number
+  isOwn: boolean
+}
+
 // ─── Mock data ────────────────────────────────────────────────────────────────
 
 const MOCK_MESSAGES: Message[] = [
@@ -1311,11 +1320,19 @@ function DesktopRightSidebar({
 
 function DesktopActionConsole({
   value,
-  onChange
+  onChange,
+  onSend,
 }: {
   value: string;
   onChange: (v: string) => void;
+  onSend: (content: string) => void;
 }) {
+  const handleSend = () => {
+    if (!value.trim()) return;
+    onSend(value.trim());
+    onChange('');
+  };
+
   return (
     <div
       className="hidden border-t border-gunmetal bg-iron/70 px-6 py-4 lg:block"
@@ -1335,6 +1352,12 @@ function DesktopActionConsole({
           <textarea
             value={value}
             onChange={(e) => onChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
             placeholder="Describe your action or speak in character..."
             rows={2}
             className="flex-1 resize-none bg-smog/80 px-4 py-3 text-sm text-steam/90 placeholder:text-ash/40 focus:outline-none"
@@ -1356,6 +1379,7 @@ function DesktopActionConsole({
             }}
           />
           <button
+            onClick={handleSend}
             className="flex shrink-0 flex-col items-center justify-center gap-1 px-6 py-3 text-soot transition-all duration-300 hover:shadow-[0_0_20px_rgba(196,148,61,0.4)] active:scale-[0.97]"
             style={{
               background:
@@ -1407,50 +1431,34 @@ function ActiveGameView({
   campaign,
   world,
   players,
-  messages: initialMessages,
+  liveMessages,
+  optimisticMessages,
+  streamingContent,
+  isStreaming,
   currentUserId,
   campaignCoverImageUrl: initialCampaignCoverImageUrl,
+  onSend,
 }: {
   campaign: Campaign;
   world: World;
   players: Player[];
-  messages: Message[];
+  liveMessages: Message[];
+  optimisticMessages: OptimisticMessage[];
+  streamingContent: string;
+  isStreaming: boolean;
   currentUserId: string;
   campaignCoverImageUrl?: string;
+  onSend: (content: string) => void;
 }) {
   const feedRef = useRef<HTMLDivElement>(null);
   const [inputValue, setInputValue] = useState('');
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>(null);
   const [imageModal, setImageModal] = useState<ImageModalState | null>(null);
-  const [liveMessages, setLiveMessages] = useState<Message[]>(initialMessages);
   const [liveCoverUrl, setLiveCoverUrl] = useState<string | undefined>(initialCampaignCoverImageUrl);
 
-  // Subscribe to messages and image updates
+  // Subscribe to image updates
   useEffect(() => {
     const supabase = createClient();
-
-    const messageChannel = supabase
-      .channel(`game-active:${campaign.id}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'messages', filter: `campaign_id=eq.${campaign.id}` },
-        (payload) => {
-          setLiveMessages((prev) => {
-            if (prev.some((m) => m.id === (payload.new as Message).id)) return prev;
-            return [...prev, payload.new as Message];
-          });
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'messages', filter: `campaign_id=eq.${campaign.id}` },
-        (payload) => {
-          setLiveMessages((prev) =>
-            prev.map((m) => (m.id === (payload.new as Message).id ? (payload.new as Message) : m))
-          );
-        }
-      )
-      .subscribe();
 
     const imageChannel = supabase
       .channel(`world:${world.id}`)
@@ -1473,7 +1481,6 @@ function ActiveGameView({
       .subscribe();
 
     return () => {
-      supabase.removeChannel(messageChannel);
       supabase.removeChannel(imageChannel);
     };
   }, [campaign.id, world.id]);
@@ -1482,11 +1489,21 @@ function ActiveGameView({
 
   useEffect(() => {
     if (feedRef.current) feedRef.current.scrollTop = feedRef.current.scrollHeight;
-  }, [liveMessages]);
+  }, [liveMessages, optimisticMessages, streamingContent]);
 
   const sortedMessages = [...liveMessages].sort(
     (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
   );
+
+  // Convert optimistic messages to Message shape for rendering
+  const optimisticAsMessages: Message[] = optimisticMessages.map((m) => ({
+    id: m.id,
+    campaign_id: campaign.id,
+    player_id: m.playerId,
+    content: m.content,
+    type: 'action' as const,
+    created_at: new Date(m.timestamp).toISOString(),
+  }));
 
   const handlePanelToggle = (panel: MobilePanel) =>
     setMobilePanel((prev) => (prev === panel ? null : panel));
@@ -1604,34 +1621,58 @@ function ActiveGameView({
                 players={players}
               />
             ))}
-            {/* GM typing */}
-            <div className="flex items-center gap-2 pl-2 opacity-60 sm:pl-4">
-              <div
-                className="flex h-7 w-7 shrink-0 items-center justify-center border border-brass/40 bg-brass/10"
-                style={{
-                  clipPath:
-                    'polygon(3px 0, 100% 0, 100% calc(100% - 3px), calc(100% - 3px) 100%, 0 100%, 0 3px)'
+            {optimisticAsMessages.map((msg) => (
+              <MessageBubble
+                key={`optimistic-${msg.id}`}
+                message={msg}
+                players={players}
+              />
+            ))}
+            {/* Streaming narration */}
+            {streamingContent && (
+              <MessageBubble
+                key="streaming"
+                message={{
+                  id: 'streaming',
+                  campaign_id: campaign.id,
+                  player_id: null,
+                  content: streamingContent,
+                  type: 'narration',
+                  created_at: new Date().toISOString(),
                 }}
-              >
+                players={players}
+              />
+            )}
+            {/* GM typing indicator — shown when debounce fired but streaming hasn't started yet */}
+            {isStreaming && !streamingContent && (
+              <div className="flex items-center gap-2 pl-2 opacity-60 sm:pl-4">
                 <div
-                  className="h-1.5 w-1.5 rounded-full bg-amber"
+                  className="flex h-7 w-7 shrink-0 items-center justify-center border border-brass/40 bg-brass/10"
                   style={{
-                    boxShadow: '0 0 4px var(--amber)',
-                    animation: 'pulse 1.2s ease-in-out infinite'
+                    clipPath:
+                      'polygon(3px 0, 100% 0, 100% calc(100% - 3px), calc(100% - 3px) 100%, 0 100%, 0 3px)'
                   }}
-                />
+                >
+                  <div
+                    className="h-1.5 w-1.5 rounded-full bg-amber"
+                    style={{
+                      boxShadow: '0 0 4px var(--amber)',
+                      animation: 'pulse 1.2s ease-in-out infinite'
+                    }}
+                  />
+                </div>
+                <span
+                  className="text-[10px] uppercase tracking-[0.2em] text-brass/60"
+                  style={{ fontFamily: 'var(--font-mono), monospace' }}
+                >
+                  Game Master is composing...
+                </span>
               </div>
-              <span
-                className="text-[10px] uppercase tracking-[0.2em] text-brass/60"
-                style={{ fontFamily: 'var(--font-mono), monospace' }}
-              >
-                Game Master is composing...
-              </span>
-            </div>
+            )}
           </div>
         </div>
 
-        <DesktopActionConsole value={inputValue} onChange={setInputValue} />
+        <DesktopActionConsole value={inputValue} onChange={setInputValue} onSend={onSend} />
       </main>
 
       {/* Desktop right */}
@@ -1642,7 +1683,7 @@ function ActiveGameView({
       />
 
       {/* Mobile UI */}
-      <MobileActionBar value={inputValue} onChange={setInputValue} />
+      <MobileActionBar value={inputValue} onChange={setInputValue} onSend={onSend} />
       <MobileTabBar
         mobilePanel={mobilePanel}
         onPanelToggle={handlePanelToggle}
@@ -1805,36 +1846,122 @@ export default function GameClient({
   loadingImageUrl,
   campaignCoverImageUrl,
 }: GameClientProps) {
+  const gameAlreadyStarted = dbMessages.length > 0 ||
+    (campaign.last_response_id !== null && campaign.last_response_id !== 'pending')
+
   const [viewState, setViewState] = useState<GameViewState>(
-    campaign.status === 'active' || dbMessages.length > 0 ? 'active' : 'loading'
+    gameAlreadyStarted ? 'active' : 'loading'
   );
 
+  const [liveMessages, setLiveMessages] = useState<Message[]>(
+    dbMessages.length > 0 ? dbMessages : []
+  );
+  const [optimisticMessages, setOptimisticMessages] = useState<OptimisticMessage[]>([]);
+  const [streamingContent, setStreamingContent] = useState('');
+  const [isStreaming, setIsStreaming] = useState(false);
+  const wsRef = useRef<WebSocket | null>(null);
+
   const players = dbPlayers.length > 0 ? dbPlayers : MOCK_PLAYERS;
-  const messages = dbMessages.length > 0 ? dbMessages : MOCK_MESSAGES;
+  const currentPlayer = dbPlayers.find((p) => p.user_id === currentUserId);
+  const playerName = currentPlayer?.character_name ?? currentPlayer?.username ?? 'Unknown';
 
-  // Fallback: if user is waiting here, game:starting can unlock the view.
+  // WebSocket connection
   useEffect(() => {
-    if (viewState === 'active') return;
+    let ws: WebSocket | null = null;
 
-    const supabase = createClient();
-    let cancelled = false;
+    const connect = async () => {
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
 
-    const channel = supabase
-      .channel(`campaign:${campaign.id}`)
-      .on('broadcast', { event: 'game:starting' }, () => {
-        if (!cancelled) setViewState('active');
-      })
-      .subscribe();
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+      const wsBase = supabaseUrl.replace(/^https/, 'wss').replace(/^http/, 'ws');
+      const wsUrl = `${wsBase}/functions/v1/game-session?campaignId=${campaign.id}&token=${encodeURIComponent(session.access_token)}`;
+
+      ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+
+      ws.onmessage = (event: MessageEvent) => {
+        let msg: { type: string; [key: string]: unknown };
+        try {
+          msg = JSON.parse(event.data as string);
+        } catch {
+          return;
+        }
+
+        if (msg.type === 'player:action') {
+          const optimistic: OptimisticMessage = {
+            id: msg.id as string,
+            playerId: msg.playerId as string,
+            playerName: msg.playerName as string,
+            content: msg.content as string,
+            timestamp: msg.timestamp as number,
+            isOwn: false,
+          };
+          setOptimisticMessages((prev) => {
+            if (prev.some((m) => m.id === optimistic.id)) return prev;
+            return [...prev, optimistic];
+          });
+        }
+
+        if (msg.type === 'chunk') {
+          setIsStreaming(true);
+          setStreamingContent((prev) => prev + (msg.content as string));
+        }
+
+        if (msg.type === 'round:saved') {
+          setIsStreaming(false);
+          setStreamingContent('');
+
+          const roundMessages = msg.messages as Array<{ clientId: string | null; dbMessage: Message }>;
+          const confirmedClientIds = new Set(
+            roundMessages.filter((m) => m.clientId !== null).map((m) => m.clientId as string)
+          );
+          setOptimisticMessages((prev) => prev.filter((m) => !confirmedClientIds.has(m.id)));
+
+          const newDbMessages = roundMessages.map((m) => m.dbMessage);
+          setLiveMessages((prev) => {
+            const existingIds = new Set(prev.map((m) => m.id));
+            const toAdd = newDbMessages.filter((m) => !existingIds.has(m.id));
+            return toAdd.length > 0 ? [...prev, ...toAdd] : prev;
+          });
+
+          setViewState((prev) => prev === 'loading' ? 'active' : prev);
+        }
+      };
+
+      ws.onclose = () => {
+        wsRef.current = null;
+      };
+    };
+
+    connect();
 
     return () => {
-      cancelled = true;
-      supabase.removeChannel(channel);
+      ws?.close();
     };
-  }, [campaign.id, viewState]);
+  }, [campaign.id]);
 
-  const isCampaignReady = viewState !== 'loading';
+  const handleSend = (content: string) => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+    const id = crypto.randomUUID();
+    const timestamp = Date.now();
 
-  if (!isCampaignReady) {
+    setOptimisticMessages((prev) => [...prev, {
+      id,
+      playerId: currentPlayer?.id ?? '',
+      playerName,
+      content,
+      timestamp,
+      isOwn: true,
+    }]);
+
+    wsRef.current.send(JSON.stringify({ type: 'action', id, content, timestamp }));
+  };
+
+  const displayMessages = liveMessages.length > 0 ? liveMessages : (gameAlreadyStarted ? MOCK_MESSAGES : []);
+
+  if (viewState === 'loading') {
     return <LoadingState campaignName={campaign.name} backgroundImageUrl={loadingImageUrl} />;
   }
 
@@ -1843,9 +1970,13 @@ export default function GameClient({
       campaign={campaign}
       world={world}
       players={players}
-      messages={messages}
+      liveMessages={displayMessages}
+      optimisticMessages={optimisticMessages}
+      streamingContent={streamingContent}
+      isStreaming={isStreaming}
       currentUserId={currentUserId}
       campaignCoverImageUrl={campaignCoverImageUrl}
+      onSend={handleSend}
     />
   );
 }
