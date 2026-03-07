@@ -21,7 +21,7 @@ export function ProfileLink() {
 
   if (!user) return null
 
-  const displayName = user.user_metadata?.display_name || user.email || 'Profile'
+  const displayName = user.user_metadata?.display_name || 'Profile'
 
   return (
     <Link

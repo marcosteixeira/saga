@@ -1,8 +1,21 @@
 'use client';
 
 import { useState } from 'react';
+import { DebounceTimer } from './DebounceTimer';
 
-export function MobileActionBar({ value, onChange, onSend, disabled }: { value: string; onChange: (v: string) => void; onSend: (content: string) => void; disabled?: boolean }) {
+export function MobileActionBar({
+  value,
+  onChange,
+  onSend,
+  disabled,
+  debounceStartedAt,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onSend: (content: string) => void;
+  disabled?: boolean;
+  debounceStartedAt?: number | null;
+}) {
   const [expanded, setExpanded] = useState(false);
 
   const handleSend = () => {
@@ -13,6 +26,14 @@ export function MobileActionBar({ value, onChange, onSend, disabled }: { value: 
 
   return (
     <div className="fixed inset-x-0 z-20 border-t border-gunmetal bg-iron/90 lg:hidden" style={{ bottom: '56px', backdropFilter: 'blur(8px)' }}>
+      {debounceStartedAt != null && (
+        <div
+          className="flex items-center border-b border-gunmetal/50 px-3 py-1.5"
+          style={{ background: 'rgba(13,12,10,0.6)' }}
+        >
+          <DebounceTimer startedAt={debounceStartedAt} showLabel={true} />
+        </div>
+      )}
       <div className="flex items-end gap-2 p-3">
         <textarea
           value={value}

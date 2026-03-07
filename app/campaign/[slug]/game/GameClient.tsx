@@ -6,8 +6,9 @@ import { EmberParticles } from '@/components/ember-particles';
 import { AmbientSmoke } from '@/components/ambient-smoke';
 import { GearDecoration } from '@/components/gear-decoration';
 import { ImageModal, type ImageModalState } from './components/ImageModal';
-import { MessageBubble } from './components/MessageBubble';
+import { MessageBubble, NarrationGroupBubble } from './components/MessageBubble';
 import { MobileActionBar } from './components/MobileActionBar';
+import { DebounceTimer } from './components/DebounceTimer';
 import type { Campaign } from '@/types/campaign';
 import type { Player } from '@/types/player';
 import type { World } from '@/types/world';
@@ -29,14 +30,13 @@ type GameViewState = 'loading' | 'active' | 'image-reveal';
 type MobilePanel = null | 'crew' | 'log';
 
 interface OptimisticMessage {
-  id: string
-  playerId: string
-  playerName: string
-  content: string
-  timestamp: number
-  isOwn: boolean
+  id: string;
+  playerId: string;
+  playerName: string;
+  content: string;
+  timestamp: number;
+  isOwn: boolean;
 }
-
 
 // ─── Loading State ─────────────────────────────────────────────────────────────
 
@@ -226,7 +226,7 @@ function LoadingState({
                 background: 'rgba(13,12,10,0.6)',
                 backdropFilter: 'blur(8px)',
                 border: '1px solid rgba(97,86,74,0.35)',
-                padding: '6px 16px',
+                padding: '6px 16px'
               }}
             >
               {/* Pulse dot */}
@@ -720,7 +720,7 @@ function HpBar({ hp, hpMax }: { hp: number; hpMax: number }) {
 function PlayerCard({
   player,
   isCurrentUser,
-  compact = false,
+  compact = false
 }: {
   player: Player;
   isCurrentUser: boolean;
@@ -1004,7 +1004,7 @@ function GalleryThumb({ imageUrl, onClick }: { imageUrl: string; onClick: () => 
 function DesktopLeftSidebar({
   campaign,
   players,
-  currentUserId,
+  currentUserId
 }: {
   campaign: Campaign;
   players: Player[];
@@ -1077,7 +1077,7 @@ function DesktopLeftSidebar({
 function DesktopRightSidebar({
   world,
   onImageClick,
-  coverImageUrl,
+  coverImageUrl
 }: {
   world: World;
   onImageClick: (state: ImageModalState) => void;
@@ -1087,7 +1087,7 @@ function DesktopRightSidebar({
   const galleryImages: { url: string; caption: string }[] = [
     coverImageUrl ? { url: coverImageUrl, caption: `${world.name} — Campaign` } : null,
     world.map_url ? { url: world.map_url, caption: `${world.name} — Map` } : null,
-    world.cover_url ? { url: world.cover_url, caption: `${world.name} — Cover` } : null,
+    world.cover_url ? { url: world.cover_url, caption: `${world.name} — Cover` } : null
   ].filter((item): item is { url: string; caption: string } => {
     if (!item) return false;
     if (seen.has(item.url)) return false;
@@ -1102,8 +1102,7 @@ function DesktopRightSidebar({
       {/* Campaign cover image — clickable, falls back to world cover */}
       <button
         onClick={() =>
-          coverImageUrl &&
-          onImageClick({ url: coverImageUrl, caption: world.name })
+          coverImageUrl && onImageClick({ url: coverImageUrl, caption: world.name })
         }
         className="group relative overflow-hidden border-b border-gunmetal"
         style={{ cursor: coverImageUrl ? 'pointer' : 'default' }}
@@ -1192,7 +1191,11 @@ function DesktopRightSidebar({
         {galleryImages.length > 0 ? (
           <div className="grid grid-cols-2 gap-2">
             {galleryImages.map(({ url, caption }) => (
-              <GalleryThumb key={url} imageUrl={url} onClick={() => onImageClick({ url, caption })} />
+              <GalleryThumb
+                key={url}
+                imageUrl={url}
+                onClick={() => onImageClick({ url, caption })}
+              />
             ))}
           </div>
         ) : (
@@ -1210,16 +1213,18 @@ function DesktopRightSidebar({
 
 // ─── Desktop Action Console ────────────────────────────────────────────────────
 
-function DesktopActionConsole({
+export function DesktopActionConsole({
   value,
   onChange,
   onSend,
   disabled,
+  debounceStartedAt,
 }: {
   value: string;
   onChange: (v: string) => void;
   onSend: (content: string) => void;
   disabled?: boolean;
+  debounceStartedAt?: number | null;
 }) {
   const handleSend = () => {
     if (!value.trim() || disabled) return;
@@ -1233,14 +1238,19 @@ function DesktopActionConsole({
       style={{ backdropFilter: 'blur(4px)' }}
     >
       <div className="mx-auto max-w-3xl">
-        <div className="mb-2 flex items-center gap-2">
-          <div className="h-px w-6 bg-gradient-to-r from-transparent to-copper/60" />
-          <span
-            className="text-[9px] uppercase tracking-[0.25em] text-copper/70"
-            style={{ fontFamily: 'var(--font-mono), monospace' }}
-          >
-            Action Console
-          </span>
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <div className="h-px w-6 bg-gradient-to-r from-transparent to-copper/60" />
+            <span
+              className="text-[9px] uppercase tracking-[0.25em] text-copper/70"
+              style={{ fontFamily: 'var(--font-mono), monospace' }}
+            >
+              Action Console
+            </span>
+          </div>
+          {debounceStartedAt != null && (
+            <DebounceTimer startedAt={debounceStartedAt} />
+          )}
         </div>
         <div className="flex gap-3">
           <textarea
@@ -1293,28 +1303,6 @@ function DesktopActionConsole({
             <span className="text-[9px] tracking-[0.1em] opacity-70">↵ Enter</span>
           </button>
         </div>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {[
-            'Look around',
-            'Attack',
-            'Roll for initiative',
-            'Speak to NPC',
-            'Search area'
-          ].map((action) => (
-            <button
-              key={action}
-              onClick={() => onChange(action)}
-              className="border border-gunmetal/60 bg-smog/60 px-3 py-1 text-[10px] uppercase tracking-[0.1em] text-ash/70 transition-all duration-200 hover:border-copper/60 hover:text-copper"
-              style={{
-                fontFamily: 'var(--font-mono), monospace',
-                clipPath:
-                  'polygon(3px 0, 100% 0, 100% calc(100% - 3px), calc(100% - 3px) 100%, 0 100%, 0 3px)'
-              }}
-            >
-              {action}
-            </button>
-          ))}
-        </div>
       </div>
     </div>
   );
@@ -1333,6 +1321,7 @@ function ActiveGameView({
   currentUserId,
   campaignCoverImageUrl: initialCampaignCoverImageUrl,
   wsStatus,
+  isSilentReconnect,
   onSend,
 }: {
   campaign: Campaign;
@@ -1345,13 +1334,16 @@ function ActiveGameView({
   currentUserId: string;
   campaignCoverImageUrl?: string;
   wsStatus: 'connecting' | 'connected' | 'disconnected';
+  isSilentReconnect: boolean;
   onSend: (content: string) => void;
 }) {
   const feedRef = useRef<HTMLDivElement>(null);
   const [inputValue, setInputValue] = useState('');
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>(null);
   const [imageModal, setImageModal] = useState<ImageModalState | null>(null);
-  const [liveCoverUrl, setLiveCoverUrl] = useState<string | undefined>(initialCampaignCoverImageUrl);
+  const [liveCoverUrl, setLiveCoverUrl] = useState<string | undefined>(
+    initialCampaignCoverImageUrl
+  );
 
   // Subscribe to image updates
   useEffect(() => {
@@ -1359,22 +1351,30 @@ function ActiveGameView({
 
     const imageChannel = supabase
       .channel(`world:${world.id}`)
-      .on('broadcast', { event: 'image:ready' }, (message: {
-        payload: {
-          entity_type: string
-          entity_id: string
-          image_type: string
-          url: string
-          image_id: string
+      .on(
+        'broadcast',
+        { event: 'image:ready' },
+        (message: {
+          payload: {
+            entity_type: string;
+            entity_id: string;
+            image_type: string;
+            url: string;
+            image_id: string;
+          };
+        }) => {
+          const { entity_type, entity_id, image_type, url } = message.payload;
+          if (entity_type === 'campaign' && entity_id === campaign.id) {
+            setLiveCoverUrl(url);
+          } else if (
+            entity_type === 'world' &&
+            entity_id === world.id &&
+            image_type === 'cover'
+          ) {
+            setLiveCoverUrl(url);
+          }
         }
-      }) => {
-        const { entity_type, entity_id, image_type, url } = message.payload;
-        if (entity_type === 'campaign' && entity_id === campaign.id) {
-          setLiveCoverUrl(url);
-        } else if (entity_type === 'world' && entity_id === world.id && image_type === 'cover') {
-          setLiveCoverUrl(url);
-        }
-      })
+      )
       .subscribe();
 
     return () => {
@@ -1388,10 +1388,6 @@ function ActiveGameView({
     if (feedRef.current) feedRef.current.scrollTop = feedRef.current.scrollHeight;
   }, [liveMessages, optimisticMessages, streamingContent]);
 
-  const sortedMessages = [...liveMessages].sort(
-    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-  );
-
   // Convert optimistic messages to Message shape for rendering
   const optimisticAsMessages: Message[] = optimisticMessages.map((m) => ({
     id: m.id,
@@ -1399,13 +1395,19 @@ function ActiveGameView({
     player_id: m.playerId,
     content: m.content,
     type: 'action' as const,
-    created_at: new Date(m.timestamp).toISOString(),
+    created_at: new Date(m.timestamp).toISOString()
   }));
 
   const handlePanelToggle = (panel: MobilePanel) =>
     setMobilePanel((prev) => (prev === panel ? null : panel));
   const handleImageClick = (state: ImageModalState) => setImageModal(state);
   const handleModalClose = () => setImageModal(null);
+  const showConnectionBanner = !isSilentReconnect && wsStatus !== 'connected';
+  const promptDisabled = wsStatus !== 'connected' && !isSilentReconnect;
+  const debounceStartedAt =
+    !isStreaming && optimisticMessages.length > 0
+      ? Math.max(...optimisticMessages.map((m) => m.timestamp))
+      : null;
 
   return (
     <div className="relative flex h-[100dvh] overflow-hidden bg-soot">
@@ -1501,8 +1503,11 @@ function ActiveGameView({
         </header>
 
         {/* Disconnected banner */}
-        {wsStatus !== 'connected' && (
-          <div className="flex items-center justify-center gap-2 border-b border-furnace/40 bg-furnace/10 px-4 py-1.5 text-[11px] text-furnace/80" style={{ fontFamily: 'var(--font-mono), monospace' }}>
+        {showConnectionBanner && (
+          <div
+            className="flex items-center justify-center gap-2 border-b border-furnace/40 bg-furnace/10 px-4 py-1.5 text-[11px] text-furnace/80"
+            style={{ fontFamily: 'var(--font-mono), monospace' }}
+          >
             <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-furnace/80" />
             {wsStatus === 'connecting' ? 'Connecting...' : 'Reconnecting...'}
           </div>
@@ -1519,20 +1524,29 @@ function ActiveGameView({
           }}
         >
           <div className="mx-auto flex max-w-3xl flex-col gap-5 sm:gap-6">
-            {sortedMessages.map((msg) => (
-              <MessageBubble
-                key={msg.id}
-                message={msg}
-                players={players}
-              />
-            ))}
-            {optimisticAsMessages.map((msg) => (
-              <MessageBubble
-                key={`optimistic-${msg.id}`}
-                message={msg}
-                players={players}
-              />
-            ))}
+            {(() => {
+              // Group consecutive narration messages under one header
+              const allMessages = [...liveMessages, ...optimisticAsMessages];
+              const items: React.ReactNode[] = [];
+              let i = 0;
+              while (i < allMessages.length) {
+                const msg = allMessages[i];
+                if (msg.type === 'narration') {
+                  const group: Message[] = [];
+                  while (i < allMessages.length && allMessages[i].type === 'narration') {
+                    group.push(allMessages[i]);
+                    i++;
+                  }
+                  items.push(<NarrationGroupBubble key={group[0].id} messages={group} />);
+                } else {
+                  items.push(
+                    <MessageBubble key={msg.id} message={msg} players={players} />
+                  );
+                  i++;
+                }
+              }
+              return items;
+            })()}
             {/* Streaming narration */}
             {streamingContent && (
               <MessageBubble
@@ -1543,7 +1557,7 @@ function ActiveGameView({
                   player_id: null,
                   content: streamingContent,
                   type: 'narration',
-                  created_at: new Date().toISOString(),
+                  created_at: new Date().toISOString()
                 }}
                 players={players}
               />
@@ -1577,7 +1591,13 @@ function ActiveGameView({
           </div>
         </div>
 
-        <DesktopActionConsole value={inputValue} onChange={setInputValue} onSend={onSend} disabled={wsStatus !== 'connected'} />
+        <DesktopActionConsole
+          value={inputValue}
+          onChange={setInputValue}
+          onSend={onSend}
+          disabled={promptDisabled}
+          debounceStartedAt={debounceStartedAt}
+        />
       </main>
 
       {/* Desktop right */}
@@ -1588,7 +1608,13 @@ function ActiveGameView({
       />
 
       {/* Mobile UI */}
-      <MobileActionBar value={inputValue} onChange={setInputValue} onSend={onSend} disabled={wsStatus !== 'connected'} />
+      <MobileActionBar
+        value={inputValue}
+        onChange={setInputValue}
+        onSend={onSend}
+        disabled={promptDisabled}
+        debounceStartedAt={debounceStartedAt}
+      />
       <MobileTabBar
         mobilePanel={mobilePanel}
         onPanelToggle={handlePanelToggle}
@@ -1708,9 +1734,13 @@ function ActiveGameView({
         {(() => {
           const mobileSeen = new Set<string>();
           const mobileGallery: { url: string; caption: string }[] = [
-            liveCoverUrl ? { url: liveCoverUrl, caption: `${world.name} — Campaign` } : null,
+            liveCoverUrl
+              ? { url: liveCoverUrl, caption: `${world.name} — Campaign` }
+              : null,
             world.map_url ? { url: world.map_url, caption: `${world.name} — Map` } : null,
-            world.cover_url ? { url: world.cover_url, caption: `${world.name} — Cover` } : null,
+            world.cover_url
+              ? { url: world.cover_url, caption: `${world.name} — Cover` }
+              : null
           ].filter((item): item is { url: string; caption: string } => {
             if (!item) return false;
             if (mobileSeen.has(item.url)) return false;
@@ -1720,7 +1750,11 @@ function ActiveGameView({
           return mobileGallery.length > 0 ? (
             <div className="grid grid-cols-3 gap-2">
               {mobileGallery.map(({ url, caption }) => (
-                <GalleryThumb key={url} imageUrl={url} onClick={() => handleImageClick({ url, caption })} />
+                <GalleryThumb
+                  key={url}
+                  imageUrl={url}
+                  onClick={() => handleImageClick({ url, caption })}
+                />
               ))}
             </div>
           ) : (
@@ -1749,26 +1783,38 @@ export default function GameClient({
   messages: dbMessages,
   currentUserId,
   loadingImageUrl,
-  campaignCoverImageUrl,
+  campaignCoverImageUrl
 }: GameClientProps) {
-  const gameAlreadyStarted = dbMessages.length > 0 ||
-    (campaign.last_response_id !== null && campaign.last_response_id !== 'pending')
+  const gameAlreadyStarted =
+    dbMessages.length > 0 ||
+    (campaign.last_response_id !== null && campaign.last_response_id !== 'pending');
 
   const [viewState, setViewState] = useState<GameViewState>(
     gameAlreadyStarted ? 'active' : 'loading'
   );
 
   const [liveMessages, setLiveMessages] = useState<Message[]>(
-    dbMessages.length > 0 ? dbMessages : []
+    [...dbMessages].sort(
+      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    )
   );
   const [optimisticMessages, setOptimisticMessages] = useState<OptimisticMessage[]>([]);
   const [streamingContent, setStreamingContent] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
-  const [wsStatus, setWsStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
+  const [wsStatus, setWsStatus] = useState<'connecting' | 'connected' | 'disconnected'>(
+    'connecting'
+  );
+  const [isSilentReconnect, setIsSilentReconnect] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
+  const optimisticMessagesRef = useRef<OptimisticMessage[]>([]);
 
   const currentPlayer = dbPlayers.find((p) => p.user_id === currentUserId);
-  const playerName = currentPlayer?.character_name ?? currentPlayer?.username ?? 'Unknown';
+  const playerName =
+    currentPlayer?.character_name ?? currentPlayer?.username ?? 'Unknown';
+
+  useEffect(() => {
+    optimisticMessagesRef.current = optimisticMessages;
+  }, [optimisticMessages]);
 
   // WebSocket connection with exponential-backoff reconnection
   useEffect(() => {
@@ -1776,38 +1822,73 @@ export default function GameClient({
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     let reconnectAttempt = 0;
     let unmounted = false;
+    // Suppress banner/disable during cold-start restarts (close code 1006)
+    let silentReconnect = false;
 
-    const scheduleReconnect = () => {
+    const scheduleReconnect = (silent = false) => {
       if (unmounted) return;
-      setWsStatus('disconnected');
+      silentReconnect = silent;
+      setIsSilentReconnect(silent);
+      if (!silent) setWsStatus('disconnected');
       const delay = Math.min(1000 * 2 ** reconnectAttempt, 30000);
       reconnectAttempt++;
+      console.log(
+        `[game-session] reconnecting in ${delay}ms (attempt ${reconnectAttempt})${silent ? ' [silent]' : ''}`
+      );
       if (reconnectTimer) clearTimeout(reconnectTimer);
       reconnectTimer = setTimeout(connect, delay);
     };
 
     const connect = async () => {
       if (unmounted) return;
-      setWsStatus('connecting');
+      if (!silentReconnect) setWsStatus('connecting');
+      console.log('[game-session] connecting… (attempt', reconnectAttempt + 1, ')');
 
       const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session }
+      } = await supabase.auth.getSession();
       if (unmounted) return;
       if (!session?.access_token) {
+        console.warn('[game-session] no session — retrying');
         scheduleReconnect();
         return;
       }
 
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
       const wsBase = supabaseUrl.replace(/^https/, 'wss').replace(/^http/, 'ws');
-      const wsUrl = `${wsBase}/functions/v1/game-session?campaignId=${campaign.id}`;
+      const wsUrl = `${wsBase}/functions/v1/game-session?campaignId=${campaign.id}&jwt=${session.access_token}`;
 
-      ws = new WebSocket(wsUrl, [`jwt-${session.access_token}`]);
+      ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
       ws.onopen = () => {
+        const socket = ws;
+        if (!socket) return;
+        const shouldReplayOptimistic = silentReconnect;
         reconnectAttempt = 0;
+        silentReconnect = false;
+        setIsSilentReconnect(false);
         setWsStatus('connected');
+        console.log('[game-session] connected');
+
+        if (shouldReplayOptimistic) {
+          const pendingOptimistic = optimisticMessagesRef.current.filter((message) => message.isOwn);
+          for (const message of pendingOptimistic) {
+            console.log('[game-session] replay optimistic action', {
+              id: message.id,
+              content: message.content
+            });
+            socket.send(
+              JSON.stringify({
+                type: 'action',
+                id: message.id,
+                content: message.content,
+                timestamp: message.timestamp
+              })
+            );
+          }
+        }
       };
 
       ws.onmessage = (event: MessageEvent) => {
@@ -1819,13 +1900,18 @@ export default function GameClient({
         }
 
         if (msg.type === 'player:action') {
+          console.log('[game-session] player:action', {
+            id: msg.id,
+            playerName: msg.playerName,
+            content: msg.content
+          });
           const optimistic: OptimisticMessage = {
             id: msg.id as string,
             playerId: msg.playerId as string,
             playerName: msg.playerName as string,
             content: msg.content as string,
             timestamp: msg.timestamp as number,
-            isOwn: false,
+            isOwn: false
           };
           setOptimisticMessages((prev) => {
             if (prev.some((m) => m.id === optimistic.id)) return prev;
@@ -1839,14 +1925,25 @@ export default function GameClient({
         }
 
         if (msg.type === 'round:saved') {
+          const roundMessages = msg.messages as Array<{
+            clientId: string | null;
+            dbMessage: Message;
+          }>;
+          console.log('[game-session] round:saved', {
+            messageCount: roundMessages.length,
+            messages: roundMessages
+          });
           setIsStreaming(false);
           setStreamingContent('');
 
-          const roundMessages = msg.messages as Array<{ clientId: string | null; dbMessage: Message }>;
           const confirmedClientIds = new Set(
-            roundMessages.filter((m) => m.clientId !== null).map((m) => m.clientId as string)
+            roundMessages
+              .filter((m) => m.clientId !== null)
+              .map((m) => m.clientId as string)
           );
-          setOptimisticMessages((prev) => prev.filter((m) => !confirmedClientIds.has(m.id)));
+          setOptimisticMessages((prev) =>
+            prev.filter((m) => !confirmedClientIds.has(m.id))
+          );
 
           const newDbMessages = roundMessages.map((m) => m.dbMessage);
           setLiveMessages((prev) => {
@@ -1855,14 +1952,29 @@ export default function GameClient({
             return toAdd.length > 0 ? [...prev, ...toAdd] : prev;
           });
 
-          setViewState((prev) => prev === 'loading' ? 'active' : prev);
+          setViewState((prev) => (prev === 'loading' ? 'active' : prev));
+        }
+
+        if (msg.type === 'error') {
+          console.error('[game-session] server error:', msg.message);
+          // If we're still on the loading screen, the opening narration failed.
+          // Transition to active so the player isn't stuck forever — the feed will
+          // show empty and the GM typing indicator will be gone.
+          setViewState((prev) => (prev === 'loading' ? 'active' : prev));
+          setIsStreaming(false);
         }
       };
 
-      ws.onclose = () => {
+      ws.onclose = (event) => {
+        const isColdRestart = event.code === 1006;
+        console.log('[game-session] disconnected', {
+          code: event.code,
+          reason: event.reason || 'none',
+          silent: isColdRestart
+        });
         wsRef.current = null;
         if (unmounted) return;
-        scheduleReconnect();
+        scheduleReconnect(isColdRestart);
       };
     };
 
@@ -1876,24 +1988,39 @@ export default function GameClient({
   }, [campaign.id]);
 
   const handleSend = (content: string) => {
-    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN || wsStatus !== 'connected') return;
     const id = crypto.randomUUID();
     const timestamp = Date.now();
+    const ws = wsRef.current;
+    const canSendNow = ws?.readyState === WebSocket.OPEN && wsStatus === 'connected';
+    const canQueue = isSilentReconnect;
 
-    setOptimisticMessages((prev) => [...prev, {
-      id,
-      playerId: currentPlayer?.id ?? '',
-      playerName,
-      content,
-      timestamp,
-      isOwn: true,
-    }]);
+    if (!canSendNow && !canQueue) return;
 
-    wsRef.current.send(JSON.stringify({ type: 'action', id, content, timestamp }));
+    setOptimisticMessages((prev) => [
+      ...prev,
+      {
+        id,
+        playerId: currentPlayer?.id ?? '',
+        playerName,
+        content,
+        timestamp,
+        isOwn: true
+      }
+    ]);
+
+    if (canSendNow && ws) {
+      console.log('[game-session] send action', { id, content });
+      ws.send(JSON.stringify({ type: 'action', id, content, timestamp }));
+      return;
+    }
+
+    console.log('[game-session] hold optimistic action during silent reconnect', { id, content });
   };
 
   if (viewState === 'loading') {
-    return <LoadingState campaignName={campaign.name} backgroundImageUrl={loadingImageUrl} />;
+    return (
+      <LoadingState campaignName={campaign.name} backgroundImageUrl={loadingImageUrl} />
+    );
   }
 
   return (
@@ -1908,6 +2035,7 @@ export default function GameClient({
       currentUserId={currentUserId}
       campaignCoverImageUrl={campaignCoverImageUrl}
       wsStatus={wsStatus}
+      isSilentReconnect={isSilentReconnect}
       onSend={handleSend}
     />
   );
