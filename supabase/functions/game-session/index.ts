@@ -97,6 +97,7 @@ type StreamEvent = {
 async function consumeStream(
   campaignId: string,
   stream: AsyncIterable<StreamEvent>,
+  silent = false,
 ): Promise<{ fullText: string; newResponseId: string }> {
   let fullText = ""
   let newResponseId = ""
@@ -105,7 +106,9 @@ async function consumeStream(
   for await (const event of stream) {
     if (event.type === "response.output_text.delta" && event.delta) {
       fullText += event.delta
-      broadcastToAll(campaignId, { type: "chunk", content: event.delta })
+      if (!silent) {
+        broadcastToAll(campaignId, { type: "chunk", content: event.delta })
+      }
       chunkCount++
       if (chunkCount % 20 === 0) {
         logInfo("game_session.openai_stream_chunk", { campaignId, chunkLength: event.delta.length })
@@ -191,7 +194,7 @@ async function runFirstCall(campaignId: string): Promise<void> {
       stream: true,
     } as Parameters<typeof openai.responses.create>[0])
 
-    const { fullText, newResponseId } = await consumeStream(campaignId, rawStream as AsyncIterable<StreamEvent>)
+    const { fullText, newResponseId } = await consumeStream(campaignId, rawStream as AsyncIterable<StreamEvent>, true)
 
     logInfo("game_session.openai_stream_complete", {
       campaignId,
