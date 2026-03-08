@@ -57,7 +57,7 @@ export async function GET(
           .eq('status', 'ready')
           .in('entity_id', [campaignId, worldId])
           .not('public_url', 'is', null)
-      : Promise.resolve({ data: [] }),
+      : Promise.resolve({ data: [], error: null }),
   ])
 
   if (playersResult.error || imagesResult.error) {
