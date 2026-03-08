@@ -242,15 +242,15 @@ export default function CampaignSetupPage() {
           <div className="relative flex flex-col items-center gap-6">
             <div className="relative">
               <div
-                className="animate-spin h-24 w-24 rounded-full border-2 border-brass/40"
+                className="gear-spin-animation h-24 w-24 rounded-full border-2 border-brass/40"
                 style={{
-                  animationDuration: '8s',
+                  animation: 'gear-spin 8s linear infinite',
                   boxShadow: '0 0 30px rgba(212,165,116,0.2), inset 0 0 30px rgba(212,165,116,0.05)',
                 }}
               />
               <div
-                className="absolute inset-3 rounded-full border border-brass/30"
-                style={{ animation: 'spin 5s linear infinite reverse' }}
+                className="gear-spin-animation absolute inset-3 rounded-full border border-brass/30"
+                style={{ animation: 'gear-spin 5s linear infinite reverse' }}
               />
               <div className="absolute inset-0 flex items-center justify-center">
                 <svg className="h-8 w-8 text-brass/80" fill="none" viewBox="0 0 24 24">
