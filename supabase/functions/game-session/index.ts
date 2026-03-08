@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { createClient } from "jsr:@supabase/supabase-js@2"
-import OpenAI from "npm:openai"
+import Anthropic from "npm:@anthropic-ai/sdk"
 import {
   sessions,
   getOrCreateSession,
@@ -11,6 +11,7 @@ import {
 import { resetDebounce } from "./debounce.ts"
 import { buildGMSystemPrompt, buildFirstCallInput, isFirstCallResponse } from "./prompt.ts"
 import { extractNarration } from "./openai.ts"
+import { buildMessageHistory, type MsgRow } from "./history.ts"
 import { consumeStream, type StreamEvent } from "./stream.ts"
 import { extractJwtFromProtocolHeader } from "./ws-auth.ts"
 
@@ -39,10 +40,10 @@ async function clearPendingFirstCall(campaignId: string): Promise<void> {
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-const openaiApiKey = Deno.env.get("OPENAI_API_KEY")!
+const anthropicApiKey = Deno.env.get("ANTHROPIC_API_KEY")!
 
 const supabase = createClient(supabaseUrl, serviceRoleKey)
-const openai = new OpenAI({ apiKey: openaiApiKey })
+const anthropic = new Anthropic({ apiKey: anthropicApiKey })
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
