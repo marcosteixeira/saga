@@ -28,53 +28,6 @@ beforeEach(() => {
   sessions.clear()
 })
 
-describe('pending message accumulation (game loop)', () => {
-  it('queues messages into nextRoundMessages when processing is in progress', () => {
-    const session = getOrCreateSession('campaign-1')
-    session.isProcessing = true
-
-    const msgs = [
-      { clientId: 'a', playerId: 'p1', playerName: 'Aria', content: 'Attack', clientTimestamp: 1 },
-      { clientId: 'b', playerId: 'p2', playerName: 'Brom', content: 'Defend', clientTimestamp: 2 },
-    ]
-    msgs.forEach((m) => session.nextRoundMessages.push(m))
-
-    expect(session.nextRoundMessages).toHaveLength(2)
-    expect(session.pendingMessages).toHaveLength(0)
-  })
-
-  it('bundles all pending messages for one OpenAI call then clears them', () => {
-    const session = getOrCreateSession('campaign-2')
-
-    session.pendingMessages.push({ clientId: 'x', playerId: 'p1', playerName: 'Aria', content: 'Draw sword', clientTimestamp: 1 })
-    session.pendingMessages.push({ clientId: 'y', playerId: 'p2', playerName: 'Brom', content: 'Raise shield', clientTimestamp: 2 })
-    session.pendingMessages.push({ clientId: 'z', playerId: 'p3', playerName: 'Lyra', content: 'Fire arrow', clientTimestamp: 3 })
-
-    // Simulate what fireDebounce does: snapshot and clear
-    const pending = session.pendingMessages.splice(0)
-
-    expect(pending).toHaveLength(3)
-    expect(session.pendingMessages).toHaveLength(0)
-    expect(pending.map((m) => m.clientId)).toEqual(['x', 'y', 'z'])
-  })
-
-  it('promotes nextRoundMessages to pendingMessages after round completes', () => {
-    const session = getOrCreateSession('campaign-3')
-    session.isProcessing = true
-
-    // Simulate messages arriving during processing
-    session.nextRoundMessages.push({ clientId: 'next1', playerId: 'p1', playerName: 'Aria', content: 'Look around', clientTimestamp: 5 })
-
-    // Simulate round completion (finally block in runRound)
-    session.isProcessing = false
-    const next = session.nextRoundMessages.splice(0)
-    session.pendingMessages = next
-
-    expect(session.pendingMessages).toHaveLength(1)
-    expect(session.pendingMessages[0].clientId).toBe('next1')
-    expect(session.nextRoundMessages).toHaveLength(0)
-  })
-})
 
 describe('clientId to playerId resolution', () => {
   it('correctly maps clientIds from pending messages to playerIds', () => {

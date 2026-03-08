@@ -1,17 +1,7 @@
-export interface PendingMessage {
-  clientId: string
-  playerId: string
-  playerName: string
-  content: string
-  clientTimestamp: number
-}
-
 export interface CampaignSession {
   connections: Map<string, WebSocket>  // playerId → socket
-  pendingMessages: PendingMessage[]
   debounceTimer: ReturnType<typeof setTimeout> | null
-  isProcessing: boolean  // true while waiting for OpenAI / saving to DB
-  nextRoundMessages: PendingMessage[]  // messages queued during active processing
+  isProcessing: boolean  // true while this isolate is waiting for OpenAI / saving
 }
 
 export const sessions = new Map<string, CampaignSession>()
@@ -21,10 +11,8 @@ export function getOrCreateSession(campaignId: string): CampaignSession {
   if (!session) {
     session = {
       connections: new Map(),
-      pendingMessages: [],
       debounceTimer: null,
       isProcessing: false,
-      nextRoundMessages: [],
     }
     sessions.set(campaignId, session)
   }
@@ -51,7 +39,7 @@ export function removeConnection(campaignId: string, playerId: string, socket?: 
   if (!current) return
   if (socket && current !== socket) return
   session.connections.delete(playerId)
-  if (session.connections.size === 0 && session.pendingMessages.length === 0 && !session.isProcessing) {
+  if (session.connections.size === 0 && !session.isProcessing) {
     sessions.delete(campaignId)
   }
 }

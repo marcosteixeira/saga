@@ -1,5 +1,6 @@
 import { notFound, redirect } from 'next/navigation'
 import { createAuthServerClient, createServerSupabaseClient } from '@/lib/supabase/server'
+import { broadcastPlayerJoin } from '@/lib/realtime-broadcast'
 import LobbyClient from './LobbyClient'
 
 interface Props {
@@ -67,6 +68,7 @@ export default async function LobbyPage({ params }: Props) {
 
     if (newPlayer) {
       players = [...players, newPlayer]
+      await broadcastPlayerJoin(campaignId, newPlayer)
     }
   }
 

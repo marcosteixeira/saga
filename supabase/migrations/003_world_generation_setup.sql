@@ -15,7 +15,8 @@ CREATE POLICY "host can read own campaign"
   ON campaigns FOR SELECT
   USING (auth.uid() = host_user_id);
 
--- Host can update their own campaign
+-- Host can update their own campaign (drop and recreate to avoid conflict with migration 002)
+DROP POLICY IF EXISTS "host can update own campaign" ON campaigns;
 CREATE POLICY "host can update own campaign"
   ON campaigns FOR UPDATE
   USING (auth.uid() = host_user_id);

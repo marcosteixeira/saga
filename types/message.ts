@@ -5,8 +5,10 @@ export type Message = {
   content: string
   type: 'action' | 'narration' | 'system' | 'ooc'
   created_at: string
+  client_id?: string | null
 }
 
 export type MessageInsert = Pick<Message, 'campaign_id' | 'content' | 'type'> & {
   player_id?: string
+  client_id?: string | null
 }

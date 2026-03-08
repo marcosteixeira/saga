@@ -682,15 +682,289 @@ function LoadingState({
 
 // ─── HP Bar ───────────────────────────────────────────────────────────────────
 
-function HpBar({ hp, hpMax }: { hp: number; hpMax: number }) {
+function HpBar({ hp, hpMax, thick = false }: { hp: number; hpMax: number; thick?: boolean }) {
   const pct = Math.max(0, Math.min(100, (hp / hpMax) * 100));
   const color = pct > 60 ? 'var(--patina)' : pct > 25 ? 'var(--amber)' : 'var(--furnace)';
   return (
-    <div className="relative h-1.5 w-full overflow-hidden border border-gunmetal/60 bg-iron">
+    <div
+      className={`relative w-full overflow-hidden border border-gunmetal/60 bg-iron ${thick ? 'h-2' : 'h-1.5'}`}
+    >
       <div
         className="absolute inset-y-0 left-0 transition-all duration-500"
         style={{ width: `${pct}%`, background: color, boxShadow: `0 0 6px ${color}66` }}
       />
+    </div>
+  );
+}
+
+// ─── My Player Tag ────────────────────────────────────────────────────────────
+// Prominent card for the current user shown at the top of the left sidebar.
+
+function MyPlayerTag({ player }: { player: Player }) {
+  const hp = player.stats.hp;
+  const hpMax = player.stats.hp_max;
+  const hpPct = Math.max(0, Math.min(100, (hp / hpMax) * 100));
+  const hpColor = hpPct > 60 ? 'var(--patina)' : hpPct > 25 ? 'var(--amber)' : 'var(--furnace)';
+  const isLowHp = hpPct < 25;
+  const displayName = player.character_name ?? player.username;
+
+  return (
+    <div
+      className="relative flex flex-col gap-0 overflow-hidden"
+      style={{
+        border: `1px solid ${isLowHp ? 'rgba(212,98,42,0.5)' : 'rgba(196,148,61,0.35)'}`,
+        background: isLowHp
+          ? 'linear-gradient(160deg, rgba(212,98,42,0.07) 0%, rgba(13,12,10,0.9) 60%)'
+          : 'linear-gradient(160deg, rgba(196,148,61,0.07) 0%, rgba(13,12,10,0.9) 60%)',
+        boxShadow: isLowHp
+          ? '0 0 16px rgba(212,98,42,0.12), inset 0 0 20px rgba(212,98,42,0.04)'
+          : '0 0 16px rgba(196,148,61,0.08), inset 0 0 20px rgba(196,148,61,0.03)',
+      }}
+    >
+      {/* Corner accent */}
+      <div
+        className="pointer-events-none absolute left-0 top-0 h-8 w-0.5"
+        style={{ background: isLowHp ? 'var(--furnace)' : 'var(--brass)', opacity: 0.8 }}
+      />
+      <div
+        className="pointer-events-none absolute left-0 top-0 h-0.5 w-8"
+        style={{ background: isLowHp ? 'var(--furnace)' : 'var(--brass)', opacity: 0.8 }}
+      />
+      <div
+        className="pointer-events-none absolute bottom-0 right-0 h-6 w-0.5"
+        style={{ background: isLowHp ? 'var(--furnace)' : 'var(--brass)', opacity: 0.3 }}
+      />
+      <div
+        className="pointer-events-none absolute bottom-0 right-0 h-0.5 w-6"
+        style={{ background: isLowHp ? 'var(--furnace)' : 'var(--brass)', opacity: 0.3 }}
+      />
+
+      {/* Top strip: YOU badge + status */}
+      <div
+        className="flex items-center justify-between px-3 pt-2.5"
+      >
+        <div className="flex items-center gap-1.5">
+          <span
+            className="text-[8px] font-bold uppercase tracking-[0.3em] px-1.5 py-0.5"
+            style={{
+              fontFamily: 'var(--font-mono), monospace',
+              background: isLowHp ? 'rgba(212,98,42,0.15)' : 'rgba(196,148,61,0.12)',
+              border: `1px solid ${isLowHp ? 'rgba(212,98,42,0.4)' : 'rgba(196,148,61,0.3)'}`,
+              color: isLowHp ? 'var(--furnace)' : 'var(--brass)',
+            }}
+          >
+            You
+          </span>
+          {player.is_host && (
+            <span
+              className="text-[8px] uppercase tracking-[0.2em] px-1.5 py-0.5"
+              style={{
+                fontFamily: 'var(--font-mono), monospace',
+                background: 'rgba(90,122,109,0.12)',
+                border: '1px solid rgba(90,122,109,0.3)',
+                color: 'var(--patina)',
+              }}
+            >
+              Host
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-1">
+          <div
+            className="h-1.5 w-1.5 rounded-full"
+            style={{
+              background: player.status === 'active' ? 'var(--patina)' : 'var(--ash)',
+              boxShadow: player.status === 'active' ? '0 0 5px var(--patina)' : 'none',
+            }}
+          />
+          <span
+            className="text-[8px] uppercase tracking-[0.15em]"
+            style={{
+              fontFamily: 'var(--font-mono), monospace',
+              color: player.status === 'active' ? 'var(--patina)' : 'var(--ash)',
+            }}
+          >
+            {player.status}
+          </span>
+        </div>
+      </div>
+
+      {/* Avatar + identity row */}
+      <div className="flex items-center gap-3 px-3 pt-2 pb-1">
+        <div
+          className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden"
+          style={{
+            background: isLowHp
+              ? 'radial-gradient(circle at 35% 35%, rgba(212,98,42,0.18), rgba(26,24,20,0.95))'
+              : 'radial-gradient(circle at 35% 35%, rgba(196,148,61,0.15), rgba(26,24,20,0.95))',
+            border: `1px solid ${isLowHp ? 'rgba(212,98,42,0.5)' : 'rgba(196,148,61,0.4)'}`,
+            clipPath: 'polygon(5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%, 0 5px)',
+          }}
+        >
+          <span
+            className="text-xl font-bold"
+            style={{
+              fontFamily: 'var(--font-display), sans-serif',
+              color: isLowHp ? 'var(--furnace)' : 'var(--brass)',
+              textShadow: `0 0 12px ${isLowHp ? 'rgba(212,98,42,0.6)' : 'rgba(196,148,61,0.5)'}`,
+            }}
+          >
+            {displayName[0].toUpperCase()}
+          </span>
+        </div>
+
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span
+            className="truncate text-sm font-bold uppercase tracking-[0.06em] text-steam leading-tight"
+            style={{ fontFamily: 'var(--font-heading), serif' }}
+          >
+            {displayName}
+          </span>
+          <span
+            className="truncate text-[10px] uppercase tracking-[0.18em]"
+            style={{ fontFamily: 'var(--font-mono), monospace', color: 'var(--copper)' }}
+          >
+            {player.character_class ?? 'Unknown'}
+          </span>
+        </div>
+      </div>
+
+      {/* HP section */}
+      <div className="px-3 pb-3 pt-1 flex flex-col gap-1.5">
+        <div className="flex items-baseline justify-between">
+          <span
+            className="text-[9px] uppercase tracking-[0.2em] text-ash/50"
+            style={{ fontFamily: 'var(--font-mono), monospace' }}
+          >
+            HP
+          </span>
+          <div className="flex items-baseline gap-0.5">
+            <span
+              className="text-lg font-bold leading-none tabular-nums"
+              style={{
+                fontFamily: 'var(--font-mono), monospace',
+                color: hpColor,
+                textShadow: `0 0 10px ${hpColor}55`,
+              }}
+            >
+              {hp}
+            </span>
+            <span
+              className="text-[10px] text-ash/40"
+              style={{ fontFamily: 'var(--font-mono), monospace' }}
+            >
+              /{hpMax}
+            </span>
+          </div>
+        </div>
+        <HpBar hp={hp} hpMax={hpMax} thick />
+        {isLowHp && (
+          <div className="flex items-center gap-1 mt-0.5">
+            <div
+              className="h-1 w-1 rounded-full"
+              style={{ background: 'var(--furnace)', animation: 'pulse 1.5s ease-in-out infinite' }}
+            />
+            <span
+              className="text-[8px] uppercase tracking-[0.2em]"
+              style={{ fontFamily: 'var(--font-mono), monospace', color: 'var(--furnace)' }}
+            >
+              Critical
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Other Player Row ─────────────────────────────────────────────────────────
+// Compact row for party members (not the current user).
+
+function OtherPlayerRow({ player }: { player: Player }) {
+  const hp = player.stats.hp;
+  const hpMax = player.stats.hp_max;
+  const hpPct = Math.max(0, Math.min(100, (hp / hpMax) * 100));
+  const hpColor = hpPct > 60 ? 'var(--patina)' : hpPct > 25 ? 'var(--amber)' : 'var(--furnace)';
+  const isLowHp = hpPct < 25;
+  const displayName = player.character_name ?? player.username;
+
+  return (
+    <div
+      className="relative flex flex-col gap-1.5 p-2.5 transition-all duration-300"
+      style={{
+        background: 'rgba(26,24,20,0.6)',
+        border: `1px solid ${isLowHp ? 'rgba(212,98,42,0.3)' : 'rgba(61,54,48,0.8)'}`,
+      }}
+    >
+      <div className="flex items-center gap-2">
+        {/* Small avatar */}
+        <div
+          className="flex h-7 w-7 shrink-0 items-center justify-center"
+          style={{
+            background: 'var(--smog)',
+            border: '1px solid var(--gunmetal)',
+            clipPath: 'polygon(3px 0, 100% 0, 100% calc(100% - 3px), calc(100% - 3px) 100%, 0 100%, 0 3px)',
+          }}
+        >
+          <span
+            className="text-xs font-bold text-ash"
+            style={{ fontFamily: 'var(--font-display), sans-serif' }}
+          >
+            {displayName[0].toUpperCase()}
+          </span>
+        </div>
+
+        {/* Name + class */}
+        <div className="flex min-w-0 flex-1 flex-col gap-0">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span
+              className="truncate text-[11px] font-semibold uppercase tracking-[0.06em] text-steam leading-tight"
+              style={{ fontFamily: 'var(--font-heading), serif' }}
+            >
+              {displayName}
+            </span>
+            {player.is_host && (
+              <div className="flex shrink-0 h-3 w-3 items-center justify-center bg-brass">
+                <span className="text-[6px] font-bold text-soot">H</span>
+              </div>
+            )}
+          </div>
+          <span
+            className="text-[9px] uppercase tracking-[0.12em] text-ash/50 leading-tight"
+            style={{ fontFamily: 'var(--font-mono), monospace' }}
+          >
+            {player.character_class ?? 'Unknown'}
+          </span>
+        </div>
+
+        {/* HP value */}
+        <div className="flex shrink-0 items-baseline gap-0.5">
+          <span
+            className="text-xs font-bold tabular-nums leading-none"
+            style={{ fontFamily: 'var(--font-mono), monospace', color: hpColor }}
+          >
+            {hp}
+          </span>
+          <span
+            className="text-[9px] text-ash/35"
+            style={{ fontFamily: 'var(--font-mono), monospace' }}
+          >
+            /{hpMax}
+          </span>
+        </div>
+
+        {/* Status dot */}
+        <div
+          className="h-1.5 w-1.5 shrink-0 rounded-full"
+          style={{
+            background: player.status === 'active' ? 'var(--patina)' : 'var(--ash)',
+            boxShadow: player.status === 'active' ? '0 0 4px var(--patina)' : 'none',
+          }}
+        />
+      </div>
+
+      {/* HP bar */}
+      <HpBar hp={hp} hpMax={hpMax} />
     </div>
   );
 }
@@ -979,6 +1253,23 @@ function GalleryThumb({ imageUrl, onClick }: { imageUrl: string; onClick: () => 
   );
 }
 
+// ─── Section Label ────────────────────────────────────────────────────────────
+
+function SectionLabel({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-2 px-1">
+      <div className="h-px flex-1 bg-gradient-to-r from-brass/30 to-transparent" />
+      <span
+        className="text-[9px] uppercase tracking-[0.25em] text-brass/60"
+        style={{ fontFamily: 'var(--font-mono), monospace' }}
+      >
+        {label}
+      </span>
+      <div className="h-px flex-1 bg-gradient-to-l from-brass/30 to-transparent" />
+    </div>
+  );
+}
+
 // ─── Desktop Left Sidebar ─────────────────────────────────────────────────────
 
 function DesktopLeftSidebar({
@@ -990,33 +1281,40 @@ function DesktopLeftSidebar({
   players: Player[];
   currentUserId: string;
 }) {
+  const me = players.find((p) => p.user_id === currentUserId);
+  const others = players.filter((p) => p.user_id !== currentUserId);
+
   return (
     <aside
       className="relative z-10 hidden w-56 shrink-0 flex-col border-r border-gunmetal bg-iron/80 lg:flex"
       style={{ backdropFilter: 'blur(4px)' }}
     >
-      <div className="border-b border-gunmetal px-4 py-3">
-        <div className="flex items-center gap-2">
-          <div className="h-px flex-1 bg-gradient-to-r from-brass/40 to-transparent" />
-          <span
-            className="text-[10px] uppercase tracking-[0.25em] text-brass"
-            style={{ fontFamily: 'var(--font-mono), monospace' }}
-          >
-            Party
-          </span>
-          <div className="h-px flex-1 bg-gradient-to-l from-brass/40 to-transparent" />
-        </div>
+      <div className="flex flex-1 flex-col gap-3 overflow-y-auto p-3">
+        {/* ── My player ── */}
+        {me && (
+          <div className="flex flex-col gap-1.5">
+            <SectionLabel label={me.character_name ?? me.username} />
+            <PlayerCard player={me} isCurrentUser compact />
+          </div>
+        )}
+
+        {/* ── Party ── */}
+        {others.length > 0 && (
+          <div className="flex flex-col gap-1.5">
+            <SectionLabel label="Party" />
+            {others.map((player) => (
+              <PlayerCard
+                key={player.id}
+                player={player}
+                isCurrentUser={false}
+                compact
+              />
+            ))}
+          </div>
+        )}
       </div>
-      <div className="flex flex-1 flex-col gap-2 overflow-y-auto p-3">
-        {players.map((player) => (
-          <PlayerCard
-            key={player.id}
-            player={player}
-            isCurrentUser={player.user_id === currentUserId}
-            compact
-          />
-        ))}
-      </div>
+
+      {/* ── Footer ── */}
       <div className="border-t border-gunmetal px-4 py-3">
         <div className="flex flex-col gap-1.5">
           {[
@@ -1296,6 +1594,7 @@ function ActiveGameView({
   players,
   liveMessages,
   optimisticMessages,
+  lastActionSentAt,
   streamingContent,
   isStreaming,
   currentUserId,
@@ -1309,6 +1608,7 @@ function ActiveGameView({
   players: Player[];
   liveMessages: Message[];
   optimisticMessages: OptimisticMessage[];
+  lastActionSentAt: number | null;
   streamingContent: string;
   isStreaming: boolean;
   currentUserId: string;
@@ -1320,6 +1620,7 @@ function ActiveGameView({
   const feedRef = useRef<HTMLDivElement>(null);
   const [inputValue, setInputValue] = useState('');
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>(null);
+  const [mobileInputExpanded, setMobileInputExpanded] = useState(false);
   const [imageModal, setImageModal] = useState<ImageModalState | null>(null);
   const [liveCoverUrl, setLiveCoverUrl] = useState<string | undefined>(
     initialCampaignCoverImageUrl
@@ -1364,9 +1665,11 @@ function ActiveGameView({
 
   const displayModal = imageModal;
 
+  const debounceStartedAt = !isStreaming ? lastActionSentAt : null;
+
   useEffect(() => {
     if (feedRef.current) feedRef.current.scrollTop = feedRef.current.scrollHeight;
-  }, [liveMessages, optimisticMessages, streamingContent]);
+  }, [liveMessages, optimisticMessages, streamingContent, mobileInputExpanded, debounceStartedAt]);
 
   // Convert optimistic messages to Message shape for rendering
   const optimisticAsMessages: Message[] = optimisticMessages.map((m) => ({
@@ -1384,10 +1687,6 @@ function ActiveGameView({
   const handleModalClose = () => setImageModal(null);
   const showConnectionBanner = !isSilentReconnect && wsStatus !== 'connected';
   const promptDisabled = wsStatus !== 'connected' && !isSilentReconnect;
-  const debounceStartedAt =
-    !isStreaming && optimisticMessages.length > 0
-      ? Math.max(...optimisticMessages.map((m) => m.timestamp))
-      : null;
 
   return (
     <div className="relative flex h-[100dvh] overflow-hidden bg-soot">
@@ -1500,7 +1799,11 @@ function ActiveGameView({
           style={{
             scrollbarWidth: 'thin',
             scrollbarColor: 'var(--gunmetal) transparent',
-            paddingBottom: 'calc(116px + env(safe-area-inset-bottom, 0px))'
+            paddingBottom: `calc(${
+              56 + // tab bar
+              (mobileInputExpanded ? 104 : 64) + // input area (expanded: 3 rows, collapsed: 1 row)
+              (debounceStartedAt != null ? 64 : 0) // debounce timer bar
+            }px + env(safe-area-inset-bottom, 0px))`
           }}
         >
           <div className="mx-auto flex max-w-3xl flex-col gap-5 sm:gap-6">
@@ -1594,6 +1897,7 @@ function ActiveGameView({
         onSend={onSend}
         disabled={promptDisabled}
         debounceStartedAt={debounceStartedAt}
+        onExpandedChange={setMobileInputExpanded}
       />
       <MobileTabBar
         mobilePanel={mobilePanel}
@@ -1608,13 +1912,28 @@ function ActiveGameView({
         onClose={() => setMobilePanel(null)}
       >
         <div className="flex flex-col gap-3">
-          {players.map((player) => (
-            <PlayerCard
-              key={player.id}
-              player={player}
-              isCurrentUser={player.user_id === currentUserId}
-            />
-          ))}
+          {(() => {
+            const me = players.find((p) => p.user_id === currentUserId);
+            const others = players.filter((p) => p.user_id !== currentUserId);
+            return (
+              <>
+                {me && (
+                  <div className="flex flex-col gap-1.5">
+                    <SectionLabel label={me.character_name ?? me.username} />
+                    <PlayerCard player={me} isCurrentUser />
+                  </div>
+                )}
+                {others.length > 0 && (
+                  <div className="flex flex-col gap-1.5">
+                    <SectionLabel label="Party" />
+                    {others.map((player) => (
+                      <PlayerCard key={player.id} player={player} isCurrentUser={false} />
+                    ))}
+                  </div>
+                )}
+              </>
+            );
+          })()}
         </div>
       </MobilePanel>
 
@@ -1779,6 +2098,7 @@ export default function GameClient({
     )
   );
   const [optimisticMessages, setOptimisticMessages] = useState<OptimisticMessage[]>([]);
+  const [lastActionSentAt, setLastActionSentAt] = useState<number | null>(null);
   const [streamingContent, setStreamingContent] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [wsStatus, setWsStatus] = useState<'connecting' | 'connected' | 'disconnected'>(
@@ -1882,60 +2202,18 @@ export default function GameClient({
           return;
         }
 
-        if (msg.type === 'player:action') {
-          console.log('[game-session] player:action', {
-            id: msg.id,
-            playerName: msg.playerName,
-            content: msg.content
-          });
-          const optimistic: OptimisticMessage = {
-            id: msg.id as string,
-            playerId: msg.playerId as string,
-            playerName: msg.playerName as string,
-            content: msg.content as string,
-            timestamp: msg.timestamp as number,
-            isOwn: false
-          };
-          setOptimisticMessages((prev) => {
-            if (prev.some((m) => m.id === optimistic.id)) return prev;
-            return [...prev, optimistic];
-          });
-        }
-
         if (msg.type === 'chunk') {
           setIsStreaming(true);
+          setLastActionSentAt(null);
           setStreamingContent((prev) => prev + (msg.content as string));
         }
 
         if (msg.type === 'round:saved') {
-          const roundMessages = msg.messages as Array<{
-            clientId: string | null;
-            dbMessage: Message;
-          }>;
-          console.log('[game-session] round:saved', {
-            messageCount: roundMessages.length,
-            messages: roundMessages
-          });
+          // Narration and action messages are delivered via Supabase Realtime
+          // postgres_changes. This event only signals that streaming is done.
+          console.log('[game-session] round:saved (streaming complete)');
           setIsStreaming(false);
           setStreamingContent('');
-
-          const confirmedClientIds = new Set(
-            roundMessages
-              .filter((m) => m.clientId !== null)
-              .map((m) => m.clientId as string)
-          );
-          setOptimisticMessages((prev) =>
-            prev.filter((m) => !confirmedClientIds.has(m.id))
-          );
-
-          const newDbMessages = roundMessages.map((m) => m.dbMessage);
-          setLiveMessages((prev) => {
-            const existingIds = new Set(prev.map((m) => m.id));
-            const toAdd = newDbMessages.filter((m) => !existingIds.has(m.id));
-            return toAdd.length > 0 ? [...prev, ...toAdd] : prev;
-          });
-
-          setViewState((prev) => (prev === 'loading' ? 'active' : prev));
         }
 
         if (msg.type === 'error') {
@@ -1945,6 +2223,7 @@ export default function GameClient({
           // show empty and the GM typing indicator will be gone.
           setViewState((prev) => (prev === 'loading' ? 'active' : prev));
           setIsStreaming(false);
+          setLastActionSentAt(null);
         }
       };
 
@@ -1967,6 +2246,64 @@ export default function GameClient({
       unmounted = true;
       if (reconnectTimer) clearTimeout(reconnectTimer);
       ws?.close();
+    };
+  }, [campaign.id]);
+
+  // Supabase Realtime: subscribe to new message inserts for this campaign.
+  // This is the primary delivery path for player actions and narration —
+  // works across all edge function isolates, fixing the multiplayer isolation bug.
+  useEffect(() => {
+    const supabase = createClient();
+
+    const channel = supabase
+      .channel(`game-messages-${campaign.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `campaign_id=eq.${campaign.id}`,
+        },
+        (payload) => {
+          const newMsg = payload.new as Message;
+          console.log('[realtime] messages INSERT', {
+            id: newMsg.id,
+            type: newMsg.type,
+            client_id: newMsg.client_id,
+          });
+
+          // Remove matching optimistic message (own action confirmed by DB).
+          if (newMsg.client_id) {
+            setOptimisticMessages((prev) =>
+              prev.filter((m) => m.id !== newMsg.client_id)
+            );
+          }
+
+          // Start/restart the debounce timer for all players when any action lands.
+          if (newMsg.type === 'action') {
+            setLastActionSentAt(new Date(newMsg.created_at).getTime());
+          }
+
+          // Add to live messages (dedup by id).
+          setLiveMessages((prev) => {
+            if (prev.some((m) => m.id === newMsg.id)) return prev;
+            return [...prev, newMsg].sort(
+              (a, b) =>
+                new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+            );
+          });
+
+          // Transition loading → active when the first narration arrives.
+          if (newMsg.type === 'narration') {
+            setViewState((prev) => (prev === 'loading' ? 'active' : prev));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
     };
   }, [campaign.id]);
 
@@ -2013,6 +2350,7 @@ export default function GameClient({
       players={dbPlayers}
       liveMessages={liveMessages}
       optimisticMessages={optimisticMessages}
+      lastActionSentAt={lastActionSentAt}
       streamingContent={streamingContent}
       isStreaming={isStreaming}
       currentUserId={currentUserId}

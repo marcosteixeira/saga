@@ -1,48 +1,53 @@
-import { NextResponse } from 'next/server'
-import { createServerSupabaseClient, createAuthServerClient } from '@/lib/supabase/server'
-import { generateSlug } from '@/lib/slug'
+import { NextResponse } from 'next/server';
+import {
+  createServerSupabaseClient,
+  createAuthServerClient
+} from '@/lib/supabase/server';
+import { generateSlug } from '@/lib/slug';
 
 export async function POST(req: Request) {
-  const authClient = await createAuthServerClient()
-  const { data: { user } } = await authClient.auth.getUser()
+  const authClient = await createAuthServerClient();
+  const {
+    data: { user }
+  } = await authClient.auth.getUser();
 
   if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const body = await req.json()
-  const { name, world_id, system_description } = body
+  const body = await req.json();
+  const { name, world_id, system_description } = body;
   const host_username: string =
     body.host_username?.trim() ||
     user.user_metadata?.display_name ||
     user.email ||
-    'Unknown Host'
+    'Unknown Host';
 
   if (!name || !world_id) {
     return NextResponse.json(
       { error: 'Missing required fields: name, world_id' },
       { status: 400 }
-    )
+    );
   }
 
-  const supabase = createServerSupabaseClient()
+  const supabase = createServerSupabaseClient();
 
   // Verify the world belongs to this user and exists
   const { data: world, error: worldError } = await supabase
     .from('worlds')
-    .select('id, status')
+    .select('id, name, status')
     .eq('id', world_id)
     .eq('user_id', user.id)
-    .single()
+    .single();
 
   if (worldError || !world) {
-    return NextResponse.json({ error: 'World not found' }, { status: 404 })
+    return NextResponse.json({ error: 'World not found' }, { status: 404 });
   }
 
   // Retry up to 3 times on slug collision (unique constraint violation code: 23505)
-  let data: { id: string; slug: string } | null = null
+  let data: { id: string; slug: string } | null = null;
   for (let attempt = 0; attempt < 3; attempt++) {
-    const slug = generateSlug(name)
+    const slug = generateSlug(`${world.name} ${name}`);
     const { data: inserted, error } = await supabase
       .from('campaigns')
       .insert({
@@ -52,23 +57,28 @@ export async function POST(req: Request) {
         host_user_id: user.id,
         world_id,
         system_description: system_description || null,
-        status: 'lobby',
+        status: 'lobby'
       })
       .select('id, slug')
-      .single()
+      .single();
+
+    console.log(`Attempt ${attempt + 1}: Inserted campaign with slug "${slug}"`, {
+      inserted,
+      error
+    });
 
     if (!error) {
-      data = inserted
-      break
+      data = inserted;
+      break;
     }
     if (error.code !== '23505') {
-      return NextResponse.json({ error: 'Failed to create campaign' }, { status: 500 })
+      return NextResponse.json({ error: 'Failed to create campaign' }, { status: 500 });
     }
     // 23505 = unique_violation — slug collision, retry with a new slug
   }
 
   if (!data) {
-    return NextResponse.json({ error: 'Failed to create campaign' }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to create campaign' }, { status: 500 });
   }
 
   // Create the host player row so they can save their character in the lobby
@@ -76,8 +86,8 @@ export async function POST(req: Request) {
     campaign_id: data.id,
     user_id: user.id,
     username: host_username,
-    is_host: true,
-  })
+    is_host: true
+  });
 
-  return NextResponse.json({ id: data.id, slug: data.slug }, { status: 201 })
+  return NextResponse.json({ id: data.id, slug: data.slug }, { status: 201 });
 }

@@ -7,7 +7,6 @@ import {
   registerConnection,
   removeConnection,
   broadcastToAll,
-  type PendingMessage,
 } from "./state.ts"
 import { resetDebounce } from "./debounce.ts"
 import { buildGMSystemPrompt, buildFirstCallInput, isFirstCallResponse } from "./prompt.ts"
@@ -54,6 +53,8 @@ interface DbMessage {
   content: string
   type: 'action' | 'narration' | 'system' | 'ooc'
   created_at: string
+  client_id: string | null
+  processed: boolean
 }
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
@@ -92,6 +93,11 @@ async function authenticate(
 async function runFirstCall(campaignId: string): Promise<void> {
   const startedAt = Date.now()
 
+  // Mark processing so removeConnection doesn't delete the session while the
+  // first call is in-flight (the socket may drop during a cold-start restart).
+  const sessionRef = getOrCreateSession(campaignId)
+  sessionRef.isProcessing = true
+
   // Attempt to claim first-call slot via optimistic update on null → 'pending'
   const { error: pendingError } = await supabase
     .from("campaigns")
@@ -103,6 +109,7 @@ async function runFirstCall(campaignId: string): Promise<void> {
   // Only a true DB connectivity error reaches here. The re-fetch below is the actual guard.
   if (pendingError) {
     logError("game_session.db_error", { campaignId, reason: "pending_update_db_error" }, pendingError)
+    sessionRef.isProcessing = false
     return
   }
 
@@ -116,11 +123,13 @@ async function runFirstCall(campaignId: string): Promise<void> {
   if (campaignError) {
     logError("game_session.db_error", { campaignId, reason: "recheck_pending_failed" }, campaignError)
     await clearPendingFirstCall(campaignId)
+    sessionRef.isProcessing = false
     return
   }
 
   if (!campaign || campaign.last_response_id !== "pending") {
     logInfo("game_session.first_call_skipped", { campaignId, reason: "race_lost" })
+    sessionRef.isProcessing = false
     return
   }
 
@@ -183,22 +192,24 @@ async function runFirstCall(campaignId: string): Promise<void> {
       throw new Error("OpenAI first-call response missing world_context")
     }
 
-    const narration = extractNarration(parsed)
-    if (!narration.length) {
+    // Bug 1 fix: join all narration parts into a single string → one DB row
+    const narrationParts = extractNarration(parsed)
+    if (!narrationParts.length) {
       throw new Error("OpenAI first-call response has no narration")
     }
+    const narrationContent = narrationParts.join("\n\n")
 
-    logInfo("game_session.db_save_started", { campaignId, messageCount: narration.length })
+    logInfo("game_session.db_save_started", { campaignId, messageCount: 1 })
 
-    const { data: savedMessages, error: insertError } = await supabase
+    const { error: insertError } = await supabase
       .from("messages")
-      .insert(narration.map((content) => ({
+      .insert([{
         campaign_id: campaignId,
         player_id: null,
-        content,
+        content: narrationContent,
         type: "narration" as const,
-      })))
-      .select("*")
+        client_id: null,
+      }])
 
     if (insertError) throw insertError
 
@@ -210,41 +221,94 @@ async function runFirstCall(campaignId: string): Promise<void> {
     logInfo("game_session.db_save_complete", { campaignId, newResponseId })
     logInfo("game_session.round_complete", { campaignId, durationMs: Date.now() - startedAt })
 
-    broadcastToAll(campaignId, {
-      type: "round:saved",
-      messages: (savedMessages as DbMessage[]).map((m) => ({ clientId: null, dbMessage: m })),
-    })
+    // Clients receive the narration message via Realtime postgres_changes.
+    broadcastToAll(campaignId, { type: "round:saved" })
   } catch (err) {
     logError("game_session.openai_call_failed", { campaignId }, err)
     // Reset so the next connection can retry rather than hanging on 'pending' forever.
     await clearPendingFirstCall(campaignId)
     broadcastToAll(campaignId, { type: "error", message: "Failed to generate opening narration" })
+  } finally {
+    sessionRef.isProcessing = false
   }
 }
 
 // ─── Round ────────────────────────────────────────────────────────────────────
 
-async function runRound(campaignId: string, pending: PendingMessage[]): Promise<void> {
+async function runRound(campaignId: string): Promise<void> {
   const startedAt = Date.now()
-
-  const { data: campaign } = await supabase
-    .from("campaigns")
-    .select("last_response_id")
-    .eq("id", campaignId)
-    .single()
-
-  const lastResponseId = campaign?.last_response_id ?? null
-
-  logInfo("game_session.openai_call_started", { campaignId, previousResponseId: lastResponseId })
-
-  const input = JSON.stringify(
-    pending.map((m) => ({ clientId: m.clientId, playerName: m.playerName, content: m.content }))
-  )
+  let lockAcquired = false
 
   try {
+    // Try to acquire the round lock
+    await supabase
+      .from("campaigns")
+      .update({ round_in_progress: true })
+      .eq("id", campaignId)
+      .eq("round_in_progress", false)
+
+    // Re-fetch to confirm we won (Supabase update doesn't error on zero rows matched)
+    const { data: campaign } = await supabase
+      .from("campaigns")
+      .select("round_in_progress, last_response_id")
+      .eq("id", campaignId)
+      .single()
+
+    if (!campaign?.round_in_progress) {
+      logInfo("game_session.round_lock_lost", { campaignId })
+      return  // finally will still run and reset isProcessing (lock was NOT acquired)
+    }
+
+    lockAcquired = true
+
+    // Bug 3 fix: atomically claim all unprocessed action messages for this campaign.
+    // UPDATE...RETURNING is atomic: only rows updated by THIS query are returned.
+    const { data: claimedActions, error: claimError } = await supabase
+      .from("messages")
+      .update({ processed: true })
+      .eq("campaign_id", campaignId)
+      .eq("type", "action")
+      .eq("processed", false)
+      .select("*")
+
+    if (claimError) throw claimError
+
+    if (!claimedActions?.length) {
+      logInfo("game_session.round_skipped", { campaignId, reason: "no_pending_actions" })
+      return  // finally will release the lock and reset isProcessing
+    }
+
+    // Look up player names for the claimed actions (messages table has no player_name column)
+    const playerIds = [...new Set(claimedActions.map((a) => a.player_id).filter(Boolean))]
+    const { data: players } = await supabase
+      .from("players")
+      .select("id, character_name, username")
+      .in("id", playerIds)
+
+    const playerNameMap = new Map(
+      (players ?? []).map((p) => [
+        p.id as string,
+        ((p.character_name ?? p.username ?? "Unknown") as string),
+      ])
+    )
+
+    logInfo("game_session.openai_call_started", {
+      campaignId,
+      pendingCount: claimedActions.length,
+      previousResponseId: campaign.last_response_id,
+    })
+
+    const input = JSON.stringify(
+      claimedActions.map((a) => ({
+        clientId: a.client_id,
+        playerName: playerNameMap.get(a.player_id ?? "") ?? "Unknown",
+        content: a.content,
+      }))
+    )
+
     const rawStream = await openai.responses.create({
       model: "gpt-4o",
-      previous_response_id: lastResponseId,
+      previous_response_id: campaign.last_response_id,
       input,
       stream: true,
     } as Parameters<typeof openai.responses.create>[0])
@@ -262,42 +326,21 @@ async function runRound(campaignId: string, pending: PendingMessage[]): Promise<
       durationMs: Date.now() - startedAt,
     })
 
-    let parsed: unknown
-    try {
-      parsed = JSON.parse(fullText)
-    } catch {
-      throw new Error(`Failed to parse OpenAI response as JSON: ${fullText.slice(0, 200)}`)
-    }
+    const narrationContent = fullText.trim()
+    if (!narrationContent) throw new Error("Empty narration returned")
 
-    const r = parsed as { actions?: Array<{ clientId: string; playerName: string; content: string }>; narration?: string[] }
-    const actions = Array.isArray(r.actions) ? r.actions : []
-    const narration = extractNarration(parsed)
-
-    const clientIdToPlayerId = new Map(pending.map((m) => [m.clientId, m.playerId]))
-
-    const messageRows: Array<{ campaign_id: string; player_id: string | null; content: string; type: 'action' | 'narration' }> = [
-      ...actions.map((a) => ({
-        campaign_id: campaignId,
-        player_id: clientIdToPlayerId.get(a.clientId) ?? null,
-        content: a.content,
-        type: "action" as const,
-      })),
-      ...narration.map((para) => ({
+    const { error: narrationInsertError } = await supabase
+      .from("messages")
+      .insert([{
         campaign_id: campaignId,
         player_id: null,
-        content: para,
+        content: narrationContent,
         type: "narration" as const,
-      })),
-    ]
+        client_id: null,
+        processed: true,  // narration is never a "pending action"
+      }])
 
-    logInfo("game_session.db_save_started", { campaignId, messageCount: messageRows.length })
-
-    const { data: savedMessages, error: insertError } = await supabase
-      .from("messages")
-      .insert(messageRows)
-      .select("*")
-
-    if (insertError) throw insertError
+    if (narrationInsertError) throw narrationInsertError
 
     await supabase
       .from("campaigns")
@@ -307,38 +350,38 @@ async function runRound(campaignId: string, pending: PendingMessage[]): Promise<
     logInfo("game_session.db_save_complete", { campaignId, newResponseId })
     logInfo("game_session.round_complete", { campaignId, durationMs: Date.now() - startedAt })
 
-    const saved = savedMessages as DbMessage[]
-    const savedActions = saved.filter((m) => m.type === "action")
-    const savedNarration = saved.filter((m) => m.type === "narration")
-
-    // Match saved DB rows back to clientIds using (player_id, content) as a key.
-    // This avoids relying on DB insert-order which Postgres does not guarantee.
-    const contentKeyToClientId = new Map<string, string>()
-    for (const a of actions) {
-      const pId = clientIdToPlayerId.get(a.clientId)
-      if (pId) contentKeyToClientId.set(`${pId}:${a.content}`, a.clientId)
-    }
-
-    const roundMessages: Array<{ clientId: string | null; dbMessage: DbMessage }> = [
-      ...savedActions.map((m) => ({
-        clientId: m.player_id ? contentKeyToClientId.get(`${m.player_id}:${m.content}`) ?? null : null,
-        dbMessage: m,
-      })),
-      ...savedNarration.map((m) => ({ clientId: null, dbMessage: m })),
-    ]
-
-    broadcastToAll(campaignId, { type: "round:saved", messages: roundMessages })
+    // Signal this isolate's connected players that streaming is done.
+    // Other players receive the narration via Realtime postgres_changes.
+    broadcastToAll(campaignId, { type: "round:saved" })
   } catch (err) {
     logError("game_session.openai_call_failed", { campaignId }, err)
     broadcastToAll(campaignId, { type: "error", message: "Failed to generate narration" })
   } finally {
+    // Release the round lock only if we acquired it
+    if (lockAcquired) {
+      await supabase
+        .from("campaigns")
+        .update({ round_in_progress: false })
+        .eq("id", campaignId)
+    }
+
     const session = sessions.get(campaignId)
     if (session) {
-      session.isProcessing = false
-      if (session.nextRoundMessages.length > 0) {
-        const next = session.nextRoundMessages.splice(0)
-        session.pendingMessages = next
-        resetDebounce(campaignId, () => fireDebounce(campaignId))
+      session.isProcessing = false  // ALWAYS reset, regardless of exit path
+
+      // Check for actions that arrived while we were processing
+      if (lockAcquired) {
+        const { data: remaining } = await supabase
+          .from("messages")
+          .select("id")
+          .eq("campaign_id", campaignId)
+          .eq("type", "action")
+          .eq("processed", false)
+          .limit(1)
+
+        if (remaining?.length) {
+          resetDebounce(campaignId, () => fireDebounce(campaignId))
+        }
       }
     }
   }
@@ -348,14 +391,12 @@ async function runRound(campaignId: string, pending: PendingMessage[]): Promise<
 
 async function fireDebounce(campaignId: string): Promise<void> {
   const session = sessions.get(campaignId)
-  if (!session || session.pendingMessages.length === 0) return
+  if (!session) return
+  if (session.isProcessing) return
 
-  logInfo("game_session.debounce_fired", { campaignId, pendingMessageCount: session.pendingMessages.length })
-
-  const pending = session.pendingMessages.splice(0)
+  logInfo("game_session.debounce_fired", { campaignId })
   session.isProcessing = true
-
-  await runRound(campaignId, pending)
+  await runRound(campaignId)
 }
 
 // ─── Main Handler ─────────────────────────────────────────────────────────────
@@ -364,11 +405,9 @@ Deno.serve(async (req: Request) => {
   const url = new URL(req.url)
   const campaignId = url.searchParams.get("campaignId")
 
-  // Browser WebSocket API cannot set custom headers; token is passed via
-  // Sec-WebSocket-Protocol as "jwt-<token>" (Supabase recommended approach).
-  const { protocol: jwtProtocol, token } = extractJwtFromProtocolHeader(
-    req.headers.get("Sec-WebSocket-Protocol"),
-  )
+  // Browser WebSocket API cannot set custom headers; token is passed as a
+  // query parameter per Supabase docs recommendation.
+  const token = url.searchParams.get("jwt")
 
   if (!campaignId || !token) {
     return new Response("Missing campaignId or token", { status: 400 })
@@ -386,22 +425,33 @@ Deno.serve(async (req: Request) => {
 
   const { playerId, playerName } = auth
 
-  const { socket, response } = Deno.upgradeWebSocket(req, { protocol: jwtProtocol ?? undefined })
+  const { socket, response } = Deno.upgradeWebSocket(req)
 
-  socket.onopen = async () => {
+  socket.onopen = () => {
     logInfo("game_session.connection_opened", { campaignId, playerId, playerName })
     registerConnection(campaignId, playerId, socket)
 
-    const { data: campaign } = await supabase
-      .from("campaigns")
-      .select("last_response_id")
-      .eq("id", campaignId)
-      .single()
+    const handleOpen = async () => {
+      const { data: campaign } = await supabase
+        .from("campaigns")
+        .select("last_response_id")
+        .eq("id", campaignId)
+        .single()
 
-    if (campaign?.last_response_id === null) {
-      await runFirstCall(campaignId)
+      if (campaign?.last_response_id === null) {
+        await runFirstCall(campaignId)
+      }
+      // Otherwise: client receives messages via Supabase Realtime postgres_changes
     }
-    // If 'pending': another player connected — wait for round:saved broadcast
+
+    // @ts-ignore — EdgeRuntime.waitUntil keeps the isolate alive for the promise
+    if (typeof EdgeRuntime !== "undefined") {
+      EdgeRuntime.waitUntil(handleOpen())
+    } else {
+      handleOpen().catch((err) =>
+        logError("game_session.onopen_error", { campaignId, playerId }, err)
+      )
+    }
   }
 
   socket.onmessage = (event) => {
@@ -416,30 +466,36 @@ Deno.serve(async (req: Request) => {
 
     logInfo("game_session.action_received", { campaignId, playerId, messageLength: msg.content.length })
 
-    const session = getOrCreateSession(campaignId)
-    const pending: PendingMessage = {
-      clientId: msg.id,
-      playerId,
-      playerName,
-      content: msg.content,
-      clientTimestamp: msg.timestamp ?? Date.now(),
+    const saveAndSchedule = async () => {
+      // Bug 2 fix: insert into messages immediately so Realtime delivers it to ALL clients
+      const { error: msgError } = await supabase
+        .from("messages")
+        .insert({
+          campaign_id: campaignId,
+          player_id: playerId,
+          content: msg.content,
+          type: "action" as const,
+          client_id: msg.id,
+          processed: false,
+        })
+
+      if (msgError) {
+        // Duplicate client_id (e.g. reconnect replay) — skip silently
+        logInfo("game_session.action_skip", { campaignId, reason: msgError.message })
+        return
+      }
+
+      const session = getOrCreateSession(campaignId)
+      if (!session.isProcessing) {
+        resetDebounce(campaignId, () => fireDebounce(campaignId))
+      }
+      // If isProcessing: the finally block in runRound will re-check for remaining
+      // unprocessed actions and schedule a follow-up round if needed.
     }
 
-    if (session.isProcessing) {
-      session.nextRoundMessages.push(pending)
-    } else {
-      session.pendingMessages.push(pending)
-      resetDebounce(campaignId, () => fireDebounce(campaignId))
-    }
-
-    broadcastToAll(campaignId, {
-      type: "player:action",
-      id: msg.id,
-      playerId,
-      playerName,
-      content: msg.content,
-      timestamp: msg.timestamp ?? Date.now(),
-    }, playerId)
+    saveAndSchedule().catch((err) =>
+      logError("game_session.save_action_error", { campaignId }, err)
+    )
   }
 
   socket.onclose = (event) => {
@@ -448,7 +504,8 @@ Deno.serve(async (req: Request) => {
   }
 
   socket.onerror = (event) => {
-    logError("game_session.connection_error", { campaignId, playerId }, event)
+    const message = (event as unknown as { message?: string }).message || String(event)
+    logError("game_session.connection_error", { campaignId, playerId }, new Error(message))
   }
 
   return response

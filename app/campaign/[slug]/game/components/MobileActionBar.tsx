@@ -9,14 +9,21 @@ export function MobileActionBar({
   onSend,
   disabled,
   debounceStartedAt,
+  onExpandedChange,
 }: {
   value: string;
   onChange: (v: string) => void;
   onSend: (content: string) => void;
   disabled?: boolean;
   debounceStartedAt?: number | null;
+  onExpandedChange?: (expanded: boolean) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+
+  const setExpandedAndNotify = (v: boolean) => {
+    setExpanded(v);
+    onExpandedChange?.(v);
+  };
 
   const handleSend = () => {
     if (!value.trim() || disabled) return;
@@ -45,11 +52,11 @@ export function MobileActionBar({
             }
           }}
           onFocus={(e) => {
-            setExpanded(true);
+            setExpandedAndNotify(true);
             e.target.style.borderColor = 'var(--brass)';
           }}
           onBlur={(e) => {
-            setExpanded(false);
+            setExpandedAndNotify(false);
             e.target.style.borderColor = 'var(--gunmetal)';
           }}
           placeholder="Describe your action..."
