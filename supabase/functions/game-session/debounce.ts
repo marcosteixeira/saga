@@ -1,10 +1,11 @@
 import { sessions } from './state.ts'
 
-export const DEBOUNCE_SECONDS = 8
+export const DEBOUNCE_SECONDS = 10
+const DEBOUNCE_MS = DEBOUNCE_SECONDS * 1000
 
 /**
- * Reset the debounce timer for a campaign. Clears any existing timer and
- * sets a new one. Calls onFire when the debounce period expires.
+ * Reset the debounce timer. Clears any existing timer and starts a new one
+ * that fires after DEBOUNCE_MS from now.
  */
 export function resetDebounce(campaignId: string, onFire: () => void): void {
   const session = sessions.get(campaignId)
@@ -17,11 +18,11 @@ export function resetDebounce(campaignId: string, onFire: () => void): void {
   session.debounceTimer = setTimeout(() => {
     session.debounceTimer = null
     onFire()
-  }, DEBOUNCE_SECONDS * 1000)
+  }, DEBOUNCE_MS)
 }
 
 /**
- * Cancel the debounce timer for a campaign without firing.
+ * Cancel the debounce timer without firing.
  */
 export function cancelDebounce(campaignId: string): void {
   const session = sessions.get(campaignId)
