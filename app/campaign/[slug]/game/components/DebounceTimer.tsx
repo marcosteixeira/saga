@@ -33,7 +33,7 @@ export function DebounceTimer({
   const urgent = remaining <= 2;
   const nearEnd = remaining <= 4;
 
-  const strokeColor = urgent ? 'var(--furnace)' : nearEnd ? 'var(--amber)' : 'var(--brass)';
+  const strokeColor = urgent ? 'var(--furnace)' : nearEnd ? 'var(--amber-glow)' : 'var(--brass)';
   const glowColor = urgent ? '#d4622a' : nearEnd ? '#e8a835' : '#c4943d';
   const glowSize = urgent ? 6 : 3;
 
@@ -168,7 +168,7 @@ export function DebounceTimer({
       </svg>
 
       {showLabel && (
-        <div className="flex flex-col gap-0.5">
+        <div className="flex flex-col gap-0.5" style={{ minWidth: '100px' }}>
           <span
             style={{
               fontFamily: 'var(--font-mono), monospace',
