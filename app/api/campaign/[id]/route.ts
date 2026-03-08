@@ -48,9 +48,8 @@ export async function GET(
 
   const worldId = campaignResult.data.worlds?.id
 
-  const [playersResult, filesResult, imagesResult] = await Promise.all([
+  const [playersResult, imagesResult] = await Promise.all([
     supabase.from('players').select('*').eq('campaign_id', campaignId),
-    supabase.from('campaign_files').select('*').eq('campaign_id', campaignId),
     worldId
       ? supabase
           .from('images')
@@ -61,7 +60,7 @@ export async function GET(
       : Promise.resolve({ data: [] }),
   ])
 
-  if (playersResult.error || filesResult.error) {
+  if (playersResult.error) {
     return NextResponse.json({ error: 'Failed to load campaign data' }, { status: 500 })
   }
 
@@ -78,7 +77,6 @@ export async function GET(
     campaign,
     world,
     players: playersResult.data ?? [],
-    files: filesResult.data ?? [],
     world_cover_url: worldId ? findImageUrl('world', worldId, 'cover') : null,
     campaign_cover_url: findImageUrl('campaign', campaignId, 'cover'),
   })
