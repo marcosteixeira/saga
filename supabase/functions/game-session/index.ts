@@ -10,7 +10,7 @@ import {
 } from "./state.ts"
 import { resetDebounce } from "./debounce.ts"
 import { buildGMSystemPrompt, buildFirstCallInput, isFirstCallResponse } from "./prompt.ts"
-import { extractNarration } from "./openai.ts"
+import { extractNarration } from "./anthropic.ts"
 import { buildMessageHistory, type MsgRow } from "./history.ts"
 import { consumeStream, type StreamEvent } from "./stream.ts"
 import { extractJwtFromProtocolHeader } from "./ws-auth.ts"

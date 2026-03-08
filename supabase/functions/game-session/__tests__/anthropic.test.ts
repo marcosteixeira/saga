@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { extractNarration } from '../openai.ts'
+import { extractNarration } from '../anthropic.ts'
 
 describe('extractNarration', () => {
   it('returns narration from a first-call response', () => {
