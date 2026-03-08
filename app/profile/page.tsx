@@ -30,6 +30,25 @@ export default function ProfilePage() {
   const [campaigns, setCampaigns] = useState<ProfileCampaign[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [resetting, setResetting] = useState<string | null>(null)
+
+  async function resetCampaign(campaign: ProfileCampaign) {
+    if (!confirm(`Reset "${campaign.name}"? This will delete all messages and return it to lobby.`)) return
+    setResetting(campaign.id)
+    try {
+      const res = await fetch(`/api/campaign/${campaign.id}/reset`, { method: 'POST' })
+      if (!res.ok) {
+        const data = await res.json()
+        alert(data.error ?? 'Failed to reset campaign.')
+        return
+      }
+      setCampaigns((prev) =>
+        prev.map((c) => (c.id === campaign.id ? { ...c, status: 'lobby' } : c))
+      )
+    } finally {
+      setResetting(null)
+    }
+  }
 
   useEffect(() => {
     let mounted = true
@@ -145,6 +164,16 @@ export default function ProfilePage() {
                       </div>
 
                       <div className="flex items-center gap-3">
+                        {campaign.is_host && campaign.status === 'active' && (
+                          <button
+                            onClick={() => resetCampaign(campaign)}
+                            disabled={resetting === campaign.id}
+                            className="rounded border border-gunmetal px-3 py-2 text-xs uppercase tracking-[0.12em] text-ash transition-colors hover:border-ember hover:text-ember disabled:opacity-40"
+                            style={{ fontFamily: 'var(--font-mono), monospace' }}
+                          >
+                            {resetting === campaign.id ? 'Resetting…' : 'Reset'}
+                          </button>
+                        )}
                         <Link
                           href={action.href}
                           className="rounded border border-copper px-3 py-2 text-xs uppercase tracking-[0.12em] text-steam transition-colors hover:border-brass hover:text-brass"

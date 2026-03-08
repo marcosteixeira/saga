@@ -161,7 +161,7 @@ async function runFirstCall(campaignId: string): Promise<void> {
     logInfo("game_session.openai_call_started", { campaignId, previousResponseId: null })
 
     const rawStream = await openai.responses.create({
-      model: "gpt-4o",
+      model: "gpt-4.1",
       instructions: systemPrompt,
       input,
       stream: true,
@@ -307,7 +307,7 @@ async function runRound(campaignId: string): Promise<void> {
     )
 
     const rawStream = await openai.responses.create({
-      model: "gpt-4o",
+      model: "gpt-4.1",
       previous_response_id: campaign.last_response_id,
       input,
       stream: true,
@@ -405,11 +405,11 @@ Deno.serve(async (req: Request) => {
   const url = new URL(req.url)
   const campaignId = url.searchParams.get("campaignId")
 
-  // Browser WebSocket API cannot set custom headers; token is passed as a
-  // query parameter per Supabase docs recommendation.
-  const token = url.searchParams.get("jwt")
+  // Browser WebSocket API cannot set custom headers; JWT is passed as a
+  // Sec-WebSocket-Protocol entry ("jwt-<token>") from the client.
+  const { protocol, token } = extractJwtFromProtocolHeader(req.headers.get("sec-websocket-protocol"))
 
-  if (!campaignId || !token) {
+  if (!campaignId || !token || !protocol) {
     return new Response("Missing campaignId or token", { status: 400 })
   }
 
@@ -425,7 +425,7 @@ Deno.serve(async (req: Request) => {
 
   const { playerId, playerName } = auth
 
-  const { socket, response } = Deno.upgradeWebSocket(req)
+  const { socket, response } = Deno.upgradeWebSocket(req, { protocol })
 
   socket.onopen = () => {
     logInfo("game_session.connection_opened", { campaignId, playerId, playerName })
