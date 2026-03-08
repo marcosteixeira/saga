@@ -43,6 +43,14 @@ describe('buildGMSystemPrompt', () => {
     expect(prompt).toContain('opening_situation')
     expect(prompt).toContain('starting_hooks')
   })
+
+  it('requires JSON output for subsequent rounds', () => {
+    const prompt = buildGMSystemPrompt(world.world_content, players)
+    expect(prompt).toContain('All subsequent responses must be JSON objects')
+    expect(prompt).toContain('"actions": [{ "clientId": "string", "playerName": "string", "content": "string" }]')
+    expect(prompt).toContain('"narration": ["string"]')
+    expect(prompt).not.toContain('All subsequent responses: return ONLY the narration as plain prose text.')
+  })
 })
 
 describe('buildFirstCallInput', () => {
