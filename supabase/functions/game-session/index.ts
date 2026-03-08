@@ -51,6 +51,8 @@ interface DbMessage {
   content: string
   type: 'action' | 'narration' | 'system' | 'ooc'
   created_at: string
+  client_id: string | null
+  processed: boolean
 }
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
@@ -265,27 +267,30 @@ async function runFirstCall(campaignId: string): Promise<void> {
 
 async function runRound(campaignId: string): Promise<void> {
   const startedAt = Date.now()
-
-  // Try to acquire the round lock
-  await supabase
-    .from("campaigns")
-    .update({ round_in_progress: true })
-    .eq("id", campaignId)
-    .eq("round_in_progress", false)
-
-  // Re-fetch to confirm we won (Supabase update doesn't error on zero rows matched)
-  const { data: campaign } = await supabase
-    .from("campaigns")
-    .select("round_in_progress, last_response_id")
-    .eq("id", campaignId)
-    .single()
-
-  if (!campaign?.round_in_progress) {
-    logInfo("game_session.round_lock_lost", { campaignId })
-    return
-  }
+  let lockAcquired = false
 
   try {
+    // Try to acquire the round lock
+    await supabase
+      .from("campaigns")
+      .update({ round_in_progress: true })
+      .eq("id", campaignId)
+      .eq("round_in_progress", false)
+
+    // Re-fetch to confirm we won (Supabase update doesn't error on zero rows matched)
+    const { data: campaign } = await supabase
+      .from("campaigns")
+      .select("round_in_progress, last_response_id")
+      .eq("id", campaignId)
+      .single()
+
+    if (!campaign?.round_in_progress) {
+      logInfo("game_session.round_lock_lost", { campaignId })
+      return  // finally will still run and reset isProcessing (lock was NOT acquired)
+    }
+
+    lockAcquired = true
+
     // Bug 3 fix: atomically claim all unprocessed action messages for this campaign.
     // UPDATE...RETURNING is atomic: only rows updated by THIS query are returned.
     const { data: claimedActions, error: claimError } = await supabase
@@ -300,7 +305,7 @@ async function runRound(campaignId: string): Promise<void> {
 
     if (!claimedActions?.length) {
       logInfo("game_session.round_skipped", { campaignId, reason: "no_pending_actions" })
-      return
+      return  // finally will release the lock and reset isProcessing
     }
 
     // Look up player names for the claimed actions (messages table has no player_name column)
@@ -377,27 +382,31 @@ async function runRound(campaignId: string): Promise<void> {
     logError("game_session.openai_call_failed", { campaignId }, err)
     broadcastToAll(campaignId, { type: "error", message: "Failed to generate narration" })
   } finally {
-    // Always release the round lock
-    await supabase
-      .from("campaigns")
-      .update({ round_in_progress: false })
-      .eq("id", campaignId)
+    // Release the round lock only if we acquired it
+    if (lockAcquired) {
+      await supabase
+        .from("campaigns")
+        .update({ round_in_progress: false })
+        .eq("id", campaignId)
+    }
 
     const session = sessions.get(campaignId)
     if (session) {
-      session.isProcessing = false
+      session.isProcessing = false  // ALWAYS reset, regardless of exit path
 
       // Check for actions that arrived while we were processing
-      const { data: remaining } = await supabase
-        .from("messages")
-        .select("id")
-        .eq("campaign_id", campaignId)
-        .eq("type", "action")
-        .eq("processed", false)
-        .limit(1)
+      if (lockAcquired) {
+        const { data: remaining } = await supabase
+          .from("messages")
+          .select("id")
+          .eq("campaign_id", campaignId)
+          .eq("type", "action")
+          .eq("processed", false)
+          .limit(1)
 
-      if (remaining?.length) {
-        resetDebounce(campaignId, () => fireDebounce(campaignId))
+        if (remaining?.length) {
+          resetDebounce(campaignId, () => fireDebounce(campaignId))
+        }
       }
     }
   }
