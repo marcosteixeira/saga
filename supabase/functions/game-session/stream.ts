@@ -1,7 +1,7 @@
 export type StreamEvent = {
   type: string
   delta?: string
-  response?: { output_text: string; id: string }
+  response?: { output_text?: string; id: string }
 }
 
 export async function consumeStream(

@@ -31,7 +31,7 @@ describe('consumeStream', () => {
     const onChunkLog = vi.fn()
     const stream = makeStream([
       { type: 'response.output_text.delta', delta: '{"narration":["hello"]}' },
-      { type: 'response.completed', response: { output_text: undefined as unknown as string, id: 'resp_789' } },
+      { type: 'response.completed', response: { output_text: undefined, id: 'resp_789' } },
     ])
 
     const result = await consumeStream('campaign-3', stream, onChunk, onChunkLog, false)
