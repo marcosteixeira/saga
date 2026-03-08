@@ -125,13 +125,8 @@ First response schema:
   "narration": ["string"]
 }
 
-All subsequent responses must be JSON objects. No markdown fences, no text outside the JSON.
-
-Subsequent response schema:
-{
-  "actions": [{ "clientId": "string", "playerName": "string", "content": "string" }],
-  "narration": ["string"]
-}
+All subsequent responses: return ONLY the narration as plain prose text.
+No JSON, no markdown, no labels. Just the narration paragraphs, separated by blank lines.
 </output-format>`
 }
 

@@ -13,7 +13,6 @@ import { resetDebounce } from "./debounce.ts"
 import { buildGMSystemPrompt, buildFirstCallInput, isFirstCallResponse } from "./prompt.ts"
 import { extractNarration } from "./openai.ts"
 import { extractJwtFromProtocolHeader } from "./ws-auth.ts"
-import { buildRoundMessages } from "./round-messages.ts"
 
 type LogMeta = Record<string, unknown>
 
@@ -330,11 +329,25 @@ async function runRound(campaignId: string, pending: PendingMessage[]): Promise<
     logInfo("game_session.db_save_complete", { campaignId, newResponseId })
     logInfo("game_session.round_complete", { campaignId, durationMs: Date.now() - startedAt })
 
-    const roundMessages = buildRoundMessages({
-      actions,
-      savedMessages: savedMessages as DbMessage[],
-      clientIdToPlayerId,
-    })
+    const saved = savedMessages as DbMessage[]
+    const savedActions = saved.filter((m) => m.type === "action")
+    const savedNarration = saved.filter((m) => m.type === "narration")
+
+    // Match saved DB rows back to clientIds using (player_id, content) as a key.
+    // This avoids relying on DB insert-order which Postgres does not guarantee.
+    const contentKeyToClientId = new Map<string, string>()
+    for (const a of actions) {
+      const pId = clientIdToPlayerId.get(a.clientId)
+      if (pId) contentKeyToClientId.set(`${pId}:${a.content}`, a.clientId)
+    }
+
+    const roundMessages: Array<{ clientId: string | null; dbMessage: DbMessage }> = [
+      ...savedActions.map((m) => ({
+        clientId: m.player_id ? contentKeyToClientId.get(`${m.player_id}:${m.content}`) ?? null : null,
+        dbMessage: m,
+      })),
+      ...savedNarration.map((m) => ({ clientId: null, dbMessage: m })),
+    ]
 
     broadcastToAll(campaignId, { type: "round:saved", messages: roundMessages })
   } catch (err) {
