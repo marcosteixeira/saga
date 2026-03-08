@@ -38,6 +38,7 @@ export async function POST(req: Request) {
     .single();
 
   if (error || !data) {
+    console.error('Error inserting world:', error);
     return NextResponse.json({ error: 'Failed to create world' }, { status: 500 });
   }
 

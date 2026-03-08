@@ -2,14 +2,18 @@
 
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
+import { usePathname } from 'next/navigation'
 import type { User } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/client'
 
 export function ProfileLink() {
   const supabase = useMemo(() => createClient(), [])
   const [user, setUser] = useState<User | null>(null)
+  const pathname = usePathname()
 
   useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setUser(data.user))
+
     const { data } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null)
     })
@@ -19,7 +23,7 @@ export function ProfileLink() {
     }
   }, [supabase])
 
-  if (!user) return null
+  if (!user || pathname?.includes('/game')) return null
 
   const displayName = user.user_metadata?.display_name || 'Profile'
 

@@ -1614,6 +1614,7 @@ function ActiveGameView({
   players,
   liveMessages,
   optimisticMessages,
+  lastActionSentAt,
   streamingContent,
   isStreaming,
   currentUserId,
@@ -1627,6 +1628,7 @@ function ActiveGameView({
   players: Player[];
   liveMessages: Message[];
   optimisticMessages: OptimisticMessage[];
+  lastActionSentAt: number | null;
   streamingContent: string;
   isStreaming: boolean;
   currentUserId: string;
@@ -1638,6 +1640,7 @@ function ActiveGameView({
   const feedRef = useRef<HTMLDivElement>(null);
   const [inputValue, setInputValue] = useState('');
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>(null);
+  const [mobileInputExpanded, setMobileInputExpanded] = useState(false);
   const [imageModal, setImageModal] = useState<ImageModalState | null>(null);
   const [liveCoverUrl, setLiveCoverUrl] = useState<string | undefined>(
     initialCampaignCoverImageUrl
@@ -1682,9 +1685,11 @@ function ActiveGameView({
 
   const displayModal = imageModal;
 
+  const debounceStartedAt = !isStreaming ? lastActionSentAt : null;
+
   useEffect(() => {
     if (feedRef.current) feedRef.current.scrollTop = feedRef.current.scrollHeight;
-  }, [liveMessages, optimisticMessages, streamingContent]);
+  }, [liveMessages, optimisticMessages, streamingContent, mobileInputExpanded, debounceStartedAt]);
 
   // Convert optimistic messages to Message shape for rendering
   const optimisticAsMessages: Message[] = optimisticMessages.map((m) => ({
@@ -1702,10 +1707,6 @@ function ActiveGameView({
   const handleModalClose = () => setImageModal(null);
   const showConnectionBanner = !isSilentReconnect && wsStatus !== 'connected';
   const promptDisabled = wsStatus !== 'connected' && !isSilentReconnect;
-  const debounceStartedAt =
-    !isStreaming && optimisticMessages.length > 0
-      ? Math.max(...optimisticMessages.map((m) => m.timestamp))
-      : null;
 
   return (
     <div className="relative flex h-[100dvh] overflow-hidden bg-soot">
@@ -1818,7 +1819,11 @@ function ActiveGameView({
           style={{
             scrollbarWidth: 'thin',
             scrollbarColor: 'var(--gunmetal) transparent',
-            paddingBottom: 'calc(116px + env(safe-area-inset-bottom, 0px))'
+            paddingBottom: `calc(${
+              56 + // tab bar
+              (mobileInputExpanded ? 104 : 64) + // input area (expanded: 3 rows, collapsed: 1 row)
+              (debounceStartedAt != null ? 64 : 0) // debounce timer bar
+            }px + env(safe-area-inset-bottom, 0px))`
           }}
         >
           <div className="mx-auto flex max-w-3xl flex-col gap-5 sm:gap-6">
@@ -1912,6 +1917,7 @@ function ActiveGameView({
         onSend={onSend}
         disabled={promptDisabled}
         debounceStartedAt={debounceStartedAt}
+        onExpandedChange={setMobileInputExpanded}
       />
       <MobileTabBar
         mobilePanel={mobilePanel}
@@ -2112,6 +2118,7 @@ export default function GameClient({
     )
   );
   const [optimisticMessages, setOptimisticMessages] = useState<OptimisticMessage[]>([]);
+  const [lastActionSentAt, setLastActionSentAt] = useState<number | null>(null);
   const [streamingContent, setStreamingContent] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [wsStatus, setWsStatus] = useState<'connecting' | 'connected' | 'disconnected'>(
@@ -2214,6 +2221,7 @@ export default function GameClient({
 
         if (msg.type === 'chunk') {
           setIsStreaming(true);
+          setLastActionSentAt(null);
           setStreamingContent((prev) => prev + (msg.content as string));
         }
 
@@ -2232,6 +2240,7 @@ export default function GameClient({
           // show empty and the GM typing indicator will be gone.
           setViewState((prev) => (prev === 'loading' ? 'active' : prev));
           setIsStreaming(false);
+          setLastActionSentAt(null);
         }
       };
 
@@ -2286,6 +2295,11 @@ export default function GameClient({
             setOptimisticMessages((prev) =>
               prev.filter((m) => m.id !== newMsg.client_id)
             );
+          }
+
+          // Start/restart the debounce timer for all players when any action lands.
+          if (newMsg.type === 'action') {
+            setLastActionSentAt(new Date(newMsg.created_at).getTime());
           }
 
           // Add to live messages (dedup by id).
@@ -2353,6 +2367,7 @@ export default function GameClient({
       players={dbPlayers}
       liveMessages={liveMessages}
       optimisticMessages={optimisticMessages}
+      lastActionSentAt={lastActionSentAt}
       streamingContent={streamingContent}
       isStreaming={isStreaming}
       currentUserId={currentUserId}

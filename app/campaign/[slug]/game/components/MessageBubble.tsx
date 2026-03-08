@@ -44,6 +44,27 @@ function renderNarrationContent(content: string) {
   return chunks;
 }
 
+export function NarrationGroupBubble({ messages }: { messages: Message[] }) {
+  return (
+    <div className="group relative">
+      <div className="mb-2 flex items-center gap-2">
+        <div className="flex h-5 items-center gap-1.5 border border-brass/40 bg-brass/10 px-2" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 4px) 100%, 0 100%)' }}>
+          <div className="h-1.5 w-1.5 rounded-full bg-amber" style={{ boxShadow: '0 0 4px var(--amber)' }} />
+          <span className="text-[9px] uppercase tracking-[0.2em] text-brass" style={{ fontFamily: 'var(--font-mono), monospace' }}>Game Master</span>
+        </div>
+        <div className="h-px flex-1 bg-gradient-to-r from-brass/20 to-transparent" />
+      </div>
+      <div className="border-l-2 border-brass/30 py-1 pl-4 pr-2 flex flex-col gap-4" style={{ borderImage: 'linear-gradient(to bottom, var(--brass), transparent) 1' }}>
+        {messages.map((msg) => (
+          <p key={msg.id} className="text-base leading-loose text-steam sm:text-lg sm:leading-loose" style={{ fontFamily: 'var(--font-body), sans-serif', letterSpacing: '0.01em' }}>
+            {renderNarrationContent(msg.content)}
+          </p>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function MessageBubble({ message, players }: { message: Message; players: Player[] }) {
   const player = players.find((p) => p.id === message.player_id);
 
