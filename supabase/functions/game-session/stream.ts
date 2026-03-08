@@ -27,7 +27,7 @@ export async function consumeStream(
       }
     }
     if (event.type === "response.completed" && event.response) {
-      fullText = event.response.output_text
+      fullText = event.response.output_text ?? fullText
       newResponseId = event.response.id
     }
   }

@@ -26,6 +26,19 @@ describe('consumeStream', () => {
     expect(result).toEqual({ fullText: '{"narration":[]}', newResponseId: 'resp_123' })
   })
 
+  it('falls back to accumulated delta text when response.completed has no output_text', async () => {
+    const onChunk = vi.fn()
+    const onChunkLog = vi.fn()
+    const stream = makeStream([
+      { type: 'response.output_text.delta', delta: '{"narration":["hello"]}' },
+      { type: 'response.completed', response: { output_text: undefined as unknown as string, id: 'resp_789' } },
+    ])
+
+    const result = await consumeStream('campaign-3', stream, onChunk, onChunkLog, false)
+
+    expect(result).toEqual({ fullText: '{"narration":["hello"]}', newResponseId: 'resp_789' })
+  })
+
   it('suppresses chunk broadcasts when silent is true', async () => {
     const onChunk = vi.fn()
     const onChunkLog = vi.fn()
