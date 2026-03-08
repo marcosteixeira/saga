@@ -293,28 +293,74 @@ async function runRound(campaignId: string): Promise<void> {
       ])
     )
 
-    logInfo("game_session.openai_call_started", {
-      campaignId,
-      pendingCount: claimedActions.length,
-      previousResponseId: campaign.last_response_id,
-    })
+    // Load full conversation history for this campaign
+    const { data: historyRows, error: historyError } = await supabase
+      .from("messages")
+      .select("content, type, players(character_name, username)")
+      .eq("campaign_id", campaignId)
+      .in("type", ["action", "narration"])
+      .eq("processed", true)
+      .order("created_at", { ascending: true })
 
-    const input = JSON.stringify(
+    if (historyError) throw historyError
+
+    const history = buildMessageHistory((historyRows ?? []) as MsgRow[])
+
+    // Build current round user message
+    const currentInput = JSON.stringify(
       claimedActions.map((a) => ({
-        clientId: a.client_id,
         playerName: playerNameMap.get(a.player_id ?? "") ?? "Unknown",
         content: a.content,
       }))
     )
 
-    const rawStream = await openai.responses.create({
-      model: "gpt-4.1",
-      previous_response_id: campaign.last_response_id,
-      input,
-      stream: true,
-    } as Parameters<typeof openai.responses.create>[0])
+    // Apply cache breakpoint to last history message (caches everything before it)
+    const messagesWithCache = history.map((msg, i) => {
+      if (i === history.length - 1 && history.length > 0) {
+        return {
+          ...msg,
+          content: [{ type: "text" as const, text: msg.content as string, cache_control: { type: "ephemeral" as const } }],
+        }
+      }
+      return msg
+    })
 
-    const { fullText, newResponseId } = await consumeStream(
+    const allMessages = [
+      ...messagesWithCache,
+      { role: "user" as const, content: currentInput },
+    ]
+
+    const { data: world, error: worldError } = await supabase
+      .from("worlds")
+      .select("world_content")
+      .eq("id", (await supabase.from("campaigns").select("world_id").eq("id", campaignId).single()).data?.world_id)
+      .single()
+
+    if (worldError) throw worldError
+
+    const { data: allPlayers, error: allPlayersError } = await supabase
+      .from("players")
+      .select("character_name, character_class, character_backstory, username")
+      .eq("campaign_id", campaignId)
+
+    if (allPlayersError) throw allPlayersError
+
+    const systemPrompt = buildGMSystemPrompt(world?.world_content as string, allPlayers ?? [])
+
+    logInfo("game_session.openai_call_started", {
+      campaignId,
+      pendingCount: claimedActions.length,
+      historyLength: history.length,
+    })
+
+    const rawStream = anthropic.messages.stream({
+      model: "claude-sonnet-4-6",
+      max_tokens: 1024,
+      system: [{ type: "text" as const, text: systemPrompt, cache_control: { type: "ephemeral" as const } }],
+      messages: allMessages,
+    })
+
+    const { fullText } = await consumeStream(
       campaignId,
       rawStream as AsyncIterable<StreamEvent>,
       (campaignId, chunk) => broadcastToAll(campaignId, { type: "chunk", content: chunk }),
@@ -343,12 +389,7 @@ async function runRound(campaignId: string): Promise<void> {
 
     if (narrationInsertError) throw narrationInsertError
 
-    await supabase
-      .from("campaigns")
-      .update({ last_response_id: newResponseId })
-      .eq("id", campaignId)
-
-    logInfo("game_session.db_save_complete", { campaignId, newResponseId })
+    logInfo("game_session.db_save_complete", { campaignId })
     logInfo("game_session.round_complete", { campaignId, durationMs: Date.now() - startedAt })
 
     // Signal this isolate's connected players that streaming is done.
