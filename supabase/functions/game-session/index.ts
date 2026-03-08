@@ -11,6 +11,8 @@ import {
 import { resetDebounce } from "./debounce.ts"
 import { buildGMSystemPrompt, buildFirstCallInput, isFirstCallResponse } from "./prompt.ts"
 import { extractNarration } from "./openai.ts"
+import { consumeStream, type StreamEvent } from "./stream.ts"
+import { extractJwtFromProtocolHeader } from "./ws-auth.ts"
 
 type LogMeta = Record<string, unknown>
 
@@ -84,44 +86,6 @@ async function authenticate(
 
   const playerName = (player.character_name ?? player.username ?? "Unknown") as string
   return { playerId: player.id as string, playerName }
-}
-
-// ─── OpenAI streaming helper ──────────────────────────────────────────────────
-
-type StreamEvent = {
-  type: string
-  delta?: string
-  response?: { output_text: string; id: string }
-}
-
-async function consumeStream(
-  campaignId: string,
-  stream: AsyncIterable<StreamEvent>,
-): Promise<{ fullText: string; newResponseId: string }> {
-  let fullText = ""
-  let newResponseId = ""
-  let chunkCount = 0
-
-  for await (const event of stream) {
-    if (event.type === "response.output_text.delta" && event.delta) {
-      fullText += event.delta
-      broadcastToAll(campaignId, { type: "chunk", content: event.delta })
-      chunkCount++
-      if (chunkCount % 20 === 0) {
-        logInfo("game_session.openai_stream_chunk", { campaignId, chunkLength: event.delta.length })
-      }
-    }
-    if (event.type === "response.completed" && event.response) {
-      // output_text can be undefined if the response has no text output;
-      // fall back to accumulated delta text rather than overwriting with undefined.
-      if (event.response.output_text !== undefined) {
-        fullText = event.response.output_text
-      }
-      newResponseId = event.response.id
-    }
-  }
-
-  return { fullText, newResponseId }
 }
 
 // ─── First Call ───────────────────────────────────────────────────────────────
@@ -203,7 +167,13 @@ async function runFirstCall(campaignId: string): Promise<void> {
       stream: true,
     } as Parameters<typeof openai.responses.create>[0])
 
-    const { fullText, newResponseId } = await consumeStream(campaignId, rawStream as AsyncIterable<StreamEvent>)
+    const { fullText, newResponseId } = await consumeStream(
+      campaignId,
+      rawStream as AsyncIterable<StreamEvent>,
+      (campaignId, chunk) => broadcastToAll(campaignId, { type: "chunk", content: chunk }),
+      (campaignId, chunkLength) => logInfo("game_session.openai_stream_chunk", { campaignId, chunkLength }),
+      true,
+    )
 
     logInfo("game_session.openai_stream_complete", {
       campaignId,
@@ -343,7 +313,12 @@ async function runRound(campaignId: string): Promise<void> {
       stream: true,
     } as Parameters<typeof openai.responses.create>[0])
 
-    const { fullText, newResponseId } = await consumeStream(campaignId, rawStream as AsyncIterable<StreamEvent>)
+    const { fullText, newResponseId } = await consumeStream(
+      campaignId,
+      rawStream as AsyncIterable<StreamEvent>,
+      (campaignId, chunk) => broadcastToAll(campaignId, { type: "chunk", content: chunk }),
+      (campaignId, chunkLength) => logInfo("game_session.openai_stream_chunk", { campaignId, chunkLength }),
+    )
 
     logInfo("game_session.openai_stream_complete", {
       campaignId,

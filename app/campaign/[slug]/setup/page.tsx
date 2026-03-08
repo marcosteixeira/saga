@@ -242,9 +242,9 @@ export default function CampaignSetupPage() {
           <div className="relative flex flex-col items-center gap-6">
             <div className="relative">
               <div
-                className="h-24 w-24 rounded-full border-2 border-brass/40"
+                className="animate-spin h-24 w-24 rounded-full border-2 border-brass/40"
                 style={{
-                  animation: 'spin 8s linear infinite',
+                  animationDuration: '8s',
                   boxShadow: '0 0 30px rgba(212,165,116,0.2), inset 0 0 30px rgba(212,165,116,0.05)',
                 }}
               />
@@ -383,63 +383,6 @@ export default function CampaignSetupPage() {
         </div>
       </div>
 
-      <style>{`
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(-4px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-
-        /* ── "Painting Your World" shimmer sweep ── */
-        @keyframes text-shimmer {
-          0%   { background-position: -250% center; }
-          100% { background-position: 250% center; }
-        }
-        @keyframes forge-glow {
-          0%, 100% { filter: drop-shadow(0 0 4px rgba(196,148,61,0.15)); }
-          50%       { filter: drop-shadow(0 0 14px rgba(232,168,53,0.55)) drop-shadow(0 0 28px rgba(196,148,61,0.2)); }
-        }
-        .painting-text {
-          letter-spacing: 0.3em;
-          background: linear-gradient(
-            90deg,
-            rgba(196,148,61,0.28) 0%,
-            rgba(196,148,61,0.28) 15%,
-            rgba(232,168,53,0.92) 35%,
-            rgba(255,218,120,1)   50%,
-            rgba(232,168,53,0.92) 65%,
-            rgba(196,148,61,0.28) 85%,
-            rgba(196,148,61,0.28) 100%
-          );
-          background-size: 250% auto;
-          -webkit-background-clip: text;
-          background-clip: text;
-          color: transparent;
-          animation: text-shimmer 2.8s linear infinite, forge-glow 2.8s ease-in-out infinite;
-        }
-
-        /* ── Paint stroke bar (under "Painting Your World") ── */
-        @keyframes stroke-paint {
-          0%   { background-position: -150% center; }
-          100% { background-position: 150% center; }
-        }
-        .paint-stroke-bar {
-          width: 48px;
-          height: 3px;
-          border-radius: 2px;
-          background: linear-gradient(
-            90deg,
-            rgba(184,115,51,0.2) 0%,
-            rgba(232,168,53,0.9) 40%,
-            rgba(255,218,120,1)  50%,
-            rgba(232,168,53,0.9) 60%,
-            rgba(184,115,51,0.2) 100%
-          );
-          background-size: 200% auto;
-          animation: stroke-paint 2.8s linear infinite;
-          box-shadow: 0 0 8px rgba(196,148,61,0.35);
-        }
-
-      `}</style>
     </main>
   )
 }
