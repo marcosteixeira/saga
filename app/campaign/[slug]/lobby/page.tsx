@@ -18,7 +18,8 @@ export default async function LobbyPage({ params }: Props) {
 
   const currentUserId = user.id
 
-  const campaignResult = await supabase
+  const db = createServerSupabaseClient()
+  const campaignResult = await db
     .from('campaigns')
     .select('*, worlds(*)')
     .eq('slug', slug)
@@ -39,7 +40,7 @@ export default async function LobbyPage({ params }: Props) {
     notFound()
   }
 
-  const playersResult = await supabase
+  const playersResult = await db
     .from('players')
     .select('*')
     .eq('campaign_id', campaignId)
@@ -55,10 +56,12 @@ export default async function LobbyPage({ params }: Props) {
     const username =
       user.user_metadata?.display_name || user.email || 'Unknown'
     const isHost = campaign.host_user_id === user.id
-    const db = createServerSupabaseClient()
     const { data: newPlayer } = await db
       .from('players')
-      .insert({ campaign_id: campaignId, user_id: user.id, username, is_host: isHost })
+      .upsert(
+        { campaign_id: campaignId, user_id: user.id, username, is_host: isHost },
+        { onConflict: 'campaign_id,user_id', ignoreDuplicates: true }
+      )
       .select('*')
       .single()
 

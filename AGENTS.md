@@ -8,18 +8,37 @@ This document describes the AI-powered agents that drive Saga's gameplay. All ag
 
 **Path:** `supabase/functions/game-session/`
 **Model:** OpenAI GPT-4o (Responses API)
+**Transport:** WebSocket
+**Auth:** Supabase JWT via `Sec-WebSocket-Protocol: jwt-<token>`
 
 ### What it does
 
-The game-session directory contains helper modules for the AI Game Master:
+The game-session agent is the AI Game Master. It manages the real-time game loop for a campaign:
 
-- **`prompt.ts`** — Builds the GM system prompt from world content and player characters. Defines the structured JSON schemas GPT-4o must follow: a first-call schema (world context + opening situation + starting hooks + narration) and a round schema (player actions + narration).
-- **`openai.ts`** — Extracts narration string arrays from raw GPT-4o JSON responses for both first-call and round response shapes.
+- **Opening narration** — On first connection (when `campaigns.last_response_id` is `null`), calls GPT-4o to generate an opening scene based on world content and player characters.
+- **Round processing** — As players submit actions, messages are debounced (300ms window) and batched. When the debounce fires, the agent sends all pending actions to GPT-4o in a single call and streams the narration back to all connected players.
+- **Conversation threading** — Uses OpenAI Responses API `previous_response_id` to maintain stateful conversation context without resending full history. The response ID is persisted in `campaigns.last_response_id`.
+- **Streaming** — Narration is streamed token-by-token to clients via WebSocket `chunk` events. After completion, a `round:saved` event delivers the persisted DB message rows.
+
+### State model
+
+In-memory per-campaign state (lost on cold starts):
+
+| Field | Description |
+|-------|-------------|
+| `connections` | Set of open WebSocket sockets |
+| `pendingMessages` | Player actions queued for the current debounce window |
+| `nextRoundMessages` | Actions arriving while a round is in progress (queued for next round) |
+| `isProcessing` | Whether a GPT-4o call is currently in flight |
+
+### Race safety
+
+Multiple players connecting simultaneously could each trigger the opening narration. This is prevented by an optimistic DB update: the first connection sets `last_response_id = 'pending'` and re-fetches to confirm it won the race. Others wait for the `round:saved` broadcast.
 
 ### Input/Output format
 
 GPT-4o responses are structured JSON:
-- **First call**: `{ world_context: { history, factions, tone }, opening_situation, starting_hooks, actions: [], narration: string[] }`
+- **First call**: `{ world_context: string, narration: string[] }`
 - **Subsequent rounds**: `{ actions: [{ clientId, playerName, content }], narration: string[] }`
 
 ### Environment variables

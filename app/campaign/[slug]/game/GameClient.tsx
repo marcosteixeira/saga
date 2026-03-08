@@ -6,8 +6,10 @@ import { EmberParticles } from '@/components/ember-particles';
 import { AmbientSmoke } from '@/components/ambient-smoke';
 import { GearDecoration } from '@/components/gear-decoration';
 import { ImageModal, type ImageModalState } from './components/ImageModal';
-import { MessageBubble } from './components/MessageBubble';
+import { MessageBubble, NarrationGroupBubble } from './components/MessageBubble';
 import { MobileActionBar } from './components/MobileActionBar';
+import { DebounceTimer } from './components/DebounceTimer';
+import { buildGameSessionSocketConfig } from './ws-auth';
 import type { Campaign } from '@/types/campaign';
 import type { Player } from '@/types/player';
 import type { World } from '@/types/world';
@@ -28,114 +30,14 @@ interface GameClientProps {
 type GameViewState = 'loading' | 'active' | 'image-reveal';
 type MobilePanel = null | 'crew' | 'log';
 
-// ─── Mock data ────────────────────────────────────────────────────────────────
-
-const MOCK_MESSAGES: Message[] = [
-  {
-    id: '6',
-    campaign_id: 'c1',
-    player_id: null,
-    content: 'Campaign started. Campaign mode: Free Play. Turn timer disabled.',
-    type: 'system',
-    created_at: '2026-03-05T11:54:00.000Z'
-  },
-  {
-    id: '1',
-    campaign_id: 'c1',
-    player_id: null,
-    content:
-      'The airship *Ironclad Meridian* shudders as it pierces through a low-hanging cloudbank above the smog-choked sprawl of Gearfordshire. Through streaked portholes, you can see the city below — a labyrinth of copper pipes, towering smokestacks, and gas-lamp streets. Your destination: the Foundry District, where the Brass Consortium keeps its most dangerous secrets.',
-    type: 'narration',
-    created_at: '2026-03-05T11:55:00.000Z'
-  },
-  {
-    id: '2',
-    campaign_id: 'c1',
-    player_id: 'p1',
-    content:
-      'I pull out my compass and check our bearing. "How much time before we dock at the Meridian Tower?"',
-    type: 'action',
-    created_at: '2026-03-05T11:56:00.000Z'
-  },
-  {
-    id: '3',
-    campaign_id: 'c1',
-    player_id: null,
-    content:
-      'The compass needle spins lazily — the aetherite interference from the district\'s power cores makes navigation unreliable here. Captain Mira calls back from the helm: *"Fifteen minutes, give or take. And pray the Corsair Guild isn\'t running checkpoints today."* A low rumble shakes the hull as a rival vessel passes uncomfortably close.',
-    type: 'narration',
-    created_at: '2026-03-05T11:57:00.000Z'
-  },
-  {
-    id: '4',
-    campaign_id: 'c1',
-    player_id: 'p2',
-    content:
-      'I move to the starboard side and peer through my spyglass at the rival vessel. Can I make out their markings?',
-    type: 'action',
-    created_at: '2026-03-05T11:58:00.000Z'
-  },
-  {
-    id: '5',
-    campaign_id: 'c1',
-    player_id: null,
-    content:
-      "Roll Perception. The spyglass reveals a black hull with a serpent-and-gear sigil — the **Iron Serpent Company**, private enforcers for the Brass Consortium. They haven't spotted you yet, but they're running dark: no running lights, no registry beacon. Whatever they're doing out here isn't official business.",
-    type: 'narration',
-    created_at: '2026-03-05T11:59:00.000Z'
-  }
-];
-
-const MOCK_PLAYERS: Player[] = [
-  {
-    id: 'p1',
-    campaign_id: 'c1',
-    user_id: 'u1',
-    username: 'Ironforge',
-    character_name: 'Vex Ashbury',
-    character_class: 'Artificer',
-    character_backstory: 'Former guild engineer turned rogue inventor.',
-    stats: { hp: 18, hp_max: 20 },
-    status: 'active',
-    absence_mode: 'skip',
-    is_host: true,
-    is_ready: true,
-    last_seen_at: new Date().toISOString(),
-    joined_at: new Date(Date.now() - 3600000).toISOString()
-  },
-  {
-    id: 'p2',
-    campaign_id: 'c1',
-    user_id: 'u2',
-    username: 'SkyWarden',
-    character_name: 'Lyra Copperfield',
-    character_class: 'Scout',
-    character_backstory: 'Ex-corsair pilot who now hunts her former crew.',
-    stats: { hp: 12, hp_max: 20 },
-    status: 'active',
-    absence_mode: 'skip',
-    is_host: false,
-    is_ready: true,
-    last_seen_at: new Date().toISOString(),
-    joined_at: new Date(Date.now() - 3500000).toISOString()
-  },
-  {
-    id: 'p3',
-    campaign_id: 'c1',
-    user_id: 'u3',
-    username: 'GrimCoil',
-    character_name: 'Barnabas Grime',
-    character_class: 'Brawler',
-    character_backstory: 'Retired prizefighter from the Soot Pits.',
-    stats: { hp: 5, hp_max: 20 },
-    status: 'active',
-    absence_mode: 'skip',
-    is_host: false,
-    is_ready: true,
-    last_seen_at: new Date(Date.now() - 120000).toISOString(),
-    joined_at: new Date(Date.now() - 3400000).toISOString()
-  }
-];
+interface OptimisticMessage {
+  id: string;
+  playerId: string;
+  playerName: string;
+  content: string;
+  timestamp: number;
+  isOwn: boolean;
+}
 
 // ─── Loading State ─────────────────────────────────────────────────────────────
 
@@ -325,7 +227,7 @@ function LoadingState({
                 background: 'rgba(13,12,10,0.6)',
                 backdropFilter: 'blur(8px)',
                 border: '1px solid rgba(97,86,74,0.35)',
-                padding: '6px 16px',
+                padding: '6px 16px'
               }}
             >
               {/* Pulse dot */}
@@ -819,7 +721,7 @@ function HpBar({ hp, hpMax }: { hp: number; hpMax: number }) {
 function PlayerCard({
   player,
   isCurrentUser,
-  compact = false,
+  compact = false
 }: {
   player: Player;
   isCurrentUser: boolean;
@@ -1103,7 +1005,7 @@ function GalleryThumb({ imageUrl, onClick }: { imageUrl: string; onClick: () => 
 function DesktopLeftSidebar({
   campaign,
   players,
-  currentUserId,
+  currentUserId
 }: {
   campaign: Campaign;
   players: Player[];
@@ -1176,7 +1078,7 @@ function DesktopLeftSidebar({
 function DesktopRightSidebar({
   world,
   onImageClick,
-  coverImageUrl,
+  coverImageUrl
 }: {
   world: World;
   onImageClick: (state: ImageModalState) => void;
@@ -1186,7 +1088,7 @@ function DesktopRightSidebar({
   const galleryImages: { url: string; caption: string }[] = [
     coverImageUrl ? { url: coverImageUrl, caption: `${world.name} — Campaign` } : null,
     world.map_url ? { url: world.map_url, caption: `${world.name} — Map` } : null,
-    world.cover_url ? { url: world.cover_url, caption: `${world.name} — Cover` } : null,
+    world.cover_url ? { url: world.cover_url, caption: `${world.name} — Cover` } : null
   ].filter((item): item is { url: string; caption: string } => {
     if (!item) return false;
     if (seen.has(item.url)) return false;
@@ -1201,8 +1103,7 @@ function DesktopRightSidebar({
       {/* Campaign cover image — clickable, falls back to world cover */}
       <button
         onClick={() =>
-          coverImageUrl &&
-          onImageClick({ url: coverImageUrl, caption: world.name })
+          coverImageUrl && onImageClick({ url: coverImageUrl, caption: world.name })
         }
         className="group relative overflow-hidden border-b border-gunmetal"
         style={{ cursor: coverImageUrl ? 'pointer' : 'default' }}
@@ -1291,7 +1192,11 @@ function DesktopRightSidebar({
         {galleryImages.length > 0 ? (
           <div className="grid grid-cols-2 gap-2">
             {galleryImages.map(({ url, caption }) => (
-              <GalleryThumb key={url} imageUrl={url} onClick={() => onImageClick({ url, caption })} />
+              <GalleryThumb
+                key={url}
+                imageUrl={url}
+                onClick={() => onImageClick({ url, caption })}
+              />
             ))}
           </div>
         ) : (
@@ -1309,32 +1214,55 @@ function DesktopRightSidebar({
 
 // ─── Desktop Action Console ────────────────────────────────────────────────────
 
-function DesktopActionConsole({
+export function DesktopActionConsole({
   value,
-  onChange
+  onChange,
+  onSend,
+  disabled,
+  debounceStartedAt,
 }: {
   value: string;
   onChange: (v: string) => void;
+  onSend: (content: string) => void;
+  disabled?: boolean;
+  debounceStartedAt?: number | null;
 }) {
+  const handleSend = () => {
+    if (!value.trim() || disabled) return;
+    onSend(value.trim());
+    onChange('');
+  };
+
   return (
     <div
       className="hidden border-t border-gunmetal bg-iron/70 px-6 py-4 lg:block"
       style={{ backdropFilter: 'blur(4px)' }}
     >
       <div className="mx-auto max-w-3xl">
-        <div className="mb-2 flex items-center gap-2">
-          <div className="h-px w-6 bg-gradient-to-r from-transparent to-copper/60" />
-          <span
-            className="text-[9px] uppercase tracking-[0.25em] text-copper/70"
-            style={{ fontFamily: 'var(--font-mono), monospace' }}
-          >
-            Action Console
-          </span>
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <div className="h-px w-6 bg-gradient-to-r from-transparent to-copper/60" />
+            <span
+              className="text-[9px] uppercase tracking-[0.25em] text-copper/70"
+              style={{ fontFamily: 'var(--font-mono), monospace' }}
+            >
+              Action Console
+            </span>
+          </div>
+          {debounceStartedAt != null && (
+            <DebounceTimer startedAt={debounceStartedAt} />
+          )}
         </div>
         <div className="flex gap-3">
           <textarea
             value={value}
             onChange={(e) => onChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
             placeholder="Describe your action or speak in character..."
             rows={2}
             className="flex-1 resize-none bg-smog/80 px-4 py-3 text-sm text-steam/90 placeholder:text-ash/40 focus:outline-none"
@@ -1356,7 +1284,9 @@ function DesktopActionConsole({
             }}
           />
           <button
-            className="flex shrink-0 flex-col items-center justify-center gap-1 px-6 py-3 text-soot transition-all duration-300 hover:shadow-[0_0_20px_rgba(196,148,61,0.4)] active:scale-[0.97]"
+            onClick={handleSend}
+            disabled={disabled}
+            className="flex shrink-0 flex-col items-center justify-center gap-1 px-6 py-3 text-soot transition-all duration-300 hover:shadow-[0_0_20px_rgba(196,148,61,0.4)] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40"
             style={{
               background:
                 'linear-gradient(135deg, var(--copper), var(--brass), var(--copper))',
@@ -1374,28 +1304,6 @@ function DesktopActionConsole({
             <span className="text-[9px] tracking-[0.1em] opacity-70">↵ Enter</span>
           </button>
         </div>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {[
-            'Look around',
-            'Attack',
-            'Roll for initiative',
-            'Speak to NPC',
-            'Search area'
-          ].map((action) => (
-            <button
-              key={action}
-              onClick={() => onChange(action)}
-              className="border border-gunmetal/60 bg-smog/60 px-3 py-1 text-[10px] uppercase tracking-[0.1em] text-ash/70 transition-all duration-200 hover:border-copper/60 hover:text-copper"
-              style={{
-                fontFamily: 'var(--font-mono), monospace',
-                clipPath:
-                  'polygon(3px 0, 100% 0, 100% calc(100% - 3px), calc(100% - 3px) 100%, 0 100%, 0 3px)'
-              }}
-            >
-              {action}
-            </button>
-          ))}
-        </div>
       </div>
     </div>
   );
@@ -1407,73 +1315,70 @@ function ActiveGameView({
   campaign,
   world,
   players,
-  messages: initialMessages,
+  liveMessages,
+  optimisticMessages,
+  streamingContent,
+  isStreaming,
   currentUserId,
   campaignCoverImageUrl: initialCampaignCoverImageUrl,
+  wsStatus,
+  isSilentReconnect,
+  onSend,
 }: {
   campaign: Campaign;
   world: World;
   players: Player[];
-  messages: Message[];
+  liveMessages: Message[];
+  optimisticMessages: OptimisticMessage[];
+  streamingContent: string;
+  isStreaming: boolean;
   currentUserId: string;
   campaignCoverImageUrl?: string;
+  wsStatus: 'connecting' | 'connected' | 'disconnected';
+  isSilentReconnect: boolean;
+  onSend: (content: string) => void;
 }) {
   const feedRef = useRef<HTMLDivElement>(null);
   const [inputValue, setInputValue] = useState('');
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>(null);
   const [imageModal, setImageModal] = useState<ImageModalState | null>(null);
-  const [liveMessages, setLiveMessages] = useState<Message[]>(initialMessages);
-  const [liveCoverUrl, setLiveCoverUrl] = useState<string | undefined>(initialCampaignCoverImageUrl);
+  const [liveCoverUrl, setLiveCoverUrl] = useState<string | undefined>(
+    initialCampaignCoverImageUrl
+  );
 
-  // Subscribe to messages and image updates
+  // Subscribe to image updates
   useEffect(() => {
     const supabase = createClient();
 
-    const messageChannel = supabase
-      .channel(`game-active:${campaign.id}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'messages', filter: `campaign_id=eq.${campaign.id}` },
-        (payload) => {
-          setLiveMessages((prev) => {
-            if (prev.some((m) => m.id === (payload.new as Message).id)) return prev;
-            return [...prev, payload.new as Message];
-          });
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'messages', filter: `campaign_id=eq.${campaign.id}` },
-        (payload) => {
-          setLiveMessages((prev) =>
-            prev.map((m) => (m.id === (payload.new as Message).id ? (payload.new as Message) : m))
-          );
-        }
-      )
-      .subscribe();
-
     const imageChannel = supabase
       .channel(`world:${world.id}`)
-      .on('broadcast', { event: 'image:ready' }, (message: {
-        payload: {
-          entity_type: string
-          entity_id: string
-          image_type: string
-          url: string
-          image_id: string
+      .on(
+        'broadcast',
+        { event: 'image:ready' },
+        (message: {
+          payload: {
+            entity_type: string;
+            entity_id: string;
+            image_type: string;
+            url: string;
+            image_id: string;
+          };
+        }) => {
+          const { entity_type, entity_id, image_type, url } = message.payload;
+          if (entity_type === 'campaign' && entity_id === campaign.id) {
+            setLiveCoverUrl(url);
+          } else if (
+            entity_type === 'world' &&
+            entity_id === world.id &&
+            image_type === 'cover'
+          ) {
+            setLiveCoverUrl(url);
+          }
         }
-      }) => {
-        const { entity_type, entity_id, image_type, url } = message.payload;
-        if (entity_type === 'campaign' && entity_id === campaign.id) {
-          setLiveCoverUrl(url);
-        } else if (entity_type === 'world' && entity_id === world.id && image_type === 'cover') {
-          setLiveCoverUrl(url);
-        }
-      })
+      )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(messageChannel);
       supabase.removeChannel(imageChannel);
     };
   }, [campaign.id, world.id]);
@@ -1482,16 +1387,28 @@ function ActiveGameView({
 
   useEffect(() => {
     if (feedRef.current) feedRef.current.scrollTop = feedRef.current.scrollHeight;
-  }, [liveMessages]);
+  }, [liveMessages, optimisticMessages, streamingContent]);
 
-  const sortedMessages = [...liveMessages].sort(
-    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-  );
+  // Convert optimistic messages to Message shape for rendering
+  const optimisticAsMessages: Message[] = optimisticMessages.map((m) => ({
+    id: m.id,
+    campaign_id: campaign.id,
+    player_id: m.playerId,
+    content: m.content,
+    type: 'action' as const,
+    created_at: new Date(m.timestamp).toISOString()
+  }));
 
   const handlePanelToggle = (panel: MobilePanel) =>
     setMobilePanel((prev) => (prev === panel ? null : panel));
   const handleImageClick = (state: ImageModalState) => setImageModal(state);
   const handleModalClose = () => setImageModal(null);
+  const showConnectionBanner = !isSilentReconnect && wsStatus !== 'connected';
+  const promptDisabled = wsStatus !== 'connected' && !isSilentReconnect;
+  const debounceStartedAt =
+    !isStreaming && optimisticMessages.length > 0
+      ? Math.max(...optimisticMessages.map((m) => m.timestamp))
+      : null;
 
   return (
     <div className="relative flex h-[100dvh] overflow-hidden bg-soot">
@@ -1586,6 +1503,17 @@ function ActiveGameView({
           </div>
         </header>
 
+        {/* Disconnected banner */}
+        {showConnectionBanner && (
+          <div
+            className="flex items-center justify-center gap-2 border-b border-furnace/40 bg-furnace/10 px-4 py-1.5 text-[11px] text-furnace/80"
+            style={{ fontFamily: 'var(--font-mono), monospace' }}
+          >
+            <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-furnace/80" />
+            {wsStatus === 'connecting' ? 'Connecting...' : 'Reconnecting...'}
+          </div>
+        )}
+
         {/* Feed */}
         <div
           ref={feedRef}
@@ -1597,41 +1525,80 @@ function ActiveGameView({
           }}
         >
           <div className="mx-auto flex max-w-3xl flex-col gap-5 sm:gap-6">
-            {sortedMessages.map((msg) => (
+            {(() => {
+              // Group consecutive narration messages under one header
+              const allMessages = [...liveMessages, ...optimisticAsMessages];
+              const items: React.ReactNode[] = [];
+              let i = 0;
+              while (i < allMessages.length) {
+                const msg = allMessages[i];
+                if (msg.type === 'narration') {
+                  const group: Message[] = [];
+                  while (i < allMessages.length && allMessages[i].type === 'narration') {
+                    group.push(allMessages[i]);
+                    i++;
+                  }
+                  items.push(<NarrationGroupBubble key={group[0].id} messages={group} />);
+                } else {
+                  items.push(
+                    <MessageBubble key={msg.id} message={msg} players={players} />
+                  );
+                  i++;
+                }
+              }
+              return items;
+            })()}
+            {/* Streaming narration */}
+            {streamingContent && (
               <MessageBubble
-                key={msg.id}
-                message={msg}
+                key="streaming"
+                message={{
+                  id: 'streaming',
+                  campaign_id: campaign.id,
+                  player_id: null,
+                  content: streamingContent,
+                  type: 'narration',
+                  created_at: new Date().toISOString()
+                }}
                 players={players}
               />
-            ))}
-            {/* GM typing */}
-            <div className="flex items-center gap-2 pl-2 opacity-60 sm:pl-4">
-              <div
-                className="flex h-7 w-7 shrink-0 items-center justify-center border border-brass/40 bg-brass/10"
-                style={{
-                  clipPath:
-                    'polygon(3px 0, 100% 0, 100% calc(100% - 3px), calc(100% - 3px) 100%, 0 100%, 0 3px)'
-                }}
-              >
+            )}
+            {/* GM typing indicator — shown when debounce fired but streaming hasn't started yet */}
+            {isStreaming && !streamingContent && (
+              <div className="flex items-center gap-2 pl-2 opacity-60 sm:pl-4">
                 <div
-                  className="h-1.5 w-1.5 rounded-full bg-amber"
+                  className="flex h-7 w-7 shrink-0 items-center justify-center border border-brass/40 bg-brass/10"
                   style={{
-                    boxShadow: '0 0 4px var(--amber)',
-                    animation: 'pulse 1.2s ease-in-out infinite'
+                    clipPath:
+                      'polygon(3px 0, 100% 0, 100% calc(100% - 3px), calc(100% - 3px) 100%, 0 100%, 0 3px)'
                   }}
-                />
+                >
+                  <div
+                    className="h-1.5 w-1.5 rounded-full bg-amber"
+                    style={{
+                      boxShadow: '0 0 4px var(--amber)',
+                      animation: 'pulse 1.2s ease-in-out infinite'
+                    }}
+                  />
+                </div>
+                <span
+                  className="text-[10px] uppercase tracking-[0.2em] text-brass/60"
+                  style={{ fontFamily: 'var(--font-mono), monospace' }}
+                >
+                  Game Master is composing...
+                </span>
               </div>
-              <span
-                className="text-[10px] uppercase tracking-[0.2em] text-brass/60"
-                style={{ fontFamily: 'var(--font-mono), monospace' }}
-              >
-                Game Master is composing...
-              </span>
-            </div>
+            )}
           </div>
         </div>
 
-        <DesktopActionConsole value={inputValue} onChange={setInputValue} />
+        <DesktopActionConsole
+          value={inputValue}
+          onChange={setInputValue}
+          onSend={onSend}
+          disabled={promptDisabled}
+          debounceStartedAt={debounceStartedAt}
+        />
       </main>
 
       {/* Desktop right */}
@@ -1642,7 +1609,13 @@ function ActiveGameView({
       />
 
       {/* Mobile UI */}
-      <MobileActionBar value={inputValue} onChange={setInputValue} />
+      <MobileActionBar
+        value={inputValue}
+        onChange={setInputValue}
+        onSend={onSend}
+        disabled={promptDisabled}
+        debounceStartedAt={debounceStartedAt}
+      />
       <MobileTabBar
         mobilePanel={mobilePanel}
         onPanelToggle={handlePanelToggle}
@@ -1762,9 +1735,13 @@ function ActiveGameView({
         {(() => {
           const mobileSeen = new Set<string>();
           const mobileGallery: { url: string; caption: string }[] = [
-            liveCoverUrl ? { url: liveCoverUrl, caption: `${world.name} — Campaign` } : null,
+            liveCoverUrl
+              ? { url: liveCoverUrl, caption: `${world.name} — Campaign` }
+              : null,
             world.map_url ? { url: world.map_url, caption: `${world.name} — Map` } : null,
-            world.cover_url ? { url: world.cover_url, caption: `${world.name} — Cover` } : null,
+            world.cover_url
+              ? { url: world.cover_url, caption: `${world.name} — Cover` }
+              : null
           ].filter((item): item is { url: string; caption: string } => {
             if (!item) return false;
             if (mobileSeen.has(item.url)) return false;
@@ -1774,7 +1751,11 @@ function ActiveGameView({
           return mobileGallery.length > 0 ? (
             <div className="grid grid-cols-3 gap-2">
               {mobileGallery.map(({ url, caption }) => (
-                <GalleryThumb key={url} imageUrl={url} onClick={() => handleImageClick({ url, caption })} />
+                <GalleryThumb
+                  key={url}
+                  imageUrl={url}
+                  onClick={() => handleImageClick({ url, caption })}
+                />
               ))}
             </div>
           ) : (
@@ -1803,49 +1784,263 @@ export default function GameClient({
   messages: dbMessages,
   currentUserId,
   loadingImageUrl,
-  campaignCoverImageUrl,
+  campaignCoverImageUrl
 }: GameClientProps) {
+  const gameAlreadyStarted =
+    dbMessages.length > 0 ||
+    (campaign.last_response_id !== null && campaign.last_response_id !== 'pending');
+
   const [viewState, setViewState] = useState<GameViewState>(
-    campaign.status === 'active' || dbMessages.length > 0 ? 'active' : 'loading'
+    gameAlreadyStarted ? 'active' : 'loading'
   );
 
-  const players = dbPlayers.length > 0 ? dbPlayers : MOCK_PLAYERS;
-  const messages = dbMessages.length > 0 ? dbMessages : MOCK_MESSAGES;
+  const [liveMessages, setLiveMessages] = useState<Message[]>(
+    [...dbMessages].sort(
+      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    )
+  );
+  const [optimisticMessages, setOptimisticMessages] = useState<OptimisticMessage[]>([]);
+  const [streamingContent, setStreamingContent] = useState('');
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [wsStatus, setWsStatus] = useState<'connecting' | 'connected' | 'disconnected'>(
+    'connecting'
+  );
+  const [isSilentReconnect, setIsSilentReconnect] = useState(false);
+  const wsRef = useRef<WebSocket | null>(null);
+  const optimisticMessagesRef = useRef<OptimisticMessage[]>([]);
 
-  // Fallback: if user is waiting here, game:starting can unlock the view.
+  const currentPlayer = dbPlayers.find((p) => p.user_id === currentUserId);
+  const playerName =
+    currentPlayer?.character_name ?? currentPlayer?.username ?? 'Unknown';
+
   useEffect(() => {
-    if (viewState === 'active') return;
+    optimisticMessagesRef.current = optimisticMessages;
+  }, [optimisticMessages]);
 
-    const supabase = createClient();
-    let cancelled = false;
+  // WebSocket connection with exponential-backoff reconnection
+  useEffect(() => {
+    let ws: WebSocket | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let reconnectAttempt = 0;
+    let unmounted = false;
+    // Suppress banner/disable during cold-start restarts (close code 1006)
+    let silentReconnect = false;
 
-    const channel = supabase
-      .channel(`campaign:${campaign.id}`)
-      .on('broadcast', { event: 'game:starting' }, () => {
-        if (!cancelled) setViewState('active');
-      })
-      .subscribe();
+    const scheduleReconnect = (silent = false) => {
+      if (unmounted) return;
+      silentReconnect = silent;
+      setIsSilentReconnect(silent);
+      if (!silent) setWsStatus('disconnected');
+      const delay = Math.min(1000 * 2 ** reconnectAttempt, 30000);
+      reconnectAttempt++;
+      console.log(
+        `[game-session] reconnecting in ${delay}ms (attempt ${reconnectAttempt})${silent ? ' [silent]' : ''}`
+      );
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      reconnectTimer = setTimeout(connect, delay);
+    };
+
+    const connect = async () => {
+      if (unmounted) return;
+      if (!silentReconnect) setWsStatus('connecting');
+      console.log('[game-session] connecting… (attempt', reconnectAttempt + 1, ')');
+
+      const supabase = createClient();
+      const {
+        data: { session }
+      } = await supabase.auth.getSession();
+      if (unmounted) return;
+      if (!session?.access_token) {
+        console.warn('[game-session] no session — retrying');
+        scheduleReconnect();
+        return;
+      }
+
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+      const socketConfig = buildGameSessionSocketConfig({
+        supabaseUrl,
+        campaignId: campaign.id,
+        accessToken: session.access_token
+      });
+
+      ws = new WebSocket(socketConfig.url, socketConfig.protocols);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        const socket = ws;
+        if (!socket) return;
+        const shouldReplayOptimistic = silentReconnect;
+        reconnectAttempt = 0;
+        silentReconnect = false;
+        setIsSilentReconnect(false);
+        setWsStatus('connected');
+        console.log('[game-session] connected');
+
+        if (shouldReplayOptimistic) {
+          const pendingOptimistic = optimisticMessagesRef.current.filter((message) => message.isOwn);
+          for (const message of pendingOptimistic) {
+            console.log('[game-session] replay optimistic action', {
+              id: message.id,
+              content: message.content
+            });
+            socket.send(
+              JSON.stringify({
+                type: 'action',
+                id: message.id,
+                content: message.content,
+                timestamp: message.timestamp
+              })
+            );
+          }
+        }
+      };
+
+      ws.onmessage = (event: MessageEvent) => {
+        let msg: { type: string; [key: string]: unknown };
+        try {
+          msg = JSON.parse(event.data as string);
+        } catch {
+          return;
+        }
+
+        if (msg.type === 'player:action') {
+          console.log('[game-session] player:action', {
+            id: msg.id,
+            playerName: msg.playerName,
+            content: msg.content
+          });
+          const optimistic: OptimisticMessage = {
+            id: msg.id as string,
+            playerId: msg.playerId as string,
+            playerName: msg.playerName as string,
+            content: msg.content as string,
+            timestamp: msg.timestamp as number,
+            isOwn: false
+          };
+          setOptimisticMessages((prev) => {
+            if (prev.some((m) => m.id === optimistic.id)) return prev;
+            return [...prev, optimistic];
+          });
+        }
+
+        if (msg.type === 'chunk') {
+          setIsStreaming(true);
+          setStreamingContent((prev) => prev + (msg.content as string));
+        }
+
+        if (msg.type === 'round:saved') {
+          const roundMessages = msg.messages as Array<{
+            clientId: string | null;
+            dbMessage: Message;
+          }>;
+          console.log('[game-session] round:saved', {
+            messageCount: roundMessages.length,
+            messages: roundMessages
+          });
+          setIsStreaming(false);
+          setStreamingContent('');
+
+          const confirmedClientIds = new Set(
+            roundMessages
+              .filter((m) => m.clientId !== null)
+              .map((m) => m.clientId as string)
+          );
+          setOptimisticMessages((prev) =>
+            prev.filter((m) => !confirmedClientIds.has(m.id))
+          );
+
+          const newDbMessages = roundMessages.map((m) => m.dbMessage);
+          setLiveMessages((prev) => {
+            const existingIds = new Set(prev.map((m) => m.id));
+            const toAdd = newDbMessages.filter((m) => !existingIds.has(m.id));
+            return toAdd.length > 0 ? [...prev, ...toAdd] : prev;
+          });
+
+          setViewState((prev) => (prev === 'loading' ? 'active' : prev));
+        }
+
+        if (msg.type === 'error') {
+          console.error('[game-session] server error:', msg.message);
+          // If we're still on the loading screen, the opening narration failed.
+          // Transition to active so the player isn't stuck forever — the feed will
+          // show empty and the GM typing indicator will be gone.
+          setViewState((prev) => (prev === 'loading' ? 'active' : prev));
+          setIsStreaming(false);
+        }
+      };
+
+      ws.onclose = (event) => {
+        const isColdRestart = event.code === 1006;
+        console.log('[game-session] disconnected', {
+          code: event.code,
+          reason: event.reason || 'none',
+          silent: isColdRestart
+        });
+        wsRef.current = null;
+        if (unmounted) return;
+        scheduleReconnect(isColdRestart);
+      };
+    };
+
+    connect();
 
     return () => {
-      cancelled = true;
-      supabase.removeChannel(channel);
+      unmounted = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      ws?.close();
     };
-  }, [campaign.id, viewState]);
+  }, [campaign.id]);
 
-  const isCampaignReady = viewState !== 'loading';
+  const handleSend = (content: string) => {
+    const id = crypto.randomUUID();
+    const timestamp = Date.now();
+    const ws = wsRef.current;
+    const canSendNow = ws?.readyState === WebSocket.OPEN && wsStatus === 'connected';
+    const canQueue = isSilentReconnect;
 
-  if (!isCampaignReady) {
-    return <LoadingState campaignName={campaign.name} backgroundImageUrl={loadingImageUrl} />;
+    if (!canSendNow && !canQueue) return;
+
+    setOptimisticMessages((prev) => [
+      ...prev,
+      {
+        id,
+        playerId: currentPlayer?.id ?? '',
+        playerName,
+        content,
+        timestamp,
+        isOwn: true
+      }
+    ]);
+
+    if (canSendNow && ws) {
+      console.log('[game-session] send action', { id, content });
+      ws.send(JSON.stringify({ type: 'action', id, content, timestamp }));
+      return;
+    }
+
+    console.log('[game-session] hold optimistic action during silent reconnect', { id, content });
+  };
+
+  if (viewState === 'loading') {
+    return (
+      <LoadingState campaignName={campaign.name} backgroundImageUrl={loadingImageUrl} />
+    );
   }
 
   return (
     <ActiveGameView
       campaign={campaign}
       world={world}
-      players={players}
-      messages={messages}
+      players={dbPlayers}
+      liveMessages={liveMessages}
+      optimisticMessages={optimisticMessages}
+      streamingContent={streamingContent}
+      isStreaming={isStreaming}
       currentUserId={currentUserId}
       campaignCoverImageUrl={campaignCoverImageUrl}
+      wsStatus={wsStatus}
+      isSilentReconnect={isSilentReconnect}
+      onSend={handleSend}
     />
   );
 }

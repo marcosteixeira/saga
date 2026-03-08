@@ -22,12 +22,14 @@ yarn build        # Production build
 
 The game-session edge function uses OpenAI Responses API with `previous_response_id` for stateful conversation threading — it does **not** send full message history each round.
 
-### Game session
+### Game session WebSocket
 
-The game-session directory (`supabase/functions/game-session/`) currently contains helper modules used by the game loop:
+The game-session edge function (`supabase/functions/game-session/index.ts`) is a Deno WebSocket server. Clients connect via `wss://` and pass a Supabase JWT in `Sec-WebSocket-Protocol: jwt-<token>`. The server:
 
-- `prompt.ts` — builds the GM system prompt from world content and player characters; defines first-call and round response schemas
-- `openai.ts` — parses narration arrays from GPT-4o structured JSON responses
+1. Authenticates the token against Supabase Auth and looks up the player record
+2. On first connection with `last_response_id = null`, runs the opening narration (race-safe via optimistic update to `pending`)
+3. Queues player action messages with a debounce; when debounce fires, calls GPT-4o with the batch
+4. Broadcasts `chunk` events during streaming, then `round:saved` with the persisted DB rows
 
 ### World generation flow
 
@@ -49,8 +51,11 @@ The game-session directory (`supabase/functions/game-session/`) currently contai
 
 | File | Purpose |
 |------|---------|
+| `supabase/functions/game-session/index.ts` | WebSocket handler, round orchestration |
+| `supabase/functions/game-session/state.ts` | In-memory session state (connections, pending messages) |
 | `supabase/functions/game-session/prompt.ts` | GM system prompt builder |
 | `supabase/functions/game-session/openai.ts` | OpenAI response parsing |
+| `supabase/functions/game-session/debounce.ts` | Per-campaign debounce timer |
 | `supabase/functions/generate-world/index.ts` | World gen orchestration |
 | `supabase/functions/generate-world/world-content.ts` | Section validation, class parsing |
 | `supabase/functions/generate-image/index.ts` | Gemini image gen + Supabase Storage upload |
@@ -60,7 +65,7 @@ The game-session directory (`supabase/functions/game-session/`) currently contai
 
 ## Database
 
-Migrations live in `supabase/migrations/` (001–013). Key tables:
+Migrations live in `supabase/migrations/` (001–014). Key tables:
 
 - `campaigns` — campaign metadata, `last_response_id` (OpenAI), `world_id`
 - `worlds` — `world_content` (WORLD.md), `classes` (JSONB), `status`
@@ -97,6 +102,6 @@ GENERATE_IMAGE_WEBHOOK_SECRET=   # Shared secret for generate-image calls
 
 - **TypeScript strict mode** everywhere
 - **Server components** by default; `'use client'` only when needed
-- **No session management in Next.js API routes** — game state is managed in edge functions
+- **No session management in Next.js API routes** — game state lives in the WebSocket edge function
 - **Optimistic race guards**: `last_response_id = 'pending'` prevents duplicate first-calls when multiple players connect simultaneously
 - **Structured logging**: edge functions emit `JSON.stringify({ level, event, ...meta })` — never bare `console.log` strings
