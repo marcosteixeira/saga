@@ -159,7 +159,7 @@ async function runFirstCall(campaignId: string): Promise<void> {
     const systemPrompt = buildGMSystemPrompt(world.world_content as string, players)
     const input = buildFirstCallInput()
 
-    logInfo("game_session.openai_call_started", { campaignId, previousResponseId: null })
+    logInfo("game_session.anthropic_call_started", { campaignId })
 
     const rawStream = anthropic.messages.stream({
       model: "claude-sonnet-4-6",
@@ -172,11 +172,11 @@ async function runFirstCall(campaignId: string): Promise<void> {
       campaignId,
       rawStream as AsyncIterable<StreamEvent>,
       (campaignId, chunk) => broadcastToAll(campaignId, { type: "chunk", content: chunk }),
-      (campaignId, chunkLength) => logInfo("game_session.openai_stream_chunk", { campaignId, chunkLength }),
+      (campaignId, chunkLength) => logInfo("game_session.anthropic_stream_chunk", { campaignId, chunkLength }),
       true,
     )
 
-    logInfo("game_session.openai_stream_complete", {
+    logInfo("game_session.anthropic_stream_complete", {
       campaignId,
       narrationLength: fullText.length,
       durationMs: Date.now() - startedAt,
@@ -186,17 +186,17 @@ async function runFirstCall(campaignId: string): Promise<void> {
     try {
       parsed = JSON.parse(fullText)
     } catch {
-      throw new Error(`Failed to parse OpenAI response as JSON: ${fullText.slice(0, 200)}`)
+      throw new Error(`Failed to parse Anthropic response as JSON: ${fullText.slice(0, 200)}`)
     }
 
     if (!isFirstCallResponse(parsed)) {
-      throw new Error("OpenAI first-call response missing world_context")
+      throw new Error("Anthropic first-call response missing world_context")
     }
 
     // Bug 1 fix: join all narration parts into a single string → one DB row
     const narrationParts = extractNarration(parsed)
     if (!narrationParts.length) {
-      throw new Error("OpenAI first-call response has no narration")
+      throw new Error("Anthropic first-call response has no narration")
     }
     const narrationContent = narrationParts.join("\n\n")
 
@@ -210,6 +210,7 @@ async function runFirstCall(campaignId: string): Promise<void> {
         content: narrationContent,
         type: "narration" as const,
         client_id: null,
+        processed: true,
       }])
 
     if (insertError) throw insertError
@@ -225,7 +226,7 @@ async function runFirstCall(campaignId: string): Promise<void> {
     // Clients receive the narration message via Realtime postgres_changes.
     broadcastToAll(campaignId, { type: "round:saved" })
   } catch (err) {
-    logError("game_session.openai_call_failed", { campaignId }, err)
+    logError("game_session.anthropic_call_failed", { campaignId }, err)
     // Reset so the next connection can retry rather than hanging on 'pending' forever.
     await clearPendingFirstCall(campaignId)
     broadcastToAll(campaignId, { type: "error", message: "Failed to generate opening narration" })
@@ -251,7 +252,7 @@ async function runRound(campaignId: string): Promise<void> {
     // Re-fetch to confirm we won (Supabase update doesn't error on zero rows matched)
     const { data: campaign } = await supabase
       .from("campaigns")
-      .select("round_in_progress, last_response_id")
+      .select("round_in_progress, last_response_id, world_id")
       .eq("id", campaignId)
       .single()
 
@@ -333,7 +334,7 @@ async function runRound(campaignId: string): Promise<void> {
     const { data: world, error: worldError } = await supabase
       .from("worlds")
       .select("world_content")
-      .eq("id", (await supabase.from("campaigns").select("world_id").eq("id", campaignId).single()).data?.world_id)
+      .eq("id", campaign.world_id)
       .single()
 
     if (worldError) throw worldError
@@ -347,7 +348,7 @@ async function runRound(campaignId: string): Promise<void> {
 
     const systemPrompt = buildGMSystemPrompt(world?.world_content as string, allPlayers ?? [])
 
-    logInfo("game_session.openai_call_started", {
+    logInfo("game_session.anthropic_call_started", {
       campaignId,
       pendingCount: claimedActions.length,
       historyLength: history.length,
@@ -364,10 +365,10 @@ async function runRound(campaignId: string): Promise<void> {
       campaignId,
       rawStream as AsyncIterable<StreamEvent>,
       (campaignId, chunk) => broadcastToAll(campaignId, { type: "chunk", content: chunk }),
-      (campaignId, chunkLength) => logInfo("game_session.openai_stream_chunk", { campaignId, chunkLength }),
+      (campaignId, chunkLength) => logInfo("game_session.anthropic_stream_chunk", { campaignId, chunkLength }),
     )
 
-    logInfo("game_session.openai_stream_complete", {
+    logInfo("game_session.anthropic_stream_complete", {
       campaignId,
       narrationLength: fullText.length,
       durationMs: Date.now() - startedAt,
@@ -396,7 +397,7 @@ async function runRound(campaignId: string): Promise<void> {
     // Other players receive the narration via Realtime postgres_changes.
     broadcastToAll(campaignId, { type: "round:saved" })
   } catch (err) {
-    logError("game_session.openai_call_failed", { campaignId }, err)
+    logError("game_session.anthropic_call_failed", { campaignId }, err)
     broadcastToAll(campaignId, { type: "error", message: "Failed to generate narration" })
   } finally {
     // Release the round lock only if we acquired it
