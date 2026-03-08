@@ -27,7 +27,9 @@ export async function consumeStream(
       }
     }
     if (event.type === "response.completed" && event.response) {
-      fullText = event.response.output_text
+      // output_text is a computed getter on the SDK Response class, not a plain JSON
+      // property — accessing it on the raw streaming event object returns undefined.
+      // The delta events already accumulate the complete text, so we only take the id.
       newResponseId = event.response.id
     }
   }
