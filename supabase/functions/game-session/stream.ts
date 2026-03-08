@@ -1,7 +1,7 @@
 export type StreamEvent = {
   type: string
   delta?: string
-  response?: { output_text?: string; id: string }
+  response?: { output_text?: string | null; id: string }
 }
 
 export async function consumeStream(
@@ -27,7 +27,10 @@ export async function consumeStream(
       }
     }
     if (event.type === "response.completed" && event.response) {
-      fullText = event.response.output_text ?? fullText
+      const completedOutput = event.response.output_text
+      if (typeof completedOutput === "string" && completedOutput.length > 0) {
+        fullText = completedOutput
+      }
       newResponseId = event.response.id
     }
   }
