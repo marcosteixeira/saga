@@ -1,5 +1,4 @@
 import { describe, it, expect, vi } from 'vitest'
-
 import { consumeStream, type StreamEvent } from '../stream.ts'
 
 async function* makeStream(events: StreamEvent[]): AsyncIterable<StreamEvent> {
@@ -9,35 +8,53 @@ async function* makeStream(events: StreamEvent[]): AsyncIterable<StreamEvent> {
 }
 
 describe('consumeStream', () => {
-  it('broadcasts chunk events when silent is false', async () => {
+  it('broadcasts text chunks from content_block_delta events', async () => {
     const onChunk = vi.fn()
     const onChunkLog = vi.fn()
     const stream = makeStream([
-      { type: 'response.output_text.delta', delta: '{"nar' },
-      { type: 'response.output_text.delta', delta: 'ration":[]}' },
-      { type: 'response.completed', response: { output_text: '{"narration":[]}', id: 'resp_123' } },
+      { type: 'content_block_delta', delta: { type: 'text_delta', text: 'The tavern' } },
+      { type: 'content_block_delta', delta: { type: 'text_delta', text: ' fills with smoke.' } },
+      { type: 'message_stop' },
     ])
 
     const result = await consumeStream('campaign-1', stream, onChunk, onChunkLog, false)
 
     expect(onChunk).toHaveBeenCalledTimes(2)
-    expect(onChunk).toHaveBeenNthCalledWith(1, 'campaign-1', '{"nar')
-    expect(onChunk).toHaveBeenNthCalledWith(2, 'campaign-1', 'ration":[]}')
-    expect(result).toEqual({ fullText: '{"narration":[]}', newResponseId: 'resp_123' })
+    expect(onChunk).toHaveBeenNthCalledWith(1, 'campaign-1', 'The tavern')
+    expect(onChunk).toHaveBeenNthCalledWith(2, 'campaign-1', ' fills with smoke.')
+    expect(result).toEqual({ fullText: 'The tavern fills with smoke.' })
   })
 
   it('suppresses chunk broadcasts when silent is true', async () => {
     const onChunk = vi.fn()
     const onChunkLog = vi.fn()
     const stream = makeStream([
-      { type: 'response.output_text.delta', delta: '{"world_context":"x"' },
-      { type: 'response.output_text.delta', delta: ',"narration":[]}' },
-      { type: 'response.completed', response: { output_text: '{"world_context":"x","narration":[]}', id: 'resp_456' } },
+      { type: 'content_block_delta', delta: { type: 'text_delta', text: '{"world_context":' } },
+      { type: 'content_block_delta', delta: { type: 'text_delta', text: '"x"}' } },
+      { type: 'message_stop' },
     ])
 
     const result = await consumeStream('campaign-2', stream, onChunk, onChunkLog, true)
 
     expect(onChunk).not.toHaveBeenCalled()
-    expect(result).toEqual({ fullText: '{"world_context":"x","narration":[]}', newResponseId: 'resp_456' })
+    expect(result).toEqual({ fullText: '{"world_context":"x"}' })
+  })
+
+  it('ignores non-text delta events', async () => {
+    const onChunk = vi.fn()
+    const onChunkLog = vi.fn()
+    const stream = makeStream([
+      { type: 'message_start' },
+      { type: 'content_block_start' },
+      { type: 'content_block_delta', delta: { type: 'text_delta', text: 'Hello.' } },
+      { type: 'ping' },
+      { type: 'content_block_stop' },
+      { type: 'message_stop' },
+    ])
+
+    const result = await consumeStream('campaign-3', stream, onChunk, onChunkLog, false)
+
+    expect(onChunk).toHaveBeenCalledTimes(1)
+    expect(result.fullText).toBe('Hello.')
   })
 })
