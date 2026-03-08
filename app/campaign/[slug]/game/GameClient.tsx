@@ -280,7 +280,7 @@ function LoadingState({
                     width: `${pct}%`,
                     background:
                       'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.12) 50%, transparent 100%)',
-                    animation: 'steamFlow 1.4s linear infinite',
+                    animation: 'steam-flow 1.4s linear infinite',
                     transition: 'width 0.7s ease'
                   }}
                 />
@@ -313,7 +313,7 @@ function LoadingState({
               width: 'min(70vw, 500px)',
               height: 'min(70vw, 500px)',
               opacity: 0.06,
-              animation: 'astroRotate 80s linear infinite'
+              animation: 'astro-rotate 80s linear infinite'
             }}
           >
             <svg
@@ -401,7 +401,7 @@ function LoadingState({
               width: 'min(35vw, 240px)',
               height: 'min(35vw, 240px)',
               opacity: 0.08,
-              animation: 'astroRotate 45s linear infinite reverse'
+              animation: 'astro-rotate 45s linear infinite reverse'
             }}
           >
             <svg
@@ -676,27 +676,6 @@ function LoadingState({
         </div>
       )}
 
-      <style>{`
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.3; }
-        }
-        @keyframes astroRotate {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-        @keyframes steamFlow {
-          from { transform: translateX(-100%); }
-          to { transform: translateX(200%); }
-        }
-        @keyframes blink {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0; }
-        }
-        @media (prefers-reduced-motion: reduce) {
-          * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
-        }
-      `}</style>
     </div>
   );
 }
