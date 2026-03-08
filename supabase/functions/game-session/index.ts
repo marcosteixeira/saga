@@ -12,6 +12,7 @@ import {
 import { resetDebounce } from "./debounce.ts"
 import { buildGMSystemPrompt, buildFirstCallInput, isFirstCallResponse } from "./prompt.ts"
 import { extractNarration } from "./openai.ts"
+import { extractJwtFromProtocolHeader } from "./ws-auth.ts"
 
 type LogMeta = Record<string, unknown>
 
@@ -387,11 +388,9 @@ Deno.serve(async (req: Request) => {
 
   // Browser WebSocket API cannot set custom headers; token is passed via
   // Sec-WebSocket-Protocol as "jwt-<token>" (Supabase recommended approach).
-  const protocols = (req.headers.get("Sec-WebSocket-Protocol") ?? "")
-    .split(",")
-    .map((p) => p.trim())
-  const jwtProtocol = protocols.find((p) => p.startsWith("jwt-"))
-  const token = jwtProtocol ? jwtProtocol.slice(4) : null
+  const { protocol: jwtProtocol, token } = extractJwtFromProtocolHeader(
+    req.headers.get("Sec-WebSocket-Protocol"),
+  )
 
   if (!campaignId || !token) {
     return new Response("Missing campaignId or token", { status: 400 })
@@ -409,7 +408,7 @@ Deno.serve(async (req: Request) => {
 
   const { playerId, playerName } = auth
 
-  const { socket, response } = Deno.upgradeWebSocket(req)
+  const { socket, response } = Deno.upgradeWebSocket(req, { protocol: jwtProtocol ?? undefined })
 
   socket.onopen = async () => {
     logInfo("game_session.connection_opened", { campaignId, playerId, playerName })

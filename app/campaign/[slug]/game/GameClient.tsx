@@ -9,6 +9,7 @@ import { ImageModal, type ImageModalState } from './components/ImageModal';
 import { MessageBubble, NarrationGroupBubble } from './components/MessageBubble';
 import { MobileActionBar } from './components/MobileActionBar';
 import { DebounceTimer } from './components/DebounceTimer';
+import { buildGameSessionSocketConfig } from './ws-auth';
 import type { Campaign } from '@/types/campaign';
 import type { Player } from '@/types/player';
 import type { World } from '@/types/world';
@@ -1856,10 +1857,13 @@ export default function GameClient({
       }
 
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-      const wsBase = supabaseUrl.replace(/^https/, 'wss').replace(/^http/, 'ws');
-      const wsUrl = `${wsBase}/functions/v1/game-session?campaignId=${campaign.id}&jwt=${session.access_token}`;
+      const socketConfig = buildGameSessionSocketConfig({
+        supabaseUrl,
+        campaignId: campaign.id,
+        accessToken: session.access_token
+      });
 
-      ws = new WebSocket(wsUrl);
+      ws = new WebSocket(socketConfig.url, socketConfig.protocols);
       wsRef.current = ws;
 
       ws.onopen = () => {
