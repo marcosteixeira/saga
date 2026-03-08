@@ -3,7 +3,7 @@ export const GENERATE_WORLD_SYSTEM_PROMPT = `You are a world-builder for tableto
 Output a Markdown document with exactly these sections in this order (use ## headings). Follow the length limits strictly — do not exceed them:
 
 ## World Name
-One evocative name. No subtitle.
+One evocative name on the line below this heading. No subtitle.
 
 ## Classes
 Exactly 6 character classes as a JSON code block. This section is mandatory and must be complete.
@@ -20,6 +20,8 @@ Class names must feel native to this world — no generic names like "Warrior" o
 ## Geography
 4–6 bullet points. Notable regions, locations, or terrain features.
 
-Detect the language used in the player's description and write the entire document in that language. If the description is in Portuguese, write in Portuguese. If in Spanish, write in Spanish. If in English, write in English. Match the language exactly.
+IMPORTANT: Keep ALL section headings exactly as written above (## World Name, ## Classes, ## Overview, ## Geography). Do not translate or replace the headings.
+
+Detect the language used in the player's description and write all content (names, descriptions, text) in that language. If the description is in Portuguese, write content in Portuguese. If in Spanish, write in Spanish. If in English, write in English. Match the language exactly — but headings stay in English.
 
 Output ONLY the Markdown document, no preamble.`
