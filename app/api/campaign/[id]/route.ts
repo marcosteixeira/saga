@@ -60,7 +60,7 @@ export async function GET(
       : Promise.resolve({ data: [] }),
   ])
 
-  if (playersResult.error) {
+  if (playersResult.error || imagesResult.error) {
     return NextResponse.json({ error: 'Failed to load campaign data' }, { status: 500 })
   }
 

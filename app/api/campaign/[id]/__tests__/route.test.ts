@@ -109,6 +109,27 @@ describe('GET /api/campaign/[id]', () => {
     expect(res.status).toBe(500)
   })
 
+  it('returns 500 when loading images fails', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'host-1' } } })
+
+    const campaign = { id: 'campaign-123', host_user_id: 'host-1', name: 'Test', status: 'lobby', worlds: { id: 'w1' } }
+    mockCampaignSingle.mockResolvedValue({ data: campaign, error: null })
+
+    mockImagesSelect.mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        in: vi.fn().mockReturnValue({
+          not: vi.fn().mockResolvedValue({ data: null, error: { message: 'boom' } }),
+        }),
+      }),
+    })
+
+    const { GET } = await import('../route')
+    const req = new Request('http://localhost/api/campaign/campaign-123')
+    const res = await GET(req, { params: Promise.resolve({ id: 'campaign-123' }) })
+
+    expect(res.status).toBe(500)
+  })
+
   it('returns campaign with players on success', async () => {
     mockGetUser.mockResolvedValue({ data: { user: { id: 'host-1' } } })
 
