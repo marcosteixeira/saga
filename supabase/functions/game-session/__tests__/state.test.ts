@@ -28,7 +28,6 @@ describe('getOrCreateSession', () => {
     const session = getOrCreateSession('campaign-1')
     expect(session).toBeDefined()
     expect(session.connections.size).toBe(0)
-    expect(session.pendingMessages).toEqual([])
     expect(session.debounceTimer).toBeNull()
     expect(session.isProcessing).toBe(false)
   })
@@ -68,13 +67,11 @@ describe('removeConnection', () => {
     expect(sessions.has('campaign-1')).toBe(false)
   })
 
-  it('keeps session when pending messages remain', () => {
+  it('keeps session when isProcessing is true', () => {
     const socket = makeMockSocket()
     registerConnection('campaign-1', 'player-1', socket as unknown as WebSocket)
     const session = sessions.get('campaign-1')!
-    session.pendingMessages.push({
-      clientId: 'x', playerId: 'player-1', playerName: 'Aria', content: 'I look around.', clientTimestamp: Date.now(),
-    })
+    session.isProcessing = true
     removeConnection('campaign-1', 'player-1')
     expect(sessions.has('campaign-1')).toBe(true)
   })
