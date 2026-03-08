@@ -60,19 +60,17 @@ The game-session edge function (`supabase/functions/game-session/index.ts`) is a
 | `supabase/functions/generate-world/world-content.ts` | Section validation, class parsing |
 | `supabase/functions/generate-image/index.ts` | Gemini image gen + Supabase Storage upload |
 | `app/campaign/[slug]/game/GameClient.tsx` | Game room UI + WebSocket client |
-| `lib/memory.ts` | Campaign memory file read/write helpers |
 | `lib/realtime-broadcast.ts` | Supabase Realtime broadcast helpers |
 
 ## Database
 
-Migrations live in `supabase/migrations/` (001–014). Key tables:
+Migrations live in `supabase/migrations/` (001–019). Key tables:
 
 - `campaigns` — campaign metadata, `last_response_id` (OpenAI), `world_id`
 - `worlds` — `world_content` (WORLD.md), `classes` (JSONB), `status`
 - `players` — per-campaign player records linked to `auth.users`
 - `messages` — game log (actions + narration), `player_id = null` for AI messages
 - `images` — image generation status + storage paths (`cover`, `map`, `portrait`, etc.)
-- `campaign_files` — key/value MD files per campaign (MEMORY.md, CHARACTERS.md, etc.)
 
 ## Testing
 

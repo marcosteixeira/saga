@@ -6,7 +6,6 @@ const mockCampaignSingle = vi.fn()
 const mockMembershipEqUser = vi.fn()
 const mockMembershipMaybeSingle = vi.fn()
 const mockPlayerSelect = vi.fn()
-const mockFileSelect = vi.fn()
 const mockImagesSelect = vi.fn()
 
 vi.mock('@/lib/supabase/server', () => ({
@@ -29,11 +28,6 @@ vi.mock('@/lib/supabase/server', () => ({
           select: mockPlayerSelect,
         }
       }
-      if (table === 'campaign_files') {
-        return {
-          select: mockFileSelect,
-        }
-      }
       if (table === 'images') {
         return {
           select: mockImagesSelect,
@@ -52,7 +46,6 @@ describe('GET /api/campaign/[id]', () => {
     mockMembershipEqUser.mockReturnValue({ maybeSingle: mockMembershipMaybeSingle })
 
     mockPlayerSelect.mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: [], error: null }) })
-    mockFileSelect.mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: [], error: null }) })
     mockImagesSelect.mockReturnValue({
       eq: vi.fn().mockReturnValue({
         in: vi.fn().mockReturnValue({
@@ -116,12 +109,32 @@ describe('GET /api/campaign/[id]', () => {
     expect(res.status).toBe(500)
   })
 
-  it('returns campaign with players and files on success', async () => {
+  it('returns 500 when loading images fails', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'host-1' } } })
+
+    const campaign = { id: 'campaign-123', host_user_id: 'host-1', name: 'Test', status: 'lobby', worlds: { id: 'w1' } }
+    mockCampaignSingle.mockResolvedValue({ data: campaign, error: null })
+
+    mockImagesSelect.mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        in: vi.fn().mockReturnValue({
+          not: vi.fn().mockResolvedValue({ data: null, error: { message: 'boom' } }),
+        }),
+      }),
+    })
+
+    const { GET } = await import('../route')
+    const req = new Request('http://localhost/api/campaign/campaign-123')
+    const res = await GET(req, { params: Promise.resolve({ id: 'campaign-123' }) })
+
+    expect(res.status).toBe(500)
+  })
+
+  it('returns campaign with players on success', async () => {
     mockGetUser.mockResolvedValue({ data: { user: { id: 'host-1' } } })
 
     const campaign = { id: 'campaign-123', host_user_id: 'host-1', name: 'Test', status: 'lobby', worlds: { id: 'w1' } }
     const players = [{ id: 'p1', name: 'Hero' }]
-    const files = [{ id: 'f1', file_type: 'world' }]
     const images = [
       { entity_type: 'world', entity_id: 'w1', image_type: 'cover', public_url: 'https://img/world-cover.png' },
       { entity_type: 'campaign', entity_id: 'campaign-123', image_type: 'cover', public_url: 'https://img/campaign-cover.png' },
@@ -129,7 +142,6 @@ describe('GET /api/campaign/[id]', () => {
 
     mockCampaignSingle.mockResolvedValue({ data: campaign, error: null })
     mockPlayerSelect.mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: players, error: null }) })
-    mockFileSelect.mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: files, error: null }) })
     mockImagesSelect.mockReturnValue({
       eq: vi.fn().mockReturnValue({
         in: vi.fn().mockReturnValue({
@@ -146,7 +158,6 @@ describe('GET /api/campaign/[id]', () => {
     const data = await res.json()
     expect(data.campaign).toEqual(expect.objectContaining({ id: campaign.id, name: campaign.name }))
     expect(data.players).toEqual(players)
-    expect(data.files).toEqual(files)
     expect(data.world_cover_url).toBe('https://img/world-cover.png')
     expect(data.campaign_cover_url).toBe('https://img/campaign-cover.png')
   })
