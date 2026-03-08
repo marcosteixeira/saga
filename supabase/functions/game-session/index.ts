@@ -161,14 +161,14 @@ async function runFirstCall(campaignId: string): Promise<void> {
 
     logInfo("game_session.openai_call_started", { campaignId, previousResponseId: null })
 
-    const rawStream = await openai.responses.create({
-      model: "gpt-4.1",
-      instructions: systemPrompt,
-      input,
-      stream: true,
-    } as Parameters<typeof openai.responses.create>[0])
+    const rawStream = anthropic.messages.stream({
+      model: "claude-sonnet-4-6",
+      max_tokens: 2048,
+      system: [{ type: "text" as const, text: systemPrompt, cache_control: { type: "ephemeral" as const } }],
+      messages: [{ role: "user" as const, content: input }],
+    })
 
-    const { fullText, newResponseId } = await consumeStream(
+    const { fullText } = await consumeStream(
       campaignId,
       rawStream as AsyncIterable<StreamEvent>,
       (campaignId, chunk) => broadcastToAll(campaignId, { type: "chunk", content: chunk }),
@@ -216,10 +216,10 @@ async function runFirstCall(campaignId: string): Promise<void> {
 
     await supabase
       .from("campaigns")
-      .update({ last_response_id: newResponseId })
+      .update({ last_response_id: "done" })
       .eq("id", campaignId)
 
-    logInfo("game_session.db_save_complete", { campaignId, newResponseId })
+    logInfo("game_session.db_save_complete", { campaignId })
     logInfo("game_session.round_complete", { campaignId, durationMs: Date.now() - startedAt })
 
     // Clients receive the narration message via Realtime postgres_changes.
