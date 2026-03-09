@@ -39,7 +39,7 @@ export async function POST(req: Request) {
 
   const voice = process.env.ELEVENLABS_VOICE_ID ?? DEFAULT_VOICE_ID;
 
-  console.error(
+  console.log(
     JSON.stringify({ level: 'info', event: 'tts_invoke', userId: user.id, textLength: text.length })
   );
 
