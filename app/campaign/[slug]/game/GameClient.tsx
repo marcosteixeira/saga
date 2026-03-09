@@ -12,6 +12,7 @@ import { DebounceTimer } from './components/DebounceTimer';
 import { buildGameSessionSocketConfig } from './ws-auth';
 import { useVoiceNarration } from './hooks/useVoiceNarration';
 import type { UseVoiceNarration } from './hooks/useVoiceNarration';
+import { appendStreamingContent } from './streaming-content';
 import type { Campaign } from '@/types/campaign';
 import type { Player } from '@/types/player';
 import type { World } from '@/types/world';
@@ -2148,13 +2149,9 @@ export default function GameClient({
     optimisticMessagesRef.current = optimisticMessages;
   }, [optimisticMessages]);
 
-  useEffect(() => {
-    streamingContentRef.current = streamingContent;
-  }, [streamingContent]);
-
-  useEffect(() => {
-    voiceNarrationRef.current = voiceNarration;
-  });
+  // Sync ref on every render so the long-lived WS useEffect always has fresh
+  // function references without needing to re-run and reconnect.
+  voiceNarrationRef.current = voiceNarration;
 
   // WebSocket connection with exponential-backoff reconnection
   useEffect(() => {
@@ -2245,7 +2242,9 @@ export default function GameClient({
         if (msg.type === 'chunk') {
           setIsStreaming(true);
           setLastActionSentAt(null);
-          setStreamingContent((prev) => prev + (msg.content as string));
+          setStreamingContent((prev) =>
+            appendStreamingContent(streamingContentRef, prev, msg.content as string)
+          );
           setViewState((prev) => (prev === 'loading' ? 'active' : prev));
         }
 
