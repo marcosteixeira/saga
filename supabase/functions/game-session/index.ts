@@ -45,19 +45,6 @@ const anthropicApiKey = Deno.env.get("ANTHROPIC_API_KEY")!
 const supabase = createClient(supabaseUrl, serviceRoleKey)
 const anthropic = new Anthropic({ apiKey: anthropicApiKey })
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-interface DbMessage {
-  id: string
-  campaign_id: string
-  player_id: string | null
-  content: string
-  type: 'action' | 'narration' | 'system' | 'ooc'
-  created_at: string
-  client_id: string | null
-  processed: boolean
-}
-
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
 async function authenticate(
@@ -487,7 +474,7 @@ Deno.serve(async (req: Request) => {
       // Otherwise: client receives messages via Supabase Realtime postgres_changes
     }
 
-    // @ts-ignore — EdgeRuntime.waitUntil keeps the isolate alive for the promise
+    // @ts-expect-error EdgeRuntime exists in Supabase edge runtime but not in TypeScript DOM libs.
     if (typeof EdgeRuntime !== "undefined") {
       EdgeRuntime.waitUntil(handleOpen())
     } else {
