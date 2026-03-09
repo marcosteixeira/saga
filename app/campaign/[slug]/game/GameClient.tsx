@@ -16,6 +16,7 @@ import type { Campaign } from '@/types/campaign';
 import type { Player } from '@/types/player';
 import type { World } from '@/types/world';
 import type { Message } from '@/types/message';
+import { Volume2, VolumeX, RotateCcw } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1769,6 +1770,32 @@ function ActiveGameView({
             </span>
           </div>
           <div className="flex shrink-0 items-center gap-2">
+            {/* Voice controls */}
+            {voiceNarration.lastText && (
+              <button
+                onClick={() => voiceNarration.replay()}
+                disabled={voiceNarration.isLoading || voiceNarration.isPlaying}
+                title="Replay narration"
+                className="flex h-7 w-7 items-center justify-center text-ash/60 transition-colors hover:text-steam disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <RotateCcw
+                  size={14}
+                  className={voiceNarration.isLoading ? 'animate-spin' : ''}
+                />
+              </button>
+            )}
+            <button
+              onClick={() => voiceNarration.toggle()}
+              title={voiceNarration.enabled ? 'Disable voice narration' : 'Enable voice narration'}
+              className="flex h-7 w-7 items-center justify-center text-ash/60 transition-colors hover:text-steam"
+            >
+              {voiceNarration.enabled ? (
+                <Volume2 size={14} className={voiceNarration.isPlaying ? 'text-steam' : ''} />
+              ) : (
+                <VolumeX size={14} />
+              )}
+            </button>
+            <div className="h-3 w-px bg-gunmetal" />
             <div
               className="h-2 w-2 rounded-full bg-patina"
               style={{
