@@ -1852,7 +1852,7 @@ function ActiveGameView({
                     group.push(allMessages[i]);
                     i++;
                   }
-                  items.push(<NarrationGroupBubble key={group[0].id} messages={group} />);
+                  items.push(<NarrationGroupBubble key={group[0].id} messages={group} onSpeak={voiceNarration.enabled ? voiceNarration.speak : undefined} />);
                 } else {
                   items.push(
                     <MessageBubble key={msg.id} message={msg} players={players} />

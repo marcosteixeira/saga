@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createAuthServerClient } from '@/lib/supabase/server';
+import { ElevenLabsClient } from '@elevenlabs/elevenlabs-js';
 
 // Default ElevenLabs voice (Daniel — deep, narrative fantasy tone)
 const DEFAULT_VOICE_ID = 'onwK4e9ZLuTAKqWW03F9';
@@ -11,7 +12,6 @@ export async function POST(req: Request) {
   const {
     data: { user }
   } = await authClient.auth.getUser();
-
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -40,38 +40,43 @@ export async function POST(req: Request) {
   const voice = process.env.ELEVENLABS_VOICE_ID ?? DEFAULT_VOICE_ID;
 
   console.log(
-    JSON.stringify({ level: 'info', event: 'tts_invoke', userId: user.id, textLength: text.length })
+    JSON.stringify({
+      level: 'info',
+      event: 'tts_invoke',
+      userId: user.id,
+      textLength: text.length
+    })
   );
 
-  const elevenRes = await fetch(
-    `https://api.elevenlabs.io/v1/text-to-speech/${voice}/stream`,
-    {
-      method: 'POST',
-      headers: {
-        'xi-api-key': apiKey,
-        'content-type': 'application/json',
-        accept: 'audio/mpeg'
+  try {
+    const client = new ElevenLabsClient({ apiKey });
+    const audioStream = await client.textToSpeech.stream(voice, {
+      text,
+      modelId: 'eleven_v3',
+      voiceSettings: { stability: 0.5, similarityBoost: 0.75 },
+    });
+
+    const readable = new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const chunk of audioStream) {
+            controller.enqueue(chunk);
+          }
+          controller.close();
+        } catch (err) {
+          controller.error(err);
+        }
       },
-      body: JSON.stringify({
-        text,
-        model_id: 'eleven_monolingual_v1',
-        voice_settings: { stability: 0.5, similarity_boost: 0.75 }
-      })
-    }
-  );
+    });
 
-  if (!elevenRes.ok) {
+    return new Response(readable, {
+      status: 200,
+      headers: { 'content-type': 'audio/mpeg' },
+    });
+  } catch (err) {
     console.error(
-      JSON.stringify({ level: 'error', event: 'tts_upstream_error', status: elevenRes.status })
+      JSON.stringify({ level: 'error', event: 'tts_upstream_error', error: String(err) })
     );
-    return NextResponse.json(
-      { error: 'TTS upstream error' },
-      { status: elevenRes.status >= 500 ? 502 : elevenRes.status }
-    );
+    return NextResponse.json({ error: 'TTS upstream error' }, { status: 502 });
   }
-
-  return new Response(elevenRes.body, {
-    status: 200,
-    headers: { 'content-type': 'audio/mpeg' }
-  });
 }

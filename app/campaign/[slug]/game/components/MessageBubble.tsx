@@ -3,6 +3,7 @@
 import type { Message } from '@/types/message';
 import type { Player } from '@/types/player';
 import { formatMessageTimeLocal } from './message-time';
+import { Volume2 } from 'lucide-react';
 
 
 function renderNarrationContent(content: string) {
@@ -44,7 +45,7 @@ function renderNarrationContent(content: string) {
   return chunks;
 }
 
-export function NarrationGroupBubble({ messages }: { messages: Message[] }) {
+export function NarrationGroupBubble({ messages, onSpeak }: { messages: Message[]; onSpeak?: (text: string) => void }) {
   return (
     <div className="group relative">
       <div className="mb-2 flex items-center gap-2">
@@ -53,6 +54,15 @@ export function NarrationGroupBubble({ messages }: { messages: Message[] }) {
           <span className="text-[9px] uppercase tracking-[0.2em] text-brass" style={{ fontFamily: 'var(--font-mono), monospace' }}>Game Master</span>
         </div>
         <div className="h-px flex-1 bg-gradient-to-r from-brass/20 to-transparent" />
+        {onSpeak && (
+          <button
+            onClick={() => onSpeak(messages.map((m) => m.content).join('\n\n'))}
+            className="flex h-5 w-5 items-center justify-center opacity-0 transition-opacity duration-150 group-hover:opacity-100 hover:text-brass text-brass/50"
+            title="Play narration"
+          >
+            <Volume2 size={11} />
+          </button>
+        )}
       </div>
       <div className="border-l-2 border-brass/30 py-1 pl-4 pr-2 flex flex-col gap-4" style={{ borderImage: 'linear-gradient(to bottom, var(--brass), transparent) 1' }}>
         {messages.map((message) => (
@@ -65,7 +75,7 @@ export function NarrationGroupBubble({ messages }: { messages: Message[] }) {
   );
 }
 
-export function MessageBubble({ message, players }: { message: Message; players: Player[] }) {
+export function MessageBubble({ message, players, onSpeak }: { message: Message; players: Player[]; onSpeak?: (text: string) => void }) {
   const player = players.find((p) => p.id === message.player_id);
 
   if (message.type === 'system') {
@@ -87,6 +97,15 @@ export function MessageBubble({ message, players }: { message: Message; players:
             <span className="text-[9px] uppercase tracking-[0.2em] text-brass" style={{ fontFamily: 'var(--font-mono), monospace' }}>Game Master</span>
           </div>
           <div className="h-px flex-1 bg-gradient-to-r from-brass/20 to-transparent" />
+          {onSpeak && (
+            <button
+              onClick={() => onSpeak(message.content)}
+              className="flex h-5 w-5 items-center justify-center opacity-0 transition-opacity duration-150 group-hover:opacity-100 hover:text-brass text-brass/50"
+              title="Play narration"
+            >
+              <Volume2 size={11} />
+            </button>
+          )}
         </div>
         <div className="border-l-2 border-brass/30 py-1 pl-4 pr-2" style={{ borderImage: 'linear-gradient(to bottom, var(--brass), transparent) 1' }}>
           <p className="text-base leading-loose text-steam sm:text-lg sm:leading-loose" style={{ fontFamily: 'var(--font-body), sans-serif', letterSpacing: '0.01em' }}>
