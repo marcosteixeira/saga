@@ -1,0 +1,1492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Saga — Architecture Overview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Pragati+Narrow:wght@400;700&family=Rokkitt:wght@400;500;700&family=Barlow+Condensed:wght@400;500;600&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   THE FOUNDRY — Steampunk Design System for Saga
+   Warm steampunk: amber-lit, burnished brass, cast iron, soot
+   ============================================================ */
+:root {
+  /* Core palette */
+  --soot:      #0d0c0a;
+  --iron:      #1a1814;
+  --smog:      #2a2520;
+  --gunmetal:  #3d3630;
+  --ash:       #9a8a7a;
+  --brass:     #c4943d;
+  --copper:    #b87333;
+  --amber:     #e8a835;
+  --furnace:   #d4622a;
+  --steam:     #d4cabb;
+  --patina:    #5a7a6d;
+  --sky-slate: #4a5568;
+
+  /* Semantic */
+  --bg:             var(--soot);
+  --surface:        rgba(42, 37, 32, 0.9);   /* smog @ 90% */
+  --surface2:       rgba(26, 24, 20, 0.95);  /* iron @ 95% */
+  --border:         var(--gunmetal);
+  --border-bright:  rgba(196, 148, 61, 0.35);
+  --text:           var(--steam);
+  --text-dim:       var(--ash);
+  --accent:         var(--brass);
+  --accent-dim:     rgba(196, 148, 61, 0.12);
+  --hover:          var(--furnace);
+  --link:           var(--amber);
+  --success:        var(--patina);
+
+  /* Fonts */
+  --font-display: 'Pragati Narrow', 'Impact', sans-serif;
+  --font-heading: 'Rokkitt', Georgia, serif;
+  --font-body:    'Barlow Condensed', 'Arial Narrow', sans-serif;
+  --font-mono:    'Share Tech Mono', 'Courier New', monospace;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: var(--font-body);
+  color: var(--text);
+  background: var(--soot);
+  overflow: hidden;
+}
+
+/* ============ DECK ENGINE ============ */
+.deck {
+  height: 100dvh;
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+.slide {
+  height: 100dvh;
+  scroll-snap-align: start;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: clamp(36px, 5.5vh, 72px) clamp(44px, 8vw, 128px);
+  isolation: isolate;
+  opacity: 0;
+  transform: translateY(40px) scale(0.98);
+  transition:
+    opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.slide.visible { opacity: 1; transform: none; }
+
+.slide .reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition:
+    opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.slide.visible .reveal { opacity: 1; transform: none; }
+.slide.visible .reveal:nth-child(1) { transition-delay: 0.08s; }
+.slide.visible .reveal:nth-child(2) { transition-delay: 0.16s; }
+.slide.visible .reveal:nth-child(3) { transition-delay: 0.24s; }
+.slide.visible .reveal:nth-child(4) { transition-delay: 0.32s; }
+.slide.visible .reveal:nth-child(5) { transition-delay: 0.40s; }
+.slide.visible .reveal:nth-child(6) { transition-delay: 0.48s; }
+.slide.visible .reveal:nth-child(7) { transition-delay: 0.56s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .slide, .slide .reveal { opacity: 1 !important; transform: none !important; transition: none !important; }
+}
+
+/* ============ TYPOGRAPHY — FOUNDRY SCALE ============ */
+.t-display {
+  font-family: var(--font-display);
+  font-size: clamp(52px, 10vw, 128px);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 0.95;
+  text-transform: uppercase;
+  text-wrap: balance;
+  text-shadow: 0 0 60px rgba(196, 148, 61, 0.25);
+}
+
+.t-heading {
+  font-family: var(--font-heading);
+  font-size: clamp(26px, 4vw, 48px);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  line-height: 1.1;
+  text-transform: uppercase;
+  text-wrap: balance;
+  text-shadow: 0 0 40px rgba(196, 148, 61, 0.2);
+}
+
+.t-body {
+  font-family: var(--font-body);
+  font-size: clamp(15px, 1.8vw, 21px);
+  font-weight: 400;
+  line-height: 1.65;
+}
+
+.t-label {
+  font-family: var(--font-mono);
+  font-size: clamp(10px, 1.1vw, 13px);
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--text-dim);
+}
+
+.t-mono {
+  font-family: var(--font-mono);
+  font-size: clamp(11px, 1.3vw, 15px);
+}
+
+.brass { color: var(--brass); }
+.amber { color: var(--amber); }
+.furnace { color: var(--furnace); }
+.ash { color: var(--ash); }
+.patina { color: var(--patina); }
+.steam { color: var(--steam); }
+.sky { color: var(--sky-slate); }
+
+/* ============ BACKGROUNDS ============ */
+.bg-foundry {
+  background:
+    radial-gradient(ellipse 100% 60% at 50% 110%, rgba(212, 98, 42, 0.08) 0%, transparent 55%),
+    linear-gradient(180deg, var(--soot) 0%, var(--iron) 100%);
+}
+
+.bg-furnace {
+  background:
+    radial-gradient(ellipse 120% 70% at 50% 100%, rgba(212, 98, 42, 0.14) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 40% at 20% 30%, rgba(196, 148, 61, 0.06) 0%, transparent 50%),
+    linear-gradient(180deg, var(--soot) 0%, var(--iron) 100%);
+}
+
+.bg-deep {
+  background:
+    radial-gradient(ellipse 80% 50% at 30% 50%, rgba(196, 148, 61, 0.05) 0%, transparent 55%),
+    radial-gradient(ellipse 50% 60% at 80% 20%, rgba(212, 98, 42, 0.06) 0%, transparent 50%),
+    #060504;
+}
+
+.bg-divider {
+  background:
+    radial-gradient(ellipse 100% 70% at 50% 50%, rgba(212, 98, 42, 0.1) 0%, transparent 65%),
+    radial-gradient(ellipse 60% 40% at 70% 80%, rgba(196, 148, 61, 0.07) 0%, transparent 50%),
+    var(--iron);
+}
+
+.bg-copper {
+  background:
+    radial-gradient(ellipse 90% 60% at 70% 80%, rgba(184, 115, 51, 0.12) 0%, transparent 60%),
+    var(--soot);
+}
+
+/* Smog drift animation */
+.smog-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.smog-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.04;
+  animation: smog-drift var(--smog-dur, 35s) ease-in-out infinite alternate;
+}
+
+@keyframes smog-drift {
+  from { transform: translateX(-8%) translateY(0); }
+  to   { transform: translateX(8%) translateY(-5%); }
+}
+
+/* Vignette */
+.vignette::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 90% 80% at 50% 50%, transparent 40%, rgba(13, 12, 10, 0.7) 100%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ============ IRON PLATE PANELS ============ */
+/* Chamfered corners via clip-path (8px cut) */
+.plate {
+  background: var(--surface);
+  border: 1px solid var(--gunmetal);
+  clip-path: polygon(8px 0%, calc(100% - 8px) 0%, 100% 8px, 100% calc(100% - 8px), calc(100% - 8px) 100%, 8px 100%, 0% calc(100% - 8px), 0% 8px);
+  box-shadow:
+    inset 1px 1px 0 rgba(196, 148, 61, 0.08),
+    inset -1px -1px 0 rgba(0, 0, 0, 0.4),
+    0 4px 20px rgba(0, 0, 0, 0.5);
+  position: relative;
+}
+
+.plate--copper {
+  border-color: var(--copper);
+  box-shadow:
+    inset 0 0 20px rgba(184, 115, 51, 0.08),
+    inset 1px 1px 0 rgba(196, 148, 61, 0.12),
+    0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.plate--brass {
+  border-color: rgba(196, 148, 61, 0.5);
+  box-shadow:
+    inset 0 0 20px rgba(196, 148, 61, 0.1),
+    0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.plate--furnace {
+  border-color: rgba(212, 98, 42, 0.4);
+  box-shadow:
+    inset 0 0 20px rgba(212, 98, 42, 0.08),
+    0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.plate--patina {
+  border-color: rgba(90, 122, 109, 0.4);
+}
+
+/* Rivet dots at corners */
+.plate::before {
+  content: '';
+  position: absolute;
+  top: 6px; left: 6px;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, var(--gunmetal), #1a1510);
+  border: 1px solid rgba(196, 148, 61, 0.15);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
+  pointer-events: none;
+}
+
+/* ============ BRASS DIVIDER RULE ============ */
+.brass-rule {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.brass-rule::before,
+.brass-rule::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(196, 148, 61, 0.5), transparent);
+}
+
+.brass-rule-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--brass);
+  opacity: 0.6;
+  box-shadow: 0 0 6px rgba(196, 148, 61, 0.4);
+}
+
+/* Simple rule */
+.hr-brass {
+  border: none;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(196, 148, 61, 0.4), transparent);
+  margin: 12px 0;
+}
+
+/* ============ DECORATIVE GEARS ============ */
+.gear-bg {
+  position: absolute;
+  opacity: 0.04;
+  pointer-events: none;
+  animation: gear-spin var(--gear-dur, 80s) linear infinite;
+  transform-origin: center;
+}
+
+@keyframes gear-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.gear-bg--reverse { animation-direction: reverse; }
+
+/* ============ EMBER PARTICLES ============ */
+.ember {
+  position: absolute;
+  border-radius: 50%;
+  background: var(--amber);
+  pointer-events: none;
+  opacity: 0;
+  box-shadow: 0 0 4px rgba(232, 168, 53, 0.6);
+  animation: rise-ember var(--ed, 6s) var(--delay, 0s) ease-in infinite;
+}
+
+@keyframes rise-ember {
+  0%   { opacity: 0;   transform: translateY(0) translateX(0) scale(1); }
+  15%  { opacity: 0.7; }
+  60%  { opacity: 0.3; }
+  100% { opacity: 0;   transform: translateY(-55vh) translateX(var(--drift, 20px)) scale(0.2); }
+}
+
+/* ============ CORNER MARKS ============ */
+.corner { position: absolute; width: 36px; height: 36px; pointer-events: none; }
+.corner--tl { top: 24px; left: 24px; border-top: 1px solid var(--border-bright); border-left: 1px solid var(--border-bright); }
+.corner--tr { top: 24px; right: 24px; border-top: 1px solid var(--border-bright); border-right: 1px solid var(--border-bright); }
+.corner--bl { bottom: 24px; left: 24px; border-bottom: 1px solid var(--border-bright); border-left: 1px solid var(--border-bright); }
+.corner--br { bottom: 24px; right: 24px; border-bottom: 1px solid var(--border-bright); border-right: 1px solid var(--border-bright); }
+
+/* ============ BADGE / TAG ============ */
+.badge {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  padding: 3px 10px;
+  clip-path: polygon(5px 0%, calc(100% - 5px) 0%, 100% 5px, 100% calc(100% - 5px), calc(100% - 5px) 100%, 5px 100%, 0% calc(100% - 5px), 0% 5px);
+}
+
+.badge--brass   { background: rgba(196,148,61,0.15);  color: var(--brass);   border: 1px solid rgba(196,148,61,0.35); }
+.badge--furnace { background: rgba(212,98,42,0.15);   color: var(--furnace); border: 1px solid rgba(212,98,42,0.35); }
+.badge--patina  { background: rgba(90,122,109,0.15);  color: var(--patina);  border: 1px solid rgba(90,122,109,0.35); }
+.badge--sky     { background: rgba(74,85,104,0.15);   color: var(--sky-slate); border: 1px solid rgba(74,85,104,0.35); }
+.badge--copper  { background: rgba(184,115,51,0.15);  color: var(--copper);  border: 1px solid rgba(184,115,51,0.35); }
+.badge--amber   { background: rgba(232,168,53,0.15);  color: var(--amber);   border: 1px solid rgba(232,168,53,0.35); }
+
+/* ============ DATA TABLE ============ */
+.data-table { width: 100%; border-collapse: collapse; }
+.data-table th {
+  font-family: var(--font-mono);
+  font-size: clamp(9px, 1vw, 12px);
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--brass);
+  text-align: left;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border-bright);
+  font-weight: 400;
+}
+.data-table td {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: clamp(12px, 1.4vw, 16px);
+  vertical-align: top;
+  line-height: 1.45;
+}
+.data-table tr:last-child td { border-bottom: none; }
+.data-table tr:hover td { background: rgba(196,148,61,0.05); }
+.td-mono { font-family: var(--font-mono); color: var(--brass); font-size: 0.9em; }
+.td-dim  { color: var(--ash); }
+
+/* ============ CODE BLOCK ============ */
+.code-block {
+  background: #05040302;
+  background: rgba(5,4,3,0.95);
+  border: 1px solid var(--gunmetal);
+  clip-path: polygon(6px 0%, calc(100% - 6px) 0%, 100% 6px, 100% calc(100% - 6px), calc(100% - 6px) 100%, 6px 100%, 0% calc(100% - 6px), 0% 6px);
+  padding: clamp(14px, 1.8vw, 22px);
+  font-family: var(--font-mono);
+  font-size: clamp(11px, 1.25vw, 15px);
+  color: var(--steam);
+  overflow: auto;
+  line-height: 1.65;
+}
+.code-block .kw  { color: var(--furnace); }
+.code-block .fn  { color: var(--brass); }
+.code-block .str { color: #8fc67a; }
+.code-block .cmt { color: #5a5248; font-style: italic; }
+.code-block .num { color: var(--amber); }
+.code-block .key { color: var(--copper); }
+
+/* ============ BULLET LIST ============ */
+.bullets { list-style: none; display: flex; flex-direction: column; gap: 11px; }
+.bullets li {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  font-size: clamp(14px, 1.7vw, 19px);
+  line-height: 1.5;
+}
+.bullets li::before {
+  content: '⬡';
+  color: var(--brass);
+  font-size: 0.65em;
+  margin-top: 0.35em;
+  flex-shrink: 0;
+}
+
+/* ============ STACK LAYER ============ */
+.layer {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: var(--surface);
+  border: 1px solid var(--gunmetal);
+  border-left: 3px solid var(--layer-color, var(--brass));
+  padding: 11px 18px;
+  clip-path: polygon(0 0, calc(100% - 6px) 0%, 100% 6px, 100% 100%, 6px 100%, 0 calc(100% - 6px));
+}
+
+.layer__label {
+  font-family: var(--font-mono);
+  font-size: clamp(9px, 1vw, 12px);
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--layer-color, var(--brass));
+  min-width: 88px;
+  flex-shrink: 0;
+}
+.layer__tech {
+  font-family: var(--font-body);
+  font-size: clamp(13px, 1.5vw, 17px);
+  color: var(--steam);
+}
+.layer__right {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+/* ============ MODEL CARD ============ */
+.model-card {
+  background: var(--surface2);
+  border: 1px solid var(--gunmetal);
+  clip-path: polygon(8px 0%, calc(100% - 8px) 0%, 100% 8px, 100% calc(100% - 8px), calc(100% - 8px) 100%, 8px 100%, 0% calc(100% - 8px), 0% 8px);
+  padding: clamp(18px, 2.2vw, 28px);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: inset 1px 1px 0 rgba(196,148,61,0.06), 0 4px 16px rgba(0,0,0,0.5);
+}
+.model-card::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: var(--model-color, var(--brass));
+  box-shadow: 0 0 12px var(--model-color, var(--brass));
+}
+.model-card__role {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--model-color, var(--brass));
+}
+.model-card__name {
+  font-family: var(--font-heading);
+  font-size: clamp(15px, 1.8vw, 22px);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--steam);
+}
+.model-card__body {
+  font-size: clamp(12px, 1.3vw, 15px);
+  color: var(--ash);
+  line-height: 1.5;
+}
+.model-card__tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+.model-card__tag {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ash);
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--gunmetal);
+  padding: 2px 8px;
+}
+
+/* ============ PHASE STRIP ============ */
+.phases { display: flex; width: 100%; }
+.phase {
+  flex: 1;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--gunmetal);
+  border-right: none;
+  position: relative;
+}
+.phase:first-child { border-radius: 2px 0 0 2px; }
+.phase:last-child  { border-right: 1px solid var(--gunmetal); border-radius: 0 2px 2px 0; }
+.phase::after {
+  content: '▶';
+  position: absolute;
+  right: -9px; top: 50%;
+  transform: translateY(-50%);
+  color: var(--brass);
+  font-size: 11px;
+  z-index: 1;
+}
+.phase:last-child::after { display: none; }
+.phase__step {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--brass);
+  margin-bottom: 5px;
+}
+.phase__title {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: clamp(12px, 1.4vw, 16px);
+  text-transform: uppercase;
+  color: var(--steam);
+  margin-bottom: 4px;
+}
+.phase__body { color: var(--ash); font-size: 11px; line-height: 1.4; }
+
+/* ============ GRID HELPERS ============ */
+.grid-3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; }
+.grid-2 { display: grid; grid-template-columns: repeat(2,1fr); gap: 14px; }
+
+/* ============ SPLIT LAYOUT ============ */
+.split {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: clamp(28px, 5vw, 72px);
+  padding-top: clamp(36px, 5vh, 56px);
+  padding-bottom: clamp(36px, 5vh, 56px);
+  height: 100dvh;
+}
+.split-l { flex: 1;   display: flex; flex-direction: column; justify-content: center; }
+.split-r { flex: 1.2; display: flex; flex-direction: column; justify-content: center; }
+
+/* ============ MERMAID ============ */
+.mermaid-wrap {
+  background: rgba(5,4,3,0.8);
+  border: 1px solid var(--gunmetal);
+  padding: 20px;
+  overflow: auto;
+}
+.mermaid .nodeLabel { color: var(--steam) !important; }
+
+/* ============ DECISION CARD ============ */
+.decision-card {
+  background: var(--surface);
+  border: 1px solid var(--gunmetal);
+  border-left: 2px solid var(--brass);
+  padding: 18px 20px;
+  clip-path: polygon(0 0, calc(100% - 6px) 0%, 100% 6px, 100% 100%, 0 100%);
+}
+.decision-card__num {
+  font-family: var(--font-display);
+  font-size: 40px;
+  font-weight: 700;
+  color: rgba(196,148,61,0.12);
+  line-height: 1;
+  margin-bottom: 6px;
+}
+.decision-card__title {
+  font-family: var(--font-heading);
+  font-size: clamp(14px, 1.6vw, 18px);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--brass);
+  margin-bottom: 8px;
+}
+.decision-card__body {
+  font-size: clamp(12px, 1.3vw, 15px);
+  color: var(--ash);
+  line-height: 1.5;
+}
+
+/* ============ NAVIGATION CHROME ============ */
+.deck-progress {
+  position: fixed; top: 0; left: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--furnace), var(--brass), var(--amber));
+  box-shadow: 0 0 8px rgba(196,148,61,0.5);
+  z-index: 100;
+  transition: width 0.3s ease;
+  pointer-events: none;
+}
+
+.deck-dots {
+  position: fixed;
+  right: clamp(10px, 1.8vw, 18px);
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  z-index: 100;
+  background: rgba(13,12,10,0.7);
+  padding: 8px 5px;
+  border: 1px solid var(--gunmetal);
+  clip-path: polygon(4px 0%, calc(100% - 4px) 0%, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 0% calc(100% - 4px), 0% 4px);
+  backdrop-filter: blur(4px);
+}
+.deck-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--gunmetal);
+  border: none; padding: 0;
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.2s, background 0.2s;
+  opacity: 0.5;
+}
+.deck-dot:hover { opacity: 0.8; }
+.deck-dot.active { opacity: 1; transform: scale(1.5); background: var(--brass); box-shadow: 0 0 5px rgba(196,148,61,0.6); }
+
+.deck-counter {
+  position: fixed;
+  bottom: clamp(12px, 2vh, 20px);
+  right: clamp(14px, 2vw, 26px);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ash);
+  z-index: 100;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+}
+
+.deck-hints {
+  position: fixed;
+  bottom: clamp(12px, 2vh, 20px);
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ash);
+  opacity: 0.5;
+  z-index: 100;
+  transition: opacity 0.5s ease;
+  white-space: nowrap;
+}
+.deck-hints.faded { opacity: 0; pointer-events: none; }
+
+/* ============ SCROLLABLE PROTECTION ============ */
+.scrollable { overflow-y: auto; -webkit-overflow-scrolling: touch; }
+
+/* Pipe connector decoration */
+.pipe-v {
+  width: 2px;
+  background: linear-gradient(180deg, var(--gunmetal), var(--brass), var(--gunmetal));
+  margin: 0 auto;
+  position: relative;
+}
+.pipe-v::before, .pipe-v::after {
+  content: '';
+  display: block;
+  width: 8px;
+  height: 4px;
+  background: var(--brass);
+  margin-left: -3px;
+}
+.pipe-v::before { margin-top: 0; }
+.pipe-v::after  { margin-top: auto; }
+
+/* ============ INLINE STAT BOX ============ */
+.stat-box {
+  text-align: center;
+  padding: 16px 20px;
+  background: var(--surface);
+  border: 1px solid var(--gunmetal);
+  clip-path: polygon(8px 0%, calc(100% - 8px) 0%, 100% 8px, 100% calc(100% - 8px), calc(100% - 8px) 100%, 8px 100%, 0% calc(100% - 8px), 0% 8px);
+}
+.stat-box__num {
+  font-family: var(--font-display);
+  font-size: clamp(32px, 5vw, 56px);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  line-height: 1;
+  margin-bottom: 6px;
+}
+.stat-box__label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--ash);
+  line-height: 1.3;
+}
+</style>
+</head>
+<body>
+<div class="deck">
+
+  <!-- ==================== SLIDE 1: TITLE ==================== -->
+  <section class="slide bg-furnace vignette">
+    <div class="smog-layer">
+      <div class="smog-blob" style="width:600px;height:400px;background:var(--furnace);left:-10%;top:30%;--smog-dur:38s;"></div>
+      <div class="smog-blob" style="width:500px;height:350px;background:var(--brass);right:-5%;top:10%;--smog-dur:45s;animation-delay:-12s;"></div>
+    </div>
+    <!-- Gear decoration -->
+    <svg class="gear-bg" style="width:380px;height:380px;right:-80px;bottom:-80px;--gear-dur:90s;" viewBox="0 0 100 100">
+      <text x="50" y="72" text-anchor="middle" font-size="80" fill="var(--brass)">⚙</text>
+    </svg>
+    <svg class="gear-bg gear-bg--reverse" style="width:200px;height:200px;left:30px;top:20px;--gear-dur:60s;opacity:0.035;" viewBox="0 0 100 100">
+      <text x="50" y="72" text-anchor="middle" font-size="80" fill="var(--brass)">⚙</text>
+    </svg>
+
+    <!-- Ember particles -->
+    <div class="ember" style="width:3px;height:3px;left:22%;bottom:8%;--ed:5s;--delay:0s;--drift:15px;"></div>
+    <div class="ember" style="width:2px;height:2px;left:38%;bottom:5%;--ed:7s;--delay:1.3s;--drift:-20px;"></div>
+    <div class="ember" style="width:4px;height:4px;left:51%;bottom:10%;--ed:4.5s;--delay:0.7s;--drift:10px;background:var(--furnace);"></div>
+    <div class="ember" style="width:2px;height:2px;left:67%;bottom:7%;--ed:6.5s;--delay:2.1s;--drift:-12px;"></div>
+    <div class="ember" style="width:3px;height:3px;left:80%;bottom:4%;--ed:5.5s;--delay:0.4s;--drift:18px;"></div>
+    <div class="ember" style="width:2px;height:2px;left:44%;bottom:3%;--ed:8s;--delay:1.9s;--drift:-8px;background:var(--copper);"></div>
+
+    <div class="corner corner--tl"></div>
+    <div class="corner corner--tr"></div>
+    <div class="corner corner--bl"></div>
+    <div class="corner corner--br"></div>
+
+    <div style="position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;text-align:center;">
+      <div class="reveal t-label" style="color:var(--brass);letter-spacing:0.3em;margin-bottom:20px;">Architecture Overview · 2026</div>
+      <div class="reveal t-display" style="color:var(--steam);background:linear-gradient(135deg,var(--steam) 0%,var(--amber) 40%,var(--copper) 70%,var(--steam) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:16px;">SAGA</div>
+      <div class="reveal" style="margin-bottom:20px;">
+        <div class="brass-rule" style="width:280px;"><div class="brass-rule-dot"></div><div class="brass-rule-dot"></div><div class="brass-rule-dot"></div></div>
+      </div>
+      <div class="reveal t-body" style="color:var(--ash);max-width:580px;font-style:italic;margin-bottom:32px;">AI-powered tabletop RPG platform — real-time multiplayer with a Claude-driven Game Master</div>
+      <div class="reveal" style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;">
+        <span class="badge badge--brass">Next.js 16</span>
+        <span class="badge badge--furnace">Claude Sonnet 4.6</span>
+        <span class="badge badge--sky">Supabase</span>
+        <span class="badge badge--copper">Gemini Images</span>
+        <span class="badge badge--patina">Deno Edge</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== SLIDE 2: WHAT IS SAGA ==================== -->
+  <section class="slide bg-foundry" style="padding-right:clamp(40px,14vw,220px);">
+    <div class="corner corner--tr"></div>
+    <svg class="gear-bg" style="width:280px;height:280px;right:-40px;top:50%;transform:translateY(-50%) rotate(0deg);--gear-dur:70s;" viewBox="0 0 100 100">
+      <text x="50" y="72" text-anchor="middle" font-size="80" fill="var(--brass)">⚙</text>
+    </svg>
+
+    <div class="reveal t-label" style="margin-bottom:14px;">The Vision</div>
+    <div class="reveal t-heading" style="max-width:680px;margin-bottom:18px;">
+      A living, breathing<br><span class="brass">RPG world</span><br>powered by AI
+    </div>
+    <div class="reveal hr-brass" style="max-width:500px;margin-bottom:20px;"></div>
+    <ul class="bullets reveal" style="max-width:600px;">
+      <li>1–6 players in a shared game room, synchronized via Supabase Realtime</li>
+      <li>Claude Sonnet 4.6 acts as the Game Master — narrating, adjudicating, remembering</li>
+      <li>Worlds generated on demand from a text description using Claude Haiku 4.5</li>
+      <li>Scene imagery generated by Gemini as the story unfolds</li>
+      <li>d20-based combat · HP-only tracking · dark fantasy theme</li>
+    </ul>
+    <div class="reveal" style="margin-top:24px;">
+      <span class="t-label">Deploy stack: </span>
+      <span class="t-label" style="color:var(--steam);">Vercel (Next.js) + Supabase (DB + Edge) + Anthropic API + Gemini API</span>
+    </div>
+  </section>
+
+  <!-- ==================== SLIDE 3: TECH STACK ==================== -->
+  <section class="slide bg-deep" style="padding-top:clamp(32px,4vh,48px);padding-bottom:clamp(32px,4vh,48px);">
+    <div class="corner corner--tl"></div>
+    <div class="corner corner--br"></div>
+
+    <div class="reveal" style="margin-bottom:22px;">
+      <div class="t-label" style="margin-bottom:8px;">Foundation</div>
+      <div class="t-heading">Full-Stack Architecture</div>
+    </div>
+
+    <div class="reveal" style="display:flex;flex-direction:column;gap:7px;">
+      <div class="layer" style="--layer-color:var(--sky-slate);">
+        <span class="layer__label">Frontend</span>
+        <span class="layer__tech">Next.js 16 (App Router) · React 19 · TypeScript 5</span>
+        <div class="layer__right"><span class="badge badge--sky">Vercel</span></div>
+      </div>
+      <div class="layer" style="--layer-color:#8b7bf0;">
+        <span class="layer__label">UI</span>
+        <span class="layer__tech">Tailwind CSS 4 · shadcn/ui · Radix UI · Lucide Icons</span>
+        <div class="layer__right"><span class="badge" style="background:rgba(139,123,240,0.12);color:#8b7bf0;border:1px solid rgba(139,123,240,0.3);font-family:var(--font-mono);font-size:11px;padding:3px 10px;">Design System</span></div>
+      </div>
+      <div class="layer" style="--layer-color:var(--patina);">
+        <span class="layer__label">Database</span>
+        <span class="layer__tech">Supabase Postgres · Realtime Broadcast · Supabase Auth</span>
+        <div class="layer__right"><span class="badge badge--patina">Magic Link</span><span class="badge badge--patina">OAuth</span></div>
+      </div>
+      <div class="layer" style="--layer-color:var(--copper);">
+        <span class="layer__label">Edge Runtime</span>
+        <span class="layer__tech">Deno · Supabase Edge Functions · WebSocket server</span>
+        <div class="layer__right"><span class="badge badge--copper">Streaming</span></div>
+      </div>
+      <div class="layer" style="--layer-color:var(--furnace);">
+        <span class="layer__label">AI Layer</span>
+        <span class="layer__tech">Anthropic SDK · Claude Sonnet 4.6 · Claude Haiku 4.5 · Gemini 3 Pro</span>
+        <div class="layer__right"><span class="badge badge--furnace">3 Models</span></div>
+      </div>
+      <div class="layer" style="--layer-color:var(--ash);">
+        <span class="layer__label">Testing</span>
+        <span class="layer__tech">Vitest 4 · Edge runtime mocks · Supabase mocks</span>
+        <div class="layer__right"><span class="badge" style="background:rgba(154,138,122,0.1);color:var(--ash);border:1px solid rgba(154,138,122,0.25);font-family:var(--font-mono);font-size:11px;padding:3px 10px;">Yarn</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== SLIDE 4: DIVIDER — AI ENGINE ==================== -->
+  <section class="slide slide--divider bg-divider vignette" style="align-items:flex-start;text-align:left;">
+    <svg class="gear-bg" style="width:420px;height:420px;right:-60px;bottom:-60px;--gear-dur:80s;opacity:0.06;" viewBox="0 0 100 100">
+      <text x="50" y="72" text-anchor="middle" font-size="80" fill="var(--brass)">⚙</text>
+    </svg>
+    <svg class="gear-bg gear-bg--reverse" style="width:260px;height:260px;right:200px;bottom:80px;--gear-dur:55s;opacity:0.03;" viewBox="0 0 100 100">
+      <text x="50" y="72" text-anchor="middle" font-size="80" fill="var(--brass)">⚙</text>
+    </svg>
+    <div class="reveal t-label" style="color:var(--brass);letter-spacing:0.25em;margin-bottom:16px;">Chapter I</div>
+    <div class="reveal t-display" style="background:linear-gradient(120deg,var(--steam),var(--brass));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:16px;">THE AI<br>ENGINE</div>
+    <div class="reveal" style="margin-bottom:14px;"><div class="brass-rule" style="width:200px;"><div class="brass-rule-dot"></div></div></div>
+    <div class="reveal t-label" style="color:var(--ash);letter-spacing:0.15em;">Three specialized models, each with a distinct role</div>
+  </section>
+
+  <!-- ==================== SLIDE 5: THREE AI MODELS ==================== -->
+  <section class="slide bg-copper" style="padding-top:clamp(32px,4vh,48px);padding-bottom:clamp(32px,4vh,48px);">
+    <div class="corner corner--tr"></div>
+
+    <div class="reveal" style="margin-bottom:20px;">
+      <div class="t-label" style="margin-bottom:8px;">AI Architecture</div>
+      <div class="t-heading">Three Models, One World</div>
+    </div>
+
+    <div class="grid-3 reveal">
+      <div class="model-card" style="--model-color:var(--furnace);">
+        <span class="model-card__role">Narration · Game Master</span>
+        <div class="model-card__name">Claude Sonnet 4.6</div>
+        <div class="model-card__body">Drives the entire game session. Streams narration in real-time, maintains story continuity via full message history, adjudicates d20 rolls, and reacts to all player actions collectively.</div>
+        <div class="model-card__tags">
+          <span class="model-card__tag">Token streaming</span>
+          <span class="model-card__tag">Prompt caching</span>
+          <span class="model-card__tag">Full msg history</span>
+        </div>
+      </div>
+
+      <div class="model-card" style="--model-color:var(--brass);">
+        <span class="model-card__role">World Generation</span>
+        <div class="model-card__name">Claude Haiku 4.5</div>
+        <div class="model-card__body">Generates world lore from a host's text description — geography, factions, tone, opening situation, and story hooks. Section validation with up to 3 retries on missing content.</div>
+        <div class="model-card__tags">
+          <span class="model-card__tag">One-shot gen</span>
+          <span class="model-card__tag">Section validation</span>
+          <span class="model-card__tag">Fast + cost-efficient</span>
+        </div>
+      </div>
+
+      <div class="model-card" style="--model-color:var(--sky-slate);">
+        <span class="model-card__role">Image Generation</span>
+        <div class="model-card__name">Gemini 3 Pro</div>
+        <div class="model-card__body">Generates cover art, world maps, and in-session scene images in parallel. Images uploaded to Supabase Storage and broadcast to all clients via Realtime.</div>
+        <div class="model-card__tags">
+          <span class="model-card__tag">Cover + Map</span>
+          <span class="model-card__tag">Scene images</span>
+          <span class="model-card__tag">Parallel gen</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="reveal" style="margin-top:16px;padding:12px 18px;background:rgba(196,148,61,0.07);border:1px solid rgba(196,148,61,0.2);border-left:3px solid var(--brass);">
+      <span class="t-label" style="color:var(--brass);margin-right:12px;">⚙ Optimization:</span>
+      <span class="t-body" style="font-size:clamp(13px,1.5vw,17px);color:var(--ash);">Prompt caching applied on every narration round — system prompt anchored, last history message cache-marked — significant cost reduction at scale</span>
+    </div>
+  </section>
+
+  <!-- ==================== SLIDE 6: DIVIDER — GAME SESSION ==================== -->
+  <section class="slide bg-divider vignette" style="align-items:flex-end;text-align:right;">
+    <svg class="gear-bg" style="width:380px;height:380px;left:-60px;top:50%;transform:translateY(-50%);--gear-dur:75s;opacity:0.06;" viewBox="0 0 100 100">
+      <text x="50" y="72" text-anchor="middle" font-size="80" fill="var(--furnace)">⚙</text>
+    </svg>
+    <div class="reveal t-label" style="color:var(--furnace);letter-spacing:0.25em;margin-bottom:16px;">Chapter II</div>
+    <div class="reveal t-display" style="background:linear-gradient(120deg,var(--steam),var(--furnace));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:16px;">THE GAME<br>SESSION</div>
+    <div class="reveal" style="margin-bottom:14px;"><div class="brass-rule" style="width:200px;margin-left:auto;"><div class="brass-rule-dot"></div></div></div>
+    <div class="reveal t-label" style="color:var(--ash);letter-spacing:0.15em;">WebSocket orchestration, streaming, and real-time broadcast</div>
+  </section>
+
+  <!-- ==================== SLIDE 7: WEBSOCKET ARCHITECTURE ==================== -->
+  <section class="slide split bg-foundry">
+    <div class="corner corner--tl"></div>
+    <div class="split-l reveal">
+      <div class="t-label" style="margin-bottom:12px;">game-session / index.ts</div>
+      <div class="t-heading" style="margin-bottom:18px;">WebSocket<br><span class="brass">Server</span></div>
+      <ul class="bullets" style="font-size:clamp(13px,1.5vw,16px);">
+        <li>Deno runtime on Supabase Edge Functions</li>
+        <li>JWT auth via <code style="color:var(--brass);font-family:var(--font-mono);font-size:0.88em">Sec-WebSocket-Protocol</code> header</li>
+        <li>Optimistic lock: <code style="color:var(--brass);font-family:var(--font-mono);font-size:0.88em">round_in_progress</code> flag prevents duplicate opening narrations</li>
+        <li>Per-campaign debounce timer batches player actions before calling Claude</li>
+        <li>Streams tokens in ~100ms batches to all connected clients</li>
+      </ul>
+      <div style="margin-top:18px;display:flex;gap:6px;flex-wrap:wrap;">
+        <span class="badge badge--copper">state.ts</span>
+        <span class="badge badge--copper">prompt.ts</span>
+        <span class="badge badge--copper">history.ts</span>
+        <span class="badge badge--copper">debounce.ts</span>
+      </div>
+    </div>
+
+    <div class="split-r reveal">
+      <div class="mermaid-wrap scrollable" style="max-height:72vh;">
+        <div class="mermaid">
+flowchart TD
+    C1["Player 1 connects\n(wss://)"] --> AUTH["Verify JWT\n(SUPABASE_ANON_KEY)"]
+    C2["Player 2 connects"] --> AUTH
+    AUTH --> LOCK{"round_in_progress\n= false?"}
+    LOCK -->|"Claim slot"| FIRST["Opening Narration\n(Claude Sonnet 4.6)"]
+    LOCK -->|"Already claimed"| STREAM
+    FIRST --> STREAM["Stream chunks\n→ Supabase Realtime"]
+    STREAM --> SAVE["Save to messages table"]
+    SAVE --> IDLE["Waiting for\nplayer actions"]
+    IDLE --> ACTION["Player submits action"]
+    ACTION --> DEBOUNCE["Debounce timer\n(batch actions)"]
+    DEBOUNCE --> HISTORY["Rebuild full\nmessage history"]
+    HISTORY --> CLAUDE["Call Claude API\n(system prompt + history)"]
+    CLAUDE --> STREAM
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== SLIDE 8: CONTEXT ASSEMBLY (MEMORY) ==================== -->
+  <section class="slide bg-deep" style="padding-right:clamp(40px,14vw,200px);">
+    <div class="corner corner--br"></div>
+
+    <div class="reveal" style="margin-bottom:20px;">
+      <div class="t-label" style="margin-bottom:8px;">How Claude Remembers</div>
+      <div class="t-heading">Context Assembly<br><span class="brass">Every Round</span></div>
+    </div>
+
+    <div class="reveal" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:18px;">
+      <div class="plate plate--brass" style="padding:18px 20px;">
+        <div class="t-label" style="color:var(--brass);margin-bottom:10px;">① System Prompt</div>
+        <div class="t-body" style="font-size:clamp(12px,1.4vw,15px);color:var(--ash);line-height:1.5;margin-bottom:10px;">Built fresh on each call from <code style="color:var(--brass);font-family:var(--font-mono);font-size:0.9em">worlds.world_content</code> and the <code style="color:var(--brass);font-family:var(--font-mono);font-size:0.9em">players</code> table. Contains world lore, player characters, narration rules, and output format.</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <span class="badge badge--brass">worlds table</span>
+          <span class="badge badge--brass">players table</span>
+        </div>
+      </div>
+      <div class="plate plate--copper" style="padding:18px 20px;">
+        <div class="t-label" style="color:var(--copper);margin-bottom:10px;">② Message History</div>
+        <div class="t-body" style="font-size:clamp(12px,1.4vw,15px);color:var(--ash);line-height:1.5;margin-bottom:10px;">Full conversation history loaded from the <code style="color:var(--brass);font-family:var(--font-mono);font-size:0.9em">messages</code> table and rebuilt into Anthropic <code style="color:var(--brass);font-family:var(--font-mono);font-size:0.9em">user / assistant</code> turns by <code style="color:var(--brass);font-family:var(--font-mono);font-size:0.9em">history.ts</code>.</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <span class="badge badge--copper">messages table</span>
+          <span class="badge badge--copper">history.ts</span>
+        </div>
+      </div>
+      <div class="plate plate--furnace" style="padding:18px 20px;">
+        <div class="t-label" style="color:var(--furnace);margin-bottom:10px;">③ Prompt Caching</div>
+        <div class="t-body" style="font-size:clamp(12px,1.4vw,15px);color:var(--ash);line-height:1.5;margin-bottom:10px;">System prompt and last history message are cache-anchored on the Anthropic API call. The model reads from cache on repeated rounds — cost and latency reduction.</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <span class="badge badge--furnace">Anthropic cache</span>
+          <span class="badge badge--furnace">Per-round</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="reveal">
+      <div class="t-label" style="margin-bottom:10px;">History reconstruction — history.ts</div>
+      <div class="code-block" style="max-height:28vh;">
+<span class="cmt">// Opening narration → wrapped in first-call JSON so model stays in prose mode</span>
+history.push({ <span class="key">role</span>: <span class="str">'user'</span>,      <span class="key">content</span>: buildFirstCallInput() })
+history.push({ <span class="key">role</span>: <span class="str">'assistant'</span>, <span class="key">content</span>: JSON.stringify({ narration: openingParts, <span class="cmt">...</span> }) })
+
+<span class="cmt">// Subsequent rounds: action batches → user, narration → assistant</span>
+history.push({ <span class="key">role</span>: <span class="str">'user'</span>,      <span class="key">content</span>: JSON.stringify(actionBatch) })
+history.push({ <span class="key">role</span>: <span class="str">'assistant'</span>, <span class="key">content</span>: narrationText })
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== SLIDE 9: STREAMING ARCHITECTURE ==================== -->
+  <section class="slide bg-foundry" style="align-items:center;text-align:left;padding-top:clamp(32px,4vh,50px);padding-bottom:clamp(32px,4vh,50px);">
+    <div class="corner corner--tl"></div>
+
+    <div class="reveal" style="margin-bottom:20px;width:100%;">
+      <div class="t-label" style="margin-bottom:8px;">Real-time Pipeline</div>
+      <div class="t-heading">Streaming Narration</div>
+    </div>
+
+    <div class="reveal" style="display:grid;grid-template-columns:1fr 44px 1fr 44px 1fr 44px 1fr;align-items:center;gap:0;width:100%;margin-bottom:20px;">
+      <div class="plate plate--furnace" style="padding:14px 12px;text-align:center;">
+        <div style="font-size:20px;margin-bottom:6px;">🧠</div>
+        <div style="font-family:var(--font-heading);font-weight:700;font-size:clamp(12px,1.4vw,16px);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">Claude API</div>
+        <div style="font-size:11px;color:var(--ash);">SSE stream</div>
+      </div>
+      <div style="text-align:center;color:var(--brass);font-size:18px;">→</div>
+      <div class="plate plate--brass" style="padding:14px 12px;text-align:center;">
+        <div style="font-size:20px;margin-bottom:6px;">⚙️</div>
+        <div style="font-family:var(--font-heading);font-weight:700;font-size:clamp(12px,1.4vw,16px);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">Edge Function</div>
+        <div style="font-size:11px;color:var(--ash);">Buffer ~100ms</div>
+      </div>
+      <div style="text-align:center;color:var(--brass);font-size:18px;">→</div>
+      <div class="plate plate--patina" style="padding:14px 12px;text-align:center;">
+        <div style="font-size:20px;margin-bottom:6px;">📡</div>
+        <div style="font-family:var(--font-heading);font-weight:700;font-size:clamp(12px,1.4vw,16px);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">Realtime</div>
+        <div style="font-size:11px;color:var(--ash);">Broadcast channel</div>
+      </div>
+      <div style="text-align:center;color:var(--brass);font-size:18px;">→</div>
+      <div class="plate" style="padding:14px 12px;text-align:center;">
+        <div style="font-size:20px;margin-bottom:6px;">🖥️</div>
+        <div style="font-family:var(--font-heading);font-weight:700;font-size:clamp(12px,1.4vw,16px);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">All Clients</div>
+        <div style="font-size:11px;color:var(--ash);">Live token feed</div>
+      </div>
+    </div>
+
+    <div class="reveal" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;width:100%;">
+      <div style="padding:14px 16px;background:var(--surface);border:1px solid var(--gunmetal);border-left:2px solid var(--brass);">
+        <div class="t-label" style="color:var(--brass);margin-bottom:7px;">On stream end</div>
+        <div class="t-body" style="font-size:clamp(12px,1.3vw,15px);color:var(--ash);line-height:1.5;">Full narration persisted to <code style="color:var(--brass);font-family:var(--font-mono);font-size:0.9em">messages</code> table. Stream flag cleared. Campaign state updated.</div>
+      </div>
+      <div style="padding:14px 16px;background:var(--surface);border:1px solid var(--gunmetal);border-left:2px solid var(--copper);">
+        <div class="t-label" style="color:var(--copper);margin-bottom:7px;">Channel naming</div>
+        <div class="t-mono" style="font-size:12px;color:var(--ash);line-height:1.8;">campaign:[id]:narration<br>campaign:[id]:messages<br>world:[id]</div>
+      </div>
+      <div style="padding:14px 16px;background:var(--surface);border:1px solid var(--gunmetal);border-left:2px solid var(--patina);">
+        <div class="t-label" style="color:var(--patina);margin-bottom:7px;">Why Realtime?</div>
+        <div class="t-body" style="font-size:clamp(12px,1.3vw,15px);color:var(--ash);line-height:1.5;">Bypasses Vercel's 30s serverless timeout. Long-running Claude streams need a persistent broadcast layer.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== SLIDE 10: DIVIDER — CAMPAIGN CREATION ==================== -->
+  <section class="slide bg-divider vignette" style="align-items:flex-start;">
+    <svg class="gear-bg" style="width:350px;height:350px;right:-40px;top:50%;transform:translateY(-50%);--gear-dur:65s;opacity:0.06;" viewBox="0 0 100 100">
+      <text x="50" y="72" text-anchor="middle" font-size="80" fill="var(--brass)">⚙</text>
+    </svg>
+    <div class="reveal t-label" style="color:var(--brass);letter-spacing:0.25em;margin-bottom:16px;">Chapter III</div>
+    <div class="reveal t-display" style="background:linear-gradient(120deg,var(--steam),var(--amber));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:16px;">CAMPAIGN<br>CREATION</div>
+    <div class="reveal" style="margin-bottom:14px;"><div class="brass-rule" style="width:200px;"><div class="brass-rule-dot"></div></div></div>
+    <div class="reveal t-label" style="color:var(--ash);letter-spacing:0.15em;">From text description to a fully realized world</div>
+  </section>
+
+  <!-- ==================== SLIDE 11: WORLD GENERATION FLOW ==================== -->
+  <section class="slide bg-foundry" style="padding-top:clamp(32px,4vh,48px);padding-bottom:clamp(32px,4vh,48px);">
+    <div class="corner corner--tl"></div>
+    <div class="corner corner--br"></div>
+
+    <div class="reveal" style="margin-bottom:18px;">
+      <div class="t-label" style="margin-bottom:8px;">generate-world · generate-image</div>
+      <div class="t-heading">World Generation Pipeline</div>
+    </div>
+
+    <div class="phases reveal" style="margin-bottom:18px;">
+      <div class="phase">
+        <div class="phase__step">Step 1</div>
+        <div class="phase__title">Host submits</div>
+        <div class="phase__body">POST /api/campaign creates worlds row with status: pending</div>
+      </div>
+      <div class="phase">
+        <div class="phase__step">Step 2</div>
+        <div class="phase__title">Webhook fires</div>
+        <div class="phase__body">Supabase webhook triggers generate-world edge function</div>
+      </div>
+      <div class="phase">
+        <div class="phase__step">Step 3</div>
+        <div class="phase__title">Claude Haiku</div>
+        <div class="phase__body">Generates world lore + classes. Up to 3 retries on missing sections</div>
+      </div>
+      <div class="phase">
+        <div class="phase__step">Step 4</div>
+        <div class="phase__title">Parse &amp; Save</div>
+        <div class="phase__body">World content + classes (JSONB) saved to worlds table</div>
+      </div>
+      <div class="phase">
+        <div class="phase__step">Step 5</div>
+        <div class="phase__title">Images (∥)</div>
+        <div class="phase__body">Gemini generates cover + map in parallel. Uploaded to Supabase Storage</div>
+      </div>
+    </div>
+
+    <div class="grid-3 reveal">
+      <div class="plate plate--brass" style="padding:16px 18px;">
+        <div class="t-label" style="color:var(--brass);margin-bottom:8px;">World Content</div>
+        <div class="t-body" style="font-size:clamp(12px,1.4vw,15px);color:var(--ash);line-height:1.5;">Stored in <code style="color:var(--brass);font-family:var(--font-mono);font-size:0.9em">worlds.world_content</code>. Injected into the GM system prompt on every narration round.</div>
+      </div>
+      <div class="plate plate--copper" style="padding:16px 18px;">
+        <div class="t-label" style="color:var(--copper);margin-bottom:8px;">Classes (JSONB)</div>
+        <div class="t-body" style="font-size:clamp(12px,1.4vw,15px);color:var(--ash);line-height:1.5;">Parsed from world lore and stored as <code style="color:var(--brass);font-family:var(--font-mono);font-size:0.9em">worlds.classes</code> — used in lobby character selection UI.</div>
+      </div>
+      <div class="plate plate--patina" style="padding:16px 18px;">
+        <div class="t-label" style="color:var(--patina);margin-bottom:8px;">Live Progress</div>
+        <div class="t-body" style="font-size:clamp(12px,1.4vw,15px);color:var(--ash);line-height:1.5;">All generation steps broadcast on <code style="color:var(--brass);font-family:var(--font-mono);font-size:0.9em">world:[id]</code> Realtime channel. Host sees live progress in the lobby.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== SLIDE 12: DIVIDER — DATA LAYER ==================== -->
+  <section class="slide bg-divider vignette" style="align-items:flex-end;text-align:right;">
+    <svg class="gear-bg" style="width:300px;height:300px;left:-40px;bottom:-40px;--gear-dur:70s;opacity:0.06;" viewBox="0 0 100 100">
+      <text x="50" y="72" text-anchor="middle" font-size="80" fill="var(--sky-slate)">⚙</text>
+    </svg>
+    <div class="reveal t-label" style="color:var(--sky-slate);letter-spacing:0.25em;margin-bottom:16px;">Chapter IV</div>
+    <div class="reveal t-display" style="background:linear-gradient(120deg,var(--steam),var(--sky-slate));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:16px;">THE DATA<br>LAYER</div>
+    <div class="reveal" style="margin-bottom:14px;"><div class="brass-rule" style="width:200px;margin-left:auto;"><div class="brass-rule-dot"></div></div></div>
+    <div class="reveal t-label" style="color:var(--ash);letter-spacing:0.15em;">Database schema and persistent state</div>
+  </section>
+
+  <!-- ==================== SLIDE 13: DATABASE SCHEMA ==================== -->
+  <section class="slide bg-deep" style="padding-top:clamp(30px,4vh,46px);padding-bottom:clamp(30px,4vh,46px);">
+    <div class="corner corner--tr"></div>
+
+    <div class="reveal" style="margin-bottom:18px;">
+      <div class="t-label" style="margin-bottom:8px;">Supabase Postgres · 019 migrations</div>
+      <div class="t-heading">Database Schema</div>
+    </div>
+
+    <div class="plate scrollable reveal" style="max-height:66vh;">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Table</th>
+            <th>Key Columns</th>
+            <th>Purpose</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="td-mono">campaigns</td>
+            <td><span class="t-mono" style="font-size:0.85em;color:var(--ash);">slug, status, round_in_progress, world_id, host_user_id</span></td>
+            <td>Campaign metadata + race-safe first-call lock</td>
+          </tr>
+          <tr>
+            <td class="td-mono">worlds</td>
+            <td><span class="t-mono" style="font-size:0.85em;color:var(--ash);">world_content (text), classes (JSONB), status</span></td>
+            <td>Generated world lore + available character classes</td>
+          </tr>
+          <tr>
+            <td class="td-mono">players</td>
+            <td><span class="t-mono" style="font-size:0.85em;color:var(--ash);">user_id, campaign_id, character_name, character_class, character_backstory, hp</span></td>
+            <td>Per-campaign player records linked to auth.users</td>
+          </tr>
+          <tr>
+            <td class="td-mono">messages</td>
+            <td><span class="t-mono" style="font-size:0.85em;color:var(--ash);">campaign_id, player_id (null = AI), type, content, created_at</span></td>
+            <td>Full game log — actions + narration — source of truth for history</td>
+          </tr>
+          <tr>
+            <td class="td-mono">images</td>
+            <td><span class="t-mono" style="font-size:0.85em;color:var(--ash);">campaign_id, type, storage_path, status</span></td>
+            <td>Image gen tracking — cover, map, portrait, scene</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="reveal" style="margin-top:14px;padding:10px 16px;background:rgba(196,148,61,0.06);border:1px solid rgba(196,148,61,0.15);border-left:2px solid var(--brass);display:flex;align-items:center;gap:12px;">
+      <span class="t-label" style="color:var(--brass);">⚙ Row Level Security</span>
+      <span class="t-body" style="font-size:clamp(12px,1.4vw,15px);color:var(--ash);">All tables have RLS enabled — campaign members can read, only host can write, players restricted to own messages</span>
+    </div>
+  </section>
+
+  <!-- ==================== SLIDE 14: APP STRUCTURE ==================== -->
+  <section class="slide split bg-foundry">
+    <div class="corner corner--tl"></div>
+    <div class="corner corner--br"></div>
+
+    <div class="split-l reveal">
+      <div class="t-label" style="margin-bottom:12px;">Next.js App Router</div>
+      <div class="t-heading" style="margin-bottom:20px;">Routes &amp;<br><span class="brass">Components</span></div>
+      <div class="grid-2" style="gap:10px;">
+        <div class="plate plate--sky" style="padding:14px 16px;--plate-border:var(--sky-slate);">
+          <div style="font-family:var(--font-heading);font-weight:700;font-size:14px;text-transform:uppercase;color:var(--sky-slate);margin-bottom:6px;">campaign/new/</div>
+          <div class="t-body" style="font-size:13px;color:var(--ash);">Campaign creation form</div>
+        </div>
+        <div class="plate plate--brass" style="padding:14px 16px;">
+          <div style="font-family:var(--font-heading);font-weight:700;font-size:14px;text-transform:uppercase;color:var(--brass);margin-bottom:6px;">[slug]/lobby/</div>
+          <div class="t-body" style="font-size:13px;color:var(--ash);">Player join + character creation + world gen progress</div>
+        </div>
+        <div class="plate plate--furnace" style="padding:14px 16px;">
+          <div style="font-family:var(--font-heading);font-weight:700;font-size:14px;text-transform:uppercase;color:var(--furnace);margin-bottom:6px;">[slug]/game/</div>
+          <div class="t-body" style="font-size:13px;color:var(--ash);">GameClient.tsx — WebSocket + live narration + player input</div>
+        </div>
+        <div class="plate plate--patina" style="padding:14px 16px;">
+          <div style="font-family:var(--font-heading);font-weight:700;font-size:14px;text-transform:uppercase;color:var(--patina);margin-bottom:6px;">[slug]/summary/</div>
+          <div class="t-body" style="font-size:13px;color:var(--ash);">Post-session recap</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="split-r reveal">
+      <div class="t-label" style="margin-bottom:10px;">Supabase Edge Functions</div>
+      <div class="code-block scrollable" style="max-height:68vh;font-size:clamp(11px,1.2vw,14px);">
+<span class="cmt">supabase/functions/</span>
+<span class="fn">├── game-session/</span>       <span class="cmt"># WS server (Deno)</span>
+<span class="cmt">│   ├── index.ts</span>        <span class="cmt"># Handler + auth + rounds</span>
+<span class="cmt">│   ├── state.ts</span>        <span class="cmt"># In-memory connections</span>
+<span class="cmt">│   ├── prompt.ts</span>       <span class="cmt"># System prompt builder</span>
+<span class="cmt">│   ├── history.ts</span>      <span class="cmt"># Message history rebuild</span>
+<span class="cmt">│   ├── anthropic.ts</span>    <span class="cmt"># Claude response parsing</span>
+<span class="cmt">│   ├── stream.ts</span>       <span class="cmt"># Stream consumption</span>
+<span class="cmt">│   ├── ws-auth.ts</span>      <span class="cmt"># JWT extraction</span>
+<span class="cmt">│   └── debounce.ts</span>     <span class="cmt"># Action batching</span>
+<span class="fn">├── generate-world/</span>     <span class="cmt"># World gen</span>
+<span class="cmt">│   ├── index.ts</span>
+<span class="cmt">│   └── world-content.ts</span><span class="cmt"># Section validation</span>
+<span class="fn">└── generate-image/</span>     <span class="cmt"># Gemini images</span>
+    <span class="cmt">└── index.ts</span>        <span class="cmt"># Gen + Storage upload</span>
+
+<span class="cmt">lib/</span>
+<span class="fn">├── realtime-broadcast.ts</span>
+<span class="fn">├── supabase/</span>
+<span class="cmt">│   ├── server.ts</span>       <span class="cmt"># Cookie-based (RSC)</span>
+<span class="cmt">│   └── client.ts</span>       <span class="cmt"># Browser client</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== SLIDE 15: KEY DESIGN DECISIONS ==================== -->
+  <section class="slide bg-deep" style="padding-top:clamp(32px,4vh,48px);padding-bottom:clamp(32px,4vh,48px);">
+    <div class="corner corner--tl"></div>
+    <div class="corner corner--br"></div>
+
+    <div class="reveal" style="margin-bottom:22px;">
+      <div class="t-label" style="margin-bottom:8px;">Architecture</div>
+      <div class="t-heading">Key Design Decisions</div>
+    </div>
+
+    <div class="decision-grid reveal" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div class="decision-card">
+        <div class="decision-card__num">01</div>
+        <div class="decision-card__title">Deno Edge over Next.js API Routes</div>
+        <div class="decision-card__body">Game session lives in a Deno WebSocket server on Supabase Edge — bypasses Vercel's 30s serverless timeout, scales without cold-start issues for active connections.</div>
+      </div>
+      <div class="decision-card">
+        <div class="decision-card__num">02</div>
+        <div class="decision-card__title">Optimistic Race Guard</div>
+        <div class="decision-card__body"><code style="color:var(--brass);font-family:var(--font-mono);font-size:0.9em">round_in_progress</code> flag prevents duplicate opening narrations when multiple players connect simultaneously to a fresh campaign.</div>
+      </div>
+      <div class="decision-card">
+        <div class="decision-card__num">03</div>
+        <div class="decision-card__title">Messages Table as Memory</div>
+        <div class="decision-card__body">The full game history in the <code style="color:var(--brass);font-family:var(--font-mono);font-size:0.9em">messages</code> table IS the AI's memory. Rebuilt into Anthropic conversation format on every round — no separate memory store needed.</div>
+      </div>
+      <div class="decision-card">
+        <div class="decision-card__num">04</div>
+        <div class="decision-card__title">Debounced Action Batching</div>
+        <div class="decision-card__body">Player messages queued and debounced before calling Claude. Multiple players typing simultaneously produce a single coherent narration round, not fragmented responses.</div>
+      </div>
+      <div class="decision-card">
+        <div class="decision-card__num">05</div>
+        <div class="decision-card__title">Prompt Caching</div>
+        <div class="decision-card__body">System prompt and last history message cache-anchored on every Claude call. With long campaigns, this significantly reduces token cost and narration latency.</div>
+      </div>
+      <div class="decision-card">
+        <div class="decision-card__num">06</div>
+        <div class="decision-card__title">Magic Link Auth via Supabase</div>
+        <div class="decision-card__body">Frictionless onboarding — no passwords. JWT passed via WebSocket protocol header for edge function auth where HTTP cookies aren't accessible in Deno.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== SLIDE 16: SUMMARY ==================== -->
+  <section class="slide bg-furnace vignette" style="align-items:center;text-align:center;">
+    <div class="smog-layer">
+      <div class="smog-blob" style="width:500px;height:350px;background:var(--furnace);right:-10%;bottom:0%;--smog-dur:40s;"></div>
+      <div class="smog-blob" style="width:400px;height:300px;background:var(--brass);left:-5%;top:10%;--smog-dur:48s;animation-delay:-15s;"></div>
+    </div>
+    <svg class="gear-bg" style="width:340px;height:340px;right:-50px;bottom:-50px;--gear-dur:85s;opacity:0.05;" viewBox="0 0 100 100">
+      <text x="50" y="72" text-anchor="middle" font-size="80" fill="var(--brass)">⚙</text>
+    </svg>
+    <div class="corner corner--tl"></div>
+    <div class="corner corner--tr"></div>
+    <div class="corner corner--bl"></div>
+    <div class="corner corner--br"></div>
+
+    <!-- Embers -->
+    <div class="ember" style="width:3px;height:3px;left:18%;bottom:8%;--ed:5s;--delay:0s;--drift:12px;"></div>
+    <div class="ember" style="width:2px;height:2px;left:33%;bottom:5%;--ed:7s;--delay:1.4s;--drift:-18px;"></div>
+    <div class="ember" style="width:4px;height:4px;left:55%;bottom:9%;--ed:4.5s;--delay:0.8s;--drift:8px;background:var(--furnace);"></div>
+    <div class="ember" style="width:2px;height:2px;left:70%;bottom:6%;--ed:6.5s;--delay:2.2s;--drift:-10px;"></div>
+    <div class="ember" style="width:3px;height:3px;left:85%;bottom:4%;--ed:5.5s;--delay:0.5s;--drift:16px;"></div>
+
+    <div style="position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;">
+      <div class="reveal t-label" style="color:var(--brass);letter-spacing:0.3em;margin-bottom:16px;">Architecture at a Glance</div>
+      <div class="reveal t-heading" style="margin-bottom:20px;font-size:clamp(26px,4vw,46px);">Everything that<br>makes Saga run</div>
+      <div class="reveal" style="margin-bottom:24px;"><div class="brass-rule" style="width:300px;"><div class="brass-rule-dot"></div><div class="brass-rule-dot"></div><div class="brass-rule-dot"></div></div></div>
+
+      <div class="reveal" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;max-width:760px;margin-bottom:28px;">
+        <div class="stat-box">
+          <div class="stat-box__num brass">3</div>
+          <div class="stat-box__label">AI models working<br>as one GM</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-box__num furnace">∞</div>
+          <div class="stat-box__label">Realtime tokens<br>streamed to all players</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-box__num" style="color:var(--patina);">6</div>
+          <div class="stat-box__label">Players per<br>campaign session</div>
+        </div>
+      </div>
+
+      <div class="reveal" style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;">
+        <span class="badge badge--brass">Next.js 16 + React 19</span>
+        <span class="badge badge--furnace">Claude Sonnet 4.6</span>
+        <span class="badge badge--amber">Claude Haiku 4.5</span>
+        <span class="badge badge--sky">Supabase Realtime</span>
+        <span class="badge badge--copper">Gemini 3 Pro</span>
+        <span class="badge badge--patina">Deno Edge Functions</span>
+        <span class="badge badge--sky">Vercel</span>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<!-- Mermaid -->
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'base',
+    look: 'classic',
+    themeVariables: {
+      primaryColor: '#2a2520',
+      primaryBorderColor: '#c4943d',
+      primaryTextColor: '#d4cabb',
+      secondaryColor: '#1a1814',
+      secondaryBorderColor: '#b87333',
+      secondaryTextColor: '#d4cabb',
+      tertiaryColor: '#1a1208',
+      tertiaryBorderColor: '#d4622a',
+      tertiaryTextColor: '#d4cabb',
+      lineColor: '#3d3630',
+      fontSize: '13px',
+      fontFamily: "'Share Tech Mono', monospace",
+      noteBkgColor: '#2a2520',
+      noteTextColor: '#d4cabb',
+      noteBorderColor: '#c4943d',
+      edgeLabelBackground: '#0d0c0a',
+      clusterBkg: '#1a1814',
+      clusterBorder: '#c4943d',
+      actorBkg: '#2a2520',
+      actorBorder: '#c4943d',
+      actorTextColor: '#d4cabb',
+      actorLineColor: '#3d3630',
+      signalColor: '#c4943d',
+      signalTextColor: '#d4cabb',
+      labelBoxBkgColor: '#2a2520',
+      labelBoxBorderColor: '#c4943d',
+      labelTextColor: '#d4cabb',
+      loopTextColor: '#d4cabb',
+      activationBorderColor: '#c4943d',
+      activationBkgColor: '#2a2520',
+    }
+  });
+</script>
+
+<!-- SlideEngine -->
+<script>
+class SlideEngine {
+  constructor() {
+    this.deck = document.querySelector('.deck');
+    this.slides = Array.from(document.querySelectorAll('.slide'));
+    this.current = 0;
+    this.total = this.slides.length;
+    this.buildChrome();
+    this.bindEvents();
+    this.observe();
+    this.update();
+  }
+
+  buildChrome() {
+    var bar = document.createElement('div');
+    bar.className = 'deck-progress';
+    document.body.appendChild(bar);
+    this.bar = bar;
+
+    var dots = document.createElement('div');
+    dots.className = 'deck-dots';
+    var self = this;
+    this.slides.forEach(function(_, i) {
+      var d = document.createElement('button');
+      d.className = 'deck-dot';
+      d.title = 'Slide ' + (i + 1);
+      d.onclick = function() { self.goTo(i); };
+      dots.appendChild(d);
+    });
+    document.body.appendChild(dots);
+    this.dots = Array.from(dots.children);
+
+    var ctr = document.createElement('div');
+    ctr.className = 'deck-counter';
+    document.body.appendChild(ctr);
+    this.counter = ctr;
+
+    var hints = document.createElement('div');
+    hints.className = 'deck-hints';
+    hints.textContent = '\u2190 \u2192 or scroll to navigate';
+    document.body.appendChild(hints);
+    this.hints = hints;
+    var self2 = this;
+    setTimeout(function() { hints.classList.add('faded'); }, 4000);
+  }
+
+  bindEvents() {
+    var self = this;
+    document.addEventListener('keydown', function(e) {
+      var tag = document.activeElement && document.activeElement.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      if (document.activeElement && document.activeElement.closest('.scrollable')) return;
+      if (e.key === 'ArrowDown' || e.key === 'ArrowRight' || e.key === ' ') {
+        e.preventDefault(); self.next(); self.fadeHints();
+      } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+        e.preventDefault(); self.prev(); self.fadeHints();
+      }
+    });
+
+    var touchStartY = 0;
+    this.deck.addEventListener('touchstart', function(e) { touchStartY = e.touches[0].clientY; }, { passive: true });
+    this.deck.addEventListener('touchend', function(e) {
+      var delta = touchStartY - e.changedTouches[0].clientY;
+      if (Math.abs(delta) > 50) { delta > 0 ? self.next() : self.prev(); self.fadeHints(); }
+    }, { passive: true });
+
+    this.deck.addEventListener('scroll', function() {
+      var idx = Math.round(self.deck.scrollTop / window.innerHeight);
+      if (idx !== self.current) { self.current = idx; self.update(); self.fadeHints(); }
+    }, { passive: true });
+  }
+
+  observe() {
+    var self = this;
+    var io = new IntersectionObserver(function(entries) {
+      entries.forEach(function(entry) {
+        if (entry.isIntersecting) entry.target.classList.add('visible');
+      });
+    }, { threshold: 0.3 });
+    this.slides.forEach(function(s) { io.observe(s); });
+  }
+
+  goTo(i) {
+    this.deck.scrollTo({ top: i * window.innerHeight, behavior: 'smooth' });
+    this.current = i; this.update();
+  }
+
+  next() { if (this.current < this.total - 1) this.goTo(this.current + 1); }
+  prev() { if (this.current > 0) this.goTo(this.current - 1); }
+
+  update() {
+    var pct = this.total > 1 ? (this.current / (this.total - 1)) * 100 : 100;
+    this.bar.style.width = pct + '%';
+    this.counter.textContent = (this.current + 1) + ' / ' + this.total;
+    this.dots.forEach(function(d, i) { d.classList.toggle('active', i === this.current); }.bind(this));
+  }
+
+  fadeHints() { this.hints.classList.add('faded'); }
+}
+
+document.addEventListener('DOMContentLoaded', function() { new SlideEngine(); });
+</script>
+</body>
+</html>

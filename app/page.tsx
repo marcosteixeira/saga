@@ -117,8 +117,51 @@ export default function Home() {
               </Button>
               <JoinCampaignModal />
             </div>
+
           </div>
         </div>
+
+        {/* ── Blueprint tag — bottom-right of hero ── */}
+        <Link
+          href="/architecture"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="animate-entrance group absolute bottom-16 right-6 z-20 flex flex-col items-end gap-1 lg:right-10"
+          data-delay="4"
+          aria-label="View architecture schematic slide deck"
+        >
+          {/* Top rule with rivet dot */}
+          <span className="flex items-center gap-1.5">
+            <span className="h-px w-12 bg-gradient-to-l from-brass to-transparent" />
+            <span className="h-1.5 w-1.5 rounded-full bg-brass" style={{ boxShadow: "0 0 6px rgba(196,148,61,1)" }} />
+          </span>
+          {/* Main tag body */}
+          <span
+            className="flex items-center gap-2.5 border border-brass/60 bg-soot/90 px-3 py-2 backdrop-blur-sm transition-all duration-300 group-hover:border-brass group-hover:bg-iron group-hover:shadow-[0_0_24px_rgba(196,148,61,0.3)]"
+            style={{
+              clipPath: "polygon(8px 0%,100% 0%,100% calc(100% - 8px),calc(100% - 8px) 100%,0% 100%,0% 8px)",
+            }}
+          >
+            <span
+              className="text-[0.6rem] uppercase tracking-[0.22em] text-steam transition-colors duration-300 group-hover:text-steam"
+              style={{ fontFamily: "var(--font-mono), monospace" }}
+            >
+              Architecture
+            </span>
+            <span className="h-3 w-px bg-brass/40" />
+            <span
+              className="text-[0.6rem] uppercase tracking-[0.18em] text-brass transition-colors duration-300 group-hover:text-amber"
+              style={{ fontFamily: "var(--font-mono), monospace" }}
+            >
+              16 slides ↗
+            </span>
+          </span>
+          {/* Bottom rule */}
+          <span className="flex items-center gap-1.5">
+            <span className="h-px w-6 bg-gradient-to-l from-copper to-transparent" />
+            <span className="h-1 w-1 rounded-full bg-copper" style={{ boxShadow: "0 0 4px rgba(184,115,51,0.8)" }} />
+          </span>
+        </Link>
 
         {/* Steam vent at bottom of hero */}
         <SteamVent puffs={10} />
