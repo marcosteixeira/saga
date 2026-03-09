@@ -41,7 +41,7 @@ export async function POST(
 
   const { error: updateError } = await supabase
     .from('campaigns')
-    .update({ status: 'lobby', last_response_id: null })
+    .update({ status: 'lobby' })
     .eq('id', campaign.id)
 
   if (updateError) {

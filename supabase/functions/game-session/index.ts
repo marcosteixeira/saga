@@ -28,15 +28,6 @@ function logError(event: string, meta: LogMeta = {}, err: unknown): void {
   console.error(JSON.stringify({ level: "error", event, ...meta, error }))
 }
 
-async function clearPendingFirstCall(campaignId: string): Promise<void> {
-  const { error } = await supabase
-    .from("campaigns")
-    .update({ last_response_id: null })
-    .eq("id", campaignId)
-  if (error) {
-    logError("game_session.db_error", { campaignId, reason: "clear_pending_failed" }, error)
-  }
-}
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
@@ -80,48 +71,39 @@ async function authenticate(
 
 async function runFirstCall(campaignId: string): Promise<void> {
   const startedAt = Date.now()
+  let lockAcquired = false
 
-  // Mark processing so removeConnection doesn't delete the session while the
-  // first call is in-flight (the socket may drop during a cold-start restart).
   const sessionRef = getOrCreateSession(campaignId)
   sessionRef.isProcessing = true
 
-  // Attempt to claim first-call slot via optimistic update on null → 'pending'
-  const { error: pendingError } = await supabase
-    .from("campaigns")
-    .update({ last_response_id: "pending" })
-    .eq("id", campaignId)
-    .is("last_response_id", null)
-
-  // Note: Supabase .update() does not error when zero rows match (race-lost case).
-  // Only a true DB connectivity error reaches here. The re-fetch below is the actual guard.
-  if (pendingError) {
-    logError("game_session.db_error", { campaignId, reason: "pending_update_db_error" }, pendingError)
-    sessionRef.isProcessing = false
-    return
-  }
-
-  // Re-fetch to confirm we won the race
-  const { data: campaign, error: campaignError } = await supabase
-    .from("campaigns")
-    .select("last_response_id, world_id")
-    .eq("id", campaignId)
-    .single()
-
-  if (campaignError) {
-    logError("game_session.db_error", { campaignId, reason: "recheck_pending_failed" }, campaignError)
-    await clearPendingFirstCall(campaignId)
-    sessionRef.isProcessing = false
-    return
-  }
-
-  if (!campaign || campaign.last_response_id !== "pending") {
-    logInfo("game_session.first_call_skipped", { campaignId, reason: "race_lost" })
-    sessionRef.isProcessing = false
-    return
-  }
-
   try {
+    // Claim first-call slot via optimistic update on round_in_progress: false → true.
+    // Note: Supabase .update() does not error when zero rows match (race-lost case).
+    await supabase
+      .from("campaigns")
+      .update({ round_in_progress: true })
+      .eq("id", campaignId)
+      .eq("round_in_progress", false)
+
+    // Re-fetch to confirm we won the race
+    const { data: campaign, error: campaignError } = await supabase
+      .from("campaigns")
+      .select("round_in_progress, world_id")
+      .eq("id", campaignId)
+      .single()
+
+    if (campaignError) {
+      logError("game_session.db_error", { campaignId, reason: "recheck_pending_failed" }, campaignError)
+      return
+    }
+
+    if (!campaign?.round_in_progress) {
+      logInfo("game_session.first_call_skipped", { campaignId, reason: "race_lost" })
+      return
+    }
+
+    lockAcquired = true
+
     const { data: world, error: worldError } = await supabase
       .from("worlds")
       .select("world_content")
@@ -180,7 +162,7 @@ async function runFirstCall(campaignId: string): Promise<void> {
       throw new Error("Anthropic first-call response missing world_context")
     }
 
-    // Bug 1 fix: join all narration parts into a single string → one DB row
+    // join all narration parts into a single string → one DB row
     const narrationParts = extractNarration(parsed)
     if (!narrationParts.length) {
       throw new Error("Anthropic first-call response has no narration")
@@ -202,11 +184,6 @@ async function runFirstCall(campaignId: string): Promise<void> {
 
     if (insertError) throw insertError
 
-    await supabase
-      .from("campaigns")
-      .update({ last_response_id: "done" })
-      .eq("id", campaignId)
-
     logInfo("game_session.db_save_complete", { campaignId })
     logInfo("game_session.round_complete", { campaignId, durationMs: Date.now() - startedAt })
 
@@ -214,11 +191,28 @@ async function runFirstCall(campaignId: string): Promise<void> {
     broadcastToAll(campaignId, { type: "round:saved" })
   } catch (err) {
     logError("game_session.anthropic_call_failed", { campaignId }, err)
-    // Reset so the next connection can retry rather than hanging on 'pending' forever.
-    await clearPendingFirstCall(campaignId)
     broadcastToAll(campaignId, { type: "error", message: "Failed to generate opening narration" })
   } finally {
     sessionRef.isProcessing = false
+    if (lockAcquired) {
+      await supabase
+        .from("campaigns")
+        .update({ round_in_progress: false })
+        .eq("id", campaignId)
+
+      // Check for actions that arrived while the first call was in-flight
+      const { data: remaining } = await supabase
+        .from("messages")
+        .select("id")
+        .eq("campaign_id", campaignId)
+        .eq("type", "action")
+        .eq("processed", false)
+        .limit(1)
+
+      if (remaining?.length) {
+        resetDebounce(campaignId, () => fireDebounce(campaignId))
+      }
+    }
   }
 }
 
@@ -239,7 +233,7 @@ async function runRound(campaignId: string): Promise<void> {
     // Re-fetch to confirm we won (Supabase update doesn't error on zero rows matched)
     const { data: campaign } = await supabase
       .from("campaigns")
-      .select("round_in_progress, last_response_id, world_id")
+      .select("round_in_progress, world_id")
       .eq("id", campaignId)
       .single()
 
@@ -318,19 +312,24 @@ async function runRound(campaignId: string): Promise<void> {
       { role: "user" as const, content: currentInput },
     ]
 
-    const { data: world, error: worldError } = await supabase
-      .from("worlds")
-      .select("world_content")
-      .eq("id", campaign.world_id)
-      .single()
+    if (!campaign.world_id) throw new Error("campaign has no world_id")
+
+    const [
+      { data: world, error: worldError },
+      { data: allPlayers, error: allPlayersError },
+    ] = await Promise.all([
+      supabase
+        .from("worlds")
+        .select("world_content")
+        .eq("id", campaign.world_id)
+        .single(),
+      supabase
+        .from("players")
+        .select("character_name, character_class, character_backstory, username")
+        .eq("campaign_id", campaignId),
+    ])
 
     if (worldError) throw worldError
-
-    const { data: allPlayers, error: allPlayersError } = await supabase
-      .from("players")
-      .select("character_name, character_class, character_backstory, username")
-      .eq("campaign_id", campaignId)
-
     if (allPlayersError) throw allPlayersError
 
     const systemPrompt = buildGMSystemPrompt(world?.world_content as string, allPlayers ?? [])
@@ -343,7 +342,7 @@ async function runRound(campaignId: string): Promise<void> {
 
     const rawStream = anthropic.messages.stream({
       model: "claude-sonnet-4-6",
-      max_tokens: 1024,
+      max_tokens: 2048,
       system: [{ type: "text" as const, text: systemPrompt, cache_control: { type: "ephemeral" as const } }],
       messages: allMessages,
     })
@@ -462,13 +461,14 @@ Deno.serve(async (req: Request) => {
     registerConnection(campaignId, playerId, socket)
 
     const handleOpen = async () => {
-      const { data: campaign } = await supabase
-        .from("campaigns")
-        .select("last_response_id")
-        .eq("id", campaignId)
-        .single()
+      const { data: existing } = await supabase
+        .from("messages")
+        .select("id")
+        .eq("campaign_id", campaignId)
+        .eq("type", "narration")
+        .limit(1)
 
-      if (campaign?.last_response_id === null) {
+      if (!existing?.length) {
         await runFirstCall(campaignId)
       }
       // Otherwise: client receives messages via Supabase Realtime postgres_changes

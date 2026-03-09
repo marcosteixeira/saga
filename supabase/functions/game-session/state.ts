@@ -1,7 +1,7 @@
 export interface CampaignSession {
   connections: Map<string, WebSocket>  // playerId → socket
   debounceTimer: ReturnType<typeof setTimeout> | null
-  isProcessing: boolean  // true while this isolate is waiting for OpenAI / saving
+  isProcessing: boolean  // true while this isolate is waiting for Anthropic / saving
 }
 
 export const sessions = new Map<string, CampaignSession>()

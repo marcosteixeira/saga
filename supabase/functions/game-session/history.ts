@@ -34,5 +34,11 @@ export function buildMessageHistory(rows: MsgRow[]): AnthropicMessage[] {
     }
   }
 
+  // Flush any trailing actions that are not yet paired with a narration.
+  // This can happen if the current round's actions are marked processed before
+  // the narration is written. They are intentionally excluded from history here
+  // because they will be passed as the current-round input by the caller.
+  // No flush needed — trailing actionBatch is discarded.
+
   return history
 }
