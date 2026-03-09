@@ -78,27 +78,34 @@ async function runFirstCall(campaignId: string): Promise<void> {
 
   try {
     // Claim first-call slot via optimistic update on round_in_progress: false → true.
-    // Note: Supabase .update() does not error when zero rows match (race-lost case).
-    await supabase
+    // Supabase .update() does not error when zero rows match (race-lost case),
+    // so lock ownership must be inferred from returned rows.
+    const { data: claimedCampaign, error: claimError } = await supabase
       .from("campaigns")
       .update({ round_in_progress: true })
       .eq("id", campaignId)
       .eq("round_in_progress", false)
+      .select("id")
 
-    // Re-fetch to confirm we won the race
+    if (claimError) {
+      logError("game_session.db_error", { campaignId, reason: "lock_claim_failed" }, claimError)
+      return
+    }
+
+    if (!claimedCampaign?.length) {
+      logInfo("game_session.first_call_skipped", { campaignId, reason: "race_lost" })
+      return
+    }
+
+    // Re-fetch campaign data after lock acquisition
     const { data: campaign, error: campaignError } = await supabase
       .from("campaigns")
-      .select("round_in_progress, world_id")
+      .select("world_id")
       .eq("id", campaignId)
       .single()
 
     if (campaignError) {
       logError("game_session.db_error", { campaignId, reason: "recheck_pending_failed" }, campaignError)
-      return
-    }
-
-    if (!campaign?.round_in_progress) {
-      logInfo("game_session.first_call_skipped", { campaignId, reason: "race_lost" })
       return
     }
 
@@ -224,22 +231,33 @@ async function runRound(campaignId: string): Promise<void> {
 
   try {
     // Try to acquire the round lock
-    await supabase
+    const { data: claimedCampaign, error: claimError } = await supabase
       .from("campaigns")
       .update({ round_in_progress: true })
       .eq("id", campaignId)
       .eq("round_in_progress", false)
+      .select("id")
 
-    // Re-fetch to confirm we won (Supabase update doesn't error on zero rows matched)
-    const { data: campaign } = await supabase
+    if (claimError) {
+      logError("game_session.db_error", { campaignId, reason: "round_lock_claim_failed" }, claimError)
+      return
+    }
+
+    if (!claimedCampaign?.length) {
+      logInfo("game_session.round_lock_lost", { campaignId })
+      return  // finally will still run and reset isProcessing (lock was NOT acquired)
+    }
+
+    // Load campaign data after lock acquisition
+    const { data: campaign, error: campaignError } = await supabase
       .from("campaigns")
-      .select("round_in_progress, world_id")
+      .select("world_id")
       .eq("id", campaignId)
       .single()
 
-    if (!campaign?.round_in_progress) {
-      logInfo("game_session.round_lock_lost", { campaignId })
-      return  // finally will still run and reset isProcessing (lock was NOT acquired)
+    if (campaignError) {
+      logError("game_session.db_error", { campaignId, reason: "round_campaign_fetch_failed" }, campaignError)
+      return
     }
 
     lockAcquired = true
