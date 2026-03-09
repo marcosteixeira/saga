@@ -136,10 +136,14 @@ async function runFirstCall(campaignId: string): Promise<void> {
     const input = buildFirstCallInput()
 
     logInfo("game_session.anthropic_call_started", { campaignId })
+    logInfo("game_session.anthropic_request", {
+      campaignId,
+      messages: [{ role: "user", content: input }],
+    })
 
     const rawStream = anthropic.messages.stream({
       model: "claude-sonnet-4-6",
-      max_tokens: 2048,
+      max_tokens: 4096,
       system: [{ type: "text" as const, text: systemPrompt, cache_control: { type: "ephemeral" as const } }],
       messages: [{ role: "user" as const, content: input }],
     })
@@ -152,6 +156,7 @@ async function runFirstCall(campaignId: string): Promise<void> {
       true,
     )
 
+    logInfo("game_session.anthropic_response", { campaignId, response: fullText })
     logInfo("game_session.anthropic_stream_complete", {
       campaignId,
       narrationLength: fullText.length,
@@ -169,25 +174,23 @@ async function runFirstCall(campaignId: string): Promise<void> {
       throw new Error("Anthropic first-call response missing world_context")
     }
 
-    // join all narration parts into a single string → one DB row
     const narrationParts = extractNarration(parsed)
     if (!narrationParts.length) {
       throw new Error("Anthropic first-call response has no narration")
     }
-    const narrationContent = narrationParts.join("\n\n")
 
-    logInfo("game_session.db_save_started", { campaignId, messageCount: 1 })
+    logInfo("game_session.db_save_started", { campaignId, messageCount: narrationParts.length })
 
     const { error: insertError } = await supabase
       .from("messages")
-      .insert([{
+      .insert(narrationParts.map((part) => ({
         campaign_id: campaignId,
         player_id: null,
-        content: narrationContent,
+        content: part,
         type: "narration" as const,
         client_id: null,
         processed: true,
-      }])
+      })))
 
     if (insertError) throw insertError
 
@@ -264,7 +267,7 @@ async function runRound(campaignId: string): Promise<void> {
 
     // Bug 3 fix: atomically claim all unprocessed action messages for this campaign.
     // UPDATE...RETURNING is atomic: only rows updated by THIS query are returned.
-    const { data: claimedActions, error: claimError } = await supabase
+    const { data: claimedActions, error: claimActionsError } = await supabase
       .from("messages")
       .update({ processed: true })
       .eq("campaign_id", campaignId)
@@ -272,7 +275,7 @@ async function runRound(campaignId: string): Promise<void> {
       .eq("processed", false)
       .select("*")
 
-    if (claimError) throw claimError
+    if (claimActionsError) throw claimActionsError
 
     if (!claimedActions?.length) {
       logInfo("game_session.round_skipped", { campaignId, reason: "no_pending_actions" })
@@ -357,10 +360,11 @@ async function runRound(campaignId: string): Promise<void> {
       pendingCount: claimedActions.length,
       historyLength: history.length,
     })
+    logInfo("game_session.anthropic_request", { campaignId, messages: allMessages })
 
     const rawStream = anthropic.messages.stream({
       model: "claude-sonnet-4-6",
-      max_tokens: 2048,
+      max_tokens: 1024,
       system: [{ type: "text" as const, text: systemPrompt, cache_control: { type: "ephemeral" as const } }],
       messages: allMessages,
     })
@@ -372,25 +376,29 @@ async function runRound(campaignId: string): Promise<void> {
       (campaignId, chunkLength) => logInfo("game_session.anthropic_stream_chunk", { campaignId, chunkLength }),
     )
 
+    logInfo("game_session.anthropic_response", { campaignId, response: fullText })
     logInfo("game_session.anthropic_stream_complete", {
       campaignId,
       narrationLength: fullText.length,
       durationMs: Date.now() - startedAt,
     })
 
-    const narrationContent = fullText.trim()
-    if (!narrationContent) throw new Error("Empty narration returned")
+    const narrationParagraphs = fullText
+      .split(/\n\n+/)
+      .map((p) => p.trim())
+      .filter(Boolean)
+    if (!narrationParagraphs.length) throw new Error("Empty narration returned")
 
     const { error: narrationInsertError } = await supabase
       .from("messages")
-      .insert([{
+      .insert(narrationParagraphs.map((paragraph) => ({
         campaign_id: campaignId,
         player_id: null,
-        content: narrationContent,
+        content: paragraph,
         type: "narration" as const,
         client_id: null,
-        processed: true,  // narration is never a "pending action"
-      }])
+        processed: true,
+      })))
 
     if (narrationInsertError) throw narrationInsertError
 
@@ -479,6 +487,17 @@ Deno.serve(async (req: Request) => {
     registerConnection(campaignId, playerId, socket)
 
     const handleOpen = async () => {
+      // If nothing is processing in this isolate, the DB lock may be stale
+      // (left by a previous isolate that crashed). Reset it unconditionally
+      // so both runFirstCall and runRound can acquire it cleanly.
+      const session = getOrCreateSession(campaignId)
+      if (!session.isProcessing && session.debounceTimer === null) {
+        await supabase
+          .from("campaigns")
+          .update({ round_in_progress: false })
+          .eq("id", campaignId)
+      }
+
       const { data: existing } = await supabase
         .from("messages")
         .select("id")
@@ -488,8 +507,23 @@ Deno.serve(async (req: Request) => {
 
       if (!existing?.length) {
         await runFirstCall(campaignId)
+        return
       }
-      // Otherwise: client receives messages via Supabase Realtime postgres_changes
+
+      // Game already started — check for orphaned pending actions
+      if (!session.isProcessing && session.debounceTimer === null) {
+        const { data: pending } = await supabase
+          .from("messages")
+          .select("id")
+          .eq("campaign_id", campaignId)
+          .eq("type", "action")
+          .eq("processed", false)
+          .limit(1)
+
+        if (pending?.length) {
+          resetDebounce(campaignId, () => fireDebounce(campaignId))
+        }
+      }
     }
 
     // @ts-expect-error EdgeRuntime exists in Supabase edge runtime but not in TypeScript DOM libs.

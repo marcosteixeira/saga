@@ -2204,6 +2204,7 @@ export default function GameClient({
           setIsStreaming(true);
           setLastActionSentAt(null);
           setStreamingContent((prev) => prev + (msg.content as string));
+          setViewState((prev) => (prev === 'loading' ? 'active' : prev));
         }
 
         if (msg.type === 'round:saved') {

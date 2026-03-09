@@ -39,7 +39,7 @@ export function removeConnection(campaignId: string, playerId: string, socket?: 
   if (!current) return
   if (socket && current !== socket) return
   session.connections.delete(playerId)
-  if (session.connections.size === 0 && !session.isProcessing) {
+  if (session.connections.size === 0 && !session.isProcessing && session.debounceTimer === null) {
     sessions.delete(campaignId)
   }
 }

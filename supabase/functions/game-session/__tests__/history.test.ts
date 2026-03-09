@@ -14,14 +14,28 @@ describe('buildMessageHistory', () => {
     expect(buildMessageHistory([])).toEqual([])
   })
 
-  it('wraps opening narration with first-call user message', () => {
+  it('wraps opening narration in first-call JSON so the model knows opening is done', () => {
     const rows: MsgRow[] = [
       { type: 'narration', content: 'The story begins.', players: null },
     ]
     const history = buildMessageHistory(rows)
     expect(history).toHaveLength(2)
     expect(history[0]).toEqual({ role: 'user', content: buildFirstCallInput() })
-    expect(history[1]).toEqual({ role: 'assistant', content: 'The story begins.' })
+    const assistant = JSON.parse(history[1].content as string)
+    expect(assistant.narration).toEqual(['The story begins.'])
+    expect(assistant.world_context).toBeDefined()
+    expect(assistant.starting_hooks).toEqual([])
+  })
+
+  it('collects multiple opening narration paragraphs into one JSON assistant message', () => {
+    const rows: MsgRow[] = [
+      { type: 'narration', content: 'First paragraph.', players: null },
+      { type: 'narration', content: 'Second paragraph.', players: null },
+    ]
+    const history = buildMessageHistory(rows)
+    expect(history).toHaveLength(2)
+    const assistant = JSON.parse(history[1].content as string)
+    expect(assistant.narration).toEqual(['First paragraph.', 'Second paragraph.'])
   })
 
   it('batches consecutive actions into a single user message', () => {
@@ -32,7 +46,7 @@ describe('buildMessageHistory', () => {
       { type: 'narration', content: 'Round 1 narration.', players: null },
     ]
     const history = buildMessageHistory(rows)
-    // user(firstCall), assistant(opening), user(batch), assistant(round1)
+    // user(firstCall), assistant(opening JSON), user(batch), assistant(round1)
     expect(history).toHaveLength(4)
     expect(history[2].role).toBe('user')
     const batch = JSON.parse(history[2].content as string)
@@ -73,9 +87,16 @@ describe('buildMessageHistory', () => {
       { type: 'narration', content: 'Round 2.', players: null },
     ]
     const history = buildMessageHistory(rows)
-    // user(firstCall), assistant(opening), user(batch1), assistant(r1), user(batch2), assistant(r2)
+    // user(firstCall), assistant(opening JSON), user(batch1), assistant(r1), user(batch2), assistant(r2)
     expect(history).toHaveLength(6)
     expect(history[4].role).toBe('user')
     expect(history[5]).toEqual({ role: 'assistant', content: 'Round 2.' })
+  })
+
+  it('returns empty array when rows contain only actions (no opening narration)', () => {
+    const rows: MsgRow[] = [
+      { type: 'action', content: 'I act.', players: { character_name: 'Aria', username: null } },
+    ]
+    expect(buildMessageHistory(rows)).toEqual([])
   })
 })
