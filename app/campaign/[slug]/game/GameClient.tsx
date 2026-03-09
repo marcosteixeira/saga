@@ -2105,6 +2105,7 @@ export default function GameClient({
   const streamingContentRef = useRef('');
   const [isStreaming, setIsStreaming] = useState(false);
   const voiceNarration = useVoiceNarration();
+  const voiceNarrationRef = useRef(voiceNarration);
   const [wsStatus, setWsStatus] = useState<'connecting' | 'connected' | 'disconnected'>(
     'connecting'
   );
@@ -2123,6 +2124,10 @@ export default function GameClient({
   useEffect(() => {
     streamingContentRef.current = streamingContent;
   }, [streamingContent]);
+
+  useEffect(() => {
+    voiceNarrationRef.current = voiceNarration;
+  });
 
   // WebSocket connection with exponential-backoff reconnection
   useEffect(() => {
@@ -2224,7 +2229,7 @@ export default function GameClient({
           const textToSpeak = streamingContentRef.current;
           setIsStreaming(false);
           setStreamingContent('');
-          if (textToSpeak) voiceNarration.speak(textToSpeak);
+          if (textToSpeak) voiceNarrationRef.current.speak(textToSpeak);
         }
 
         if (msg.type === 'error') {
