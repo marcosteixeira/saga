@@ -2289,6 +2289,7 @@ export default function GameClient({
       unmounted = true;
       if (reconnectTimer) clearTimeout(reconnectTimer);
       ws?.close();
+      voiceNarrationRef.current.stop();
     };
   }, [campaign.id]);
 

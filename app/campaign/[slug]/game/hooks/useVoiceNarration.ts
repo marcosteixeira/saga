@@ -4,9 +4,6 @@ import { useState, useRef, useCallback } from 'react';
 
 const STORAGE_KEY = 'saga:voice-narration';
 
-// ElevenLabs "Daniel" voice — deep, authoritative narrator
-const DEFAULT_VOICE_ID = 'onwK4e9ZLuTAKqWW03F9';
-
 export interface UseVoiceNarration {
   enabled: boolean;
   isLoading: boolean;
