@@ -2084,9 +2084,7 @@ export default function GameClient({
   loadingImageUrl,
   campaignCoverImageUrl
 }: GameClientProps) {
-  const gameAlreadyStarted =
-    dbMessages.length > 0 ||
-    (campaign.last_response_id !== null && campaign.last_response_id !== 'pending');
+  const gameAlreadyStarted = dbMessages.length > 0;
 
   const [viewState, setViewState] = useState<GameViewState>(
     gameAlreadyStarted ? 'active' : 'loading'
@@ -2206,6 +2204,7 @@ export default function GameClient({
           setIsStreaming(true);
           setLastActionSentAt(null);
           setStreamingContent((prev) => prev + (msg.content as string));
+          setViewState((prev) => (prev === 'loading' ? 'active' : prev));
         }
 
         if (msg.type === 'round:saved') {

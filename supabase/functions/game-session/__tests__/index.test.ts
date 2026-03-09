@@ -8,7 +8,7 @@ vi.stubGlobal('Deno', {
         SUPABASE_URL: 'https://test.supabase.co',
         SUPABASE_SERVICE_ROLE_KEY: 'service-key',
         SUPABASE_ANON_KEY: 'anon-key',
-        OPENAI_API_KEY: 'openai-key',
+        ANTHROPIC_API_KEY: 'anthropic-key',
       }
       return env[key] ?? ''
     },

@@ -1,7 +1,7 @@
 export interface CampaignSession {
   connections: Map<string, WebSocket>  // playerId → socket
   debounceTimer: ReturnType<typeof setTimeout> | null
-  isProcessing: boolean  // true while this isolate is waiting for OpenAI / saving
+  isProcessing: boolean  // true while this isolate is waiting for Anthropic / saving
 }
 
 export const sessions = new Map<string, CampaignSession>()
@@ -39,7 +39,7 @@ export function removeConnection(campaignId: string, playerId: string, socket?: 
   if (!current) return
   if (socket && current !== socket) return
   session.connections.delete(playerId)
-  if (session.connections.size === 0 && !session.isProcessing) {
+  if (session.connections.size === 0 && !session.isProcessing && session.debounceTimer === null) {
     sessions.delete(campaignId)
   }
 }

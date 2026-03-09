@@ -18,6 +18,7 @@ export default defineConfig({
       'jsr:@supabase/functions-js/edge-runtime.d.ts': path.resolve(__dirname, 'supabase/functions/__mocks__/edge-runtime.ts'),
       'jsr:@supabase/supabase-js@2': path.resolve(__dirname, 'supabase/functions/__mocks__/supabase-js.ts'),
       '../generate-world/broadcast.ts': path.resolve(__dirname, 'supabase/functions/__mocks__/broadcast.ts'),
+      'npm:@anthropic-ai/sdk': path.resolve(__dirname, 'supabase/functions/__mocks__/anthropic.ts'),
     },
   },
 })

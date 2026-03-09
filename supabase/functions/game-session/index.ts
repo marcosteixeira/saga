@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { createClient } from "jsr:@supabase/supabase-js@2"
-import OpenAI from "npm:openai"
+import Anthropic from "npm:@anthropic-ai/sdk"
 import {
   sessions,
   getOrCreateSession,
@@ -10,7 +10,8 @@ import {
 } from "./state.ts"
 import { resetDebounce } from "./debounce.ts"
 import { buildGMSystemPrompt, buildFirstCallInput, isFirstCallResponse } from "./prompt.ts"
-import { extractNarration } from "./openai.ts"
+import { extractNarration } from "./anthropic.ts"
+import { buildMessageHistory, type MsgRow } from "./history.ts"
 import { consumeStream, type StreamEvent } from "./stream.ts"
 import { extractJwtFromProtocolHeader } from "./ws-auth.ts"
 
@@ -27,35 +28,13 @@ function logError(event: string, meta: LogMeta = {}, err: unknown): void {
   console.error(JSON.stringify({ level: "error", event, ...meta, error }))
 }
 
-async function clearPendingFirstCall(campaignId: string): Promise<void> {
-  const { error } = await supabase
-    .from("campaigns")
-    .update({ last_response_id: null })
-    .eq("id", campaignId)
-  if (error) {
-    logError("game_session.db_error", { campaignId, reason: "clear_pending_failed" }, error)
-  }
-}
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-const openaiApiKey = Deno.env.get("OPENAI_API_KEY")!
+const anthropicApiKey = Deno.env.get("ANTHROPIC_API_KEY")!
 
 const supabase = createClient(supabaseUrl, serviceRoleKey)
-const openai = new OpenAI({ apiKey: openaiApiKey })
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-interface DbMessage {
-  id: string
-  campaign_id: string
-  player_id: string | null
-  content: string
-  type: 'action' | 'narration' | 'system' | 'ooc'
-  created_at: string
-  client_id: string | null
-  processed: boolean
-}
+const anthropic = new Anthropic({ apiKey: anthropicApiKey })
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
@@ -92,48 +71,46 @@ async function authenticate(
 
 async function runFirstCall(campaignId: string): Promise<void> {
   const startedAt = Date.now()
+  let lockAcquired = false
 
-  // Mark processing so removeConnection doesn't delete the session while the
-  // first call is in-flight (the socket may drop during a cold-start restart).
   const sessionRef = getOrCreateSession(campaignId)
   sessionRef.isProcessing = true
 
-  // Attempt to claim first-call slot via optimistic update on null → 'pending'
-  const { error: pendingError } = await supabase
-    .from("campaigns")
-    .update({ last_response_id: "pending" })
-    .eq("id", campaignId)
-    .is("last_response_id", null)
-
-  // Note: Supabase .update() does not error when zero rows match (race-lost case).
-  // Only a true DB connectivity error reaches here. The re-fetch below is the actual guard.
-  if (pendingError) {
-    logError("game_session.db_error", { campaignId, reason: "pending_update_db_error" }, pendingError)
-    sessionRef.isProcessing = false
-    return
-  }
-
-  // Re-fetch to confirm we won the race
-  const { data: campaign, error: campaignError } = await supabase
-    .from("campaigns")
-    .select("last_response_id, world_id")
-    .eq("id", campaignId)
-    .single()
-
-  if (campaignError) {
-    logError("game_session.db_error", { campaignId, reason: "recheck_pending_failed" }, campaignError)
-    await clearPendingFirstCall(campaignId)
-    sessionRef.isProcessing = false
-    return
-  }
-
-  if (!campaign || campaign.last_response_id !== "pending") {
-    logInfo("game_session.first_call_skipped", { campaignId, reason: "race_lost" })
-    sessionRef.isProcessing = false
-    return
-  }
-
   try {
+    // Claim first-call slot via optimistic update on round_in_progress: false → true.
+    // Supabase .update() does not error when zero rows match (race-lost case),
+    // so lock ownership must be inferred from returned rows.
+    const { data: claimedCampaign, error: claimError } = await supabase
+      .from("campaigns")
+      .update({ round_in_progress: true })
+      .eq("id", campaignId)
+      .eq("round_in_progress", false)
+      .select("id")
+
+    if (claimError) {
+      logError("game_session.db_error", { campaignId, reason: "lock_claim_failed" }, claimError)
+      return
+    }
+
+    if (!claimedCampaign?.length) {
+      logInfo("game_session.first_call_skipped", { campaignId, reason: "race_lost" })
+      return
+    }
+
+    // Re-fetch campaign data after lock acquisition
+    const { data: campaign, error: campaignError } = await supabase
+      .from("campaigns")
+      .select("world_id")
+      .eq("id", campaignId)
+      .single()
+
+    if (campaignError) {
+      logError("game_session.db_error", { campaignId, reason: "recheck_pending_failed" }, campaignError)
+      return
+    }
+
+    lockAcquired = true
+
     const { data: world, error: worldError } = await supabase
       .from("worlds")
       .select("world_content")
@@ -158,24 +135,29 @@ async function runFirstCall(campaignId: string): Promise<void> {
     const systemPrompt = buildGMSystemPrompt(world.world_content as string, players)
     const input = buildFirstCallInput()
 
-    logInfo("game_session.openai_call_started", { campaignId, previousResponseId: null })
+    logInfo("game_session.anthropic_call_started", { campaignId })
+    logInfo("game_session.anthropic_request", {
+      campaignId,
+      messages: [{ role: "user", content: input }],
+    })
 
-    const rawStream = await openai.responses.create({
-      model: "gpt-4.1",
-      instructions: systemPrompt,
-      input,
-      stream: true,
-    } as Parameters<typeof openai.responses.create>[0])
+    const rawStream = anthropic.messages.stream({
+      model: "claude-sonnet-4-6",
+      max_tokens: 4096,
+      system: [{ type: "text" as const, text: systemPrompt, cache_control: { type: "ephemeral" as const } }],
+      messages: [{ role: "user" as const, content: input }],
+    })
 
-    const { fullText, newResponseId } = await consumeStream(
+    const { fullText } = await consumeStream(
       campaignId,
       rawStream as AsyncIterable<StreamEvent>,
       (campaignId, chunk) => broadcastToAll(campaignId, { type: "chunk", content: chunk }),
-      (campaignId, chunkLength) => logInfo("game_session.openai_stream_chunk", { campaignId, chunkLength }),
+      (campaignId, chunkLength) => logInfo("game_session.anthropic_stream_chunk", { campaignId, chunkLength }),
       true,
     )
 
-    logInfo("game_session.openai_stream_complete", {
+    logInfo("game_session.anthropic_response", { campaignId, response: fullText })
+    logInfo("game_session.anthropic_stream_complete", {
       campaignId,
       narrationLength: fullText.length,
       durationMs: Date.now() - startedAt,
@@ -185,51 +167,62 @@ async function runFirstCall(campaignId: string): Promise<void> {
     try {
       parsed = JSON.parse(fullText)
     } catch {
-      throw new Error(`Failed to parse OpenAI response as JSON: ${fullText.slice(0, 200)}`)
+      throw new Error(`Failed to parse Anthropic response as JSON: ${fullText.slice(0, 200)}`)
     }
 
     if (!isFirstCallResponse(parsed)) {
-      throw new Error("OpenAI first-call response missing world_context")
+      throw new Error("Anthropic first-call response missing world_context")
     }
 
-    // Bug 1 fix: join all narration parts into a single string → one DB row
     const narrationParts = extractNarration(parsed)
     if (!narrationParts.length) {
-      throw new Error("OpenAI first-call response has no narration")
+      throw new Error("Anthropic first-call response has no narration")
     }
-    const narrationContent = narrationParts.join("\n\n")
 
-    logInfo("game_session.db_save_started", { campaignId, messageCount: 1 })
+    logInfo("game_session.db_save_started", { campaignId, messageCount: narrationParts.length })
 
     const { error: insertError } = await supabase
       .from("messages")
-      .insert([{
+      .insert(narrationParts.map((part) => ({
         campaign_id: campaignId,
         player_id: null,
-        content: narrationContent,
+        content: part,
         type: "narration" as const,
         client_id: null,
-      }])
+        processed: true,
+      })))
 
     if (insertError) throw insertError
 
-    await supabase
-      .from("campaigns")
-      .update({ last_response_id: newResponseId })
-      .eq("id", campaignId)
-
-    logInfo("game_session.db_save_complete", { campaignId, newResponseId })
+    logInfo("game_session.db_save_complete", { campaignId })
     logInfo("game_session.round_complete", { campaignId, durationMs: Date.now() - startedAt })
 
     // Clients receive the narration message via Realtime postgres_changes.
     broadcastToAll(campaignId, { type: "round:saved" })
   } catch (err) {
-    logError("game_session.openai_call_failed", { campaignId }, err)
-    // Reset so the next connection can retry rather than hanging on 'pending' forever.
-    await clearPendingFirstCall(campaignId)
+    logError("game_session.anthropic_call_failed", { campaignId }, err)
     broadcastToAll(campaignId, { type: "error", message: "Failed to generate opening narration" })
   } finally {
     sessionRef.isProcessing = false
+    if (lockAcquired) {
+      await supabase
+        .from("campaigns")
+        .update({ round_in_progress: false })
+        .eq("id", campaignId)
+
+      // Check for actions that arrived while the first call was in-flight
+      const { data: remaining } = await supabase
+        .from("messages")
+        .select("id")
+        .eq("campaign_id", campaignId)
+        .eq("type", "action")
+        .eq("processed", false)
+        .limit(1)
+
+      if (remaining?.length) {
+        resetDebounce(campaignId, () => fireDebounce(campaignId))
+      }
+    }
   }
 }
 
@@ -241,29 +234,40 @@ async function runRound(campaignId: string): Promise<void> {
 
   try {
     // Try to acquire the round lock
-    await supabase
+    const { data: claimedCampaign, error: claimError } = await supabase
       .from("campaigns")
       .update({ round_in_progress: true })
       .eq("id", campaignId)
       .eq("round_in_progress", false)
+      .select("id")
 
-    // Re-fetch to confirm we won (Supabase update doesn't error on zero rows matched)
-    const { data: campaign } = await supabase
+    if (claimError) {
+      logError("game_session.db_error", { campaignId, reason: "round_lock_claim_failed" }, claimError)
+      return
+    }
+
+    if (!claimedCampaign?.length) {
+      logInfo("game_session.round_lock_lost", { campaignId })
+      return  // finally will still run and reset isProcessing (lock was NOT acquired)
+    }
+
+    // Load campaign data after lock acquisition
+    const { data: campaign, error: campaignError } = await supabase
       .from("campaigns")
-      .select("round_in_progress, last_response_id")
+      .select("world_id")
       .eq("id", campaignId)
       .single()
 
-    if (!campaign?.round_in_progress) {
-      logInfo("game_session.round_lock_lost", { campaignId })
-      return  // finally will still run and reset isProcessing (lock was NOT acquired)
+    if (campaignError) {
+      logError("game_session.db_error", { campaignId, reason: "round_campaign_fetch_failed" }, campaignError)
+      return
     }
 
     lockAcquired = true
 
     // Bug 3 fix: atomically claim all unprocessed action messages for this campaign.
     // UPDATE...RETURNING is atomic: only rows updated by THIS query are returned.
-    const { data: claimedActions, error: claimError } = await supabase
+    const { data: claimedActions, error: claimActionsError } = await supabase
       .from("messages")
       .update({ processed: true })
       .eq("campaign_id", campaignId)
@@ -271,7 +275,7 @@ async function runRound(campaignId: string): Promise<void> {
       .eq("processed", false)
       .select("*")
 
-    if (claimError) throw claimError
+    if (claimActionsError) throw claimActionsError
 
     if (!claimedActions?.length) {
       logInfo("game_session.round_skipped", { campaignId, reason: "no_pending_actions" })
@@ -292,69 +296,120 @@ async function runRound(campaignId: string): Promise<void> {
       ])
     )
 
-    logInfo("game_session.openai_call_started", {
-      campaignId,
-      pendingCount: claimedActions.length,
-      previousResponseId: campaign.last_response_id,
-    })
+    // Load full conversation history for this campaign
+    const { data: historyRows, error: historyError } = await supabase
+      .from("messages")
+      .select("content, type, players(character_name, username)")
+      .eq("campaign_id", campaignId)
+      .in("type", ["action", "narration"])
+      .eq("processed", true)
+      .order("created_at", { ascending: true })
 
-    const input = JSON.stringify(
+    if (historyError) throw historyError
+
+    const history = buildMessageHistory((historyRows ?? []) as MsgRow[])
+
+    // Build current round user message
+    const currentInput = JSON.stringify(
       claimedActions.map((a) => ({
-        clientId: a.client_id,
         playerName: playerNameMap.get(a.player_id ?? "") ?? "Unknown",
         content: a.content,
       }))
     )
 
-    const rawStream = await openai.responses.create({
-      model: "gpt-4.1",
-      previous_response_id: campaign.last_response_id,
-      input,
-      stream: true,
-    } as Parameters<typeof openai.responses.create>[0])
+    // Apply cache breakpoint to last history message (caches everything before it)
+    const messagesWithCache = history.map((msg, i) => {
+      if (i === history.length - 1 && history.length > 0) {
+        return {
+          ...msg,
+          content: [{ type: "text" as const, text: msg.content as string, cache_control: { type: "ephemeral" as const } }],
+        }
+      }
+      return msg
+    })
 
-    const { fullText, newResponseId } = await consumeStream(
+    const allMessages = [
+      ...messagesWithCache,
+      { role: "user" as const, content: currentInput },
+    ]
+
+    if (!campaign.world_id) throw new Error("campaign has no world_id")
+
+    const [
+      { data: world, error: worldError },
+      { data: allPlayers, error: allPlayersError },
+    ] = await Promise.all([
+      supabase
+        .from("worlds")
+        .select("world_content")
+        .eq("id", campaign.world_id)
+        .single(),
+      supabase
+        .from("players")
+        .select("character_name, character_class, character_backstory, username")
+        .eq("campaign_id", campaignId),
+    ])
+
+    if (worldError) throw worldError
+    if (allPlayersError) throw allPlayersError
+
+    const systemPrompt = buildGMSystemPrompt(world?.world_content as string, allPlayers ?? [])
+
+    logInfo("game_session.anthropic_call_started", {
+      campaignId,
+      pendingCount: claimedActions.length,
+      historyLength: history.length,
+    })
+    logInfo("game_session.anthropic_request", { campaignId, messages: allMessages })
+
+    const rawStream = anthropic.messages.stream({
+      model: "claude-sonnet-4-6",
+      max_tokens: 1024,
+      system: [{ type: "text" as const, text: systemPrompt, cache_control: { type: "ephemeral" as const } }],
+      messages: allMessages,
+    })
+
+    const { fullText } = await consumeStream(
       campaignId,
       rawStream as AsyncIterable<StreamEvent>,
       (campaignId, chunk) => broadcastToAll(campaignId, { type: "chunk", content: chunk }),
-      (campaignId, chunkLength) => logInfo("game_session.openai_stream_chunk", { campaignId, chunkLength }),
+      (campaignId, chunkLength) => logInfo("game_session.anthropic_stream_chunk", { campaignId, chunkLength }),
     )
 
-    logInfo("game_session.openai_stream_complete", {
+    logInfo("game_session.anthropic_response", { campaignId, response: fullText })
+    logInfo("game_session.anthropic_stream_complete", {
       campaignId,
       narrationLength: fullText.length,
       durationMs: Date.now() - startedAt,
     })
 
-    const narrationContent = fullText.trim()
-    if (!narrationContent) throw new Error("Empty narration returned")
+    const narrationParagraphs = fullText
+      .split(/\n\n+/)
+      .map((p) => p.trim())
+      .filter(Boolean)
+    if (!narrationParagraphs.length) throw new Error("Empty narration returned")
 
     const { error: narrationInsertError } = await supabase
       .from("messages")
-      .insert([{
+      .insert(narrationParagraphs.map((paragraph) => ({
         campaign_id: campaignId,
         player_id: null,
-        content: narrationContent,
+        content: paragraph,
         type: "narration" as const,
         client_id: null,
-        processed: true,  // narration is never a "pending action"
-      }])
+        processed: true,
+      })))
 
     if (narrationInsertError) throw narrationInsertError
 
-    await supabase
-      .from("campaigns")
-      .update({ last_response_id: newResponseId })
-      .eq("id", campaignId)
-
-    logInfo("game_session.db_save_complete", { campaignId, newResponseId })
+    logInfo("game_session.db_save_complete", { campaignId })
     logInfo("game_session.round_complete", { campaignId, durationMs: Date.now() - startedAt })
 
     // Signal this isolate's connected players that streaming is done.
     // Other players receive the narration via Realtime postgres_changes.
     broadcastToAll(campaignId, { type: "round:saved" })
   } catch (err) {
-    logError("game_session.openai_call_failed", { campaignId }, err)
+    logError("game_session.anthropic_call_failed", { campaignId }, err)
     broadcastToAll(campaignId, { type: "error", message: "Failed to generate narration" })
   } finally {
     // Release the round lock only if we acquired it
@@ -432,19 +487,46 @@ Deno.serve(async (req: Request) => {
     registerConnection(campaignId, playerId, socket)
 
     const handleOpen = async () => {
-      const { data: campaign } = await supabase
-        .from("campaigns")
-        .select("last_response_id")
-        .eq("id", campaignId)
-        .single()
-
-      if (campaign?.last_response_id === null) {
-        await runFirstCall(campaignId)
+      // If nothing is processing in this isolate, the DB lock may be stale
+      // (left by a previous isolate that crashed). Reset it unconditionally
+      // so both runFirstCall and runRound can acquire it cleanly.
+      const session = getOrCreateSession(campaignId)
+      if (!session.isProcessing && session.debounceTimer === null) {
+        await supabase
+          .from("campaigns")
+          .update({ round_in_progress: false })
+          .eq("id", campaignId)
       }
-      // Otherwise: client receives messages via Supabase Realtime postgres_changes
+
+      const { data: existing } = await supabase
+        .from("messages")
+        .select("id")
+        .eq("campaign_id", campaignId)
+        .eq("type", "narration")
+        .limit(1)
+
+      if (!existing?.length) {
+        await runFirstCall(campaignId)
+        return
+      }
+
+      // Game already started — check for orphaned pending actions
+      if (!session.isProcessing && session.debounceTimer === null) {
+        const { data: pending } = await supabase
+          .from("messages")
+          .select("id")
+          .eq("campaign_id", campaignId)
+          .eq("type", "action")
+          .eq("processed", false)
+          .limit(1)
+
+        if (pending?.length) {
+          resetDebounce(campaignId, () => fireDebounce(campaignId))
+        }
+      }
     }
 
-    // @ts-ignore — EdgeRuntime.waitUntil keeps the isolate alive for the promise
+    // @ts-expect-error EdgeRuntime exists in Supabase edge runtime but not in TypeScript DOM libs.
     if (typeof EdgeRuntime !== "undefined") {
       EdgeRuntime.waitUntil(handleOpen())
     } else {

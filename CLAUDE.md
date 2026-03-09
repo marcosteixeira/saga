@@ -16,11 +16,11 @@ yarn build        # Production build
 
 | Concern        | Model                  | Location                                |
 | -------------- | ---------------------- | --------------------------------------- |
-| Game narration | OpenAI GPT-4o          | `supabase/functions/game-session/`      |
+| Game narration | Claude Sonnet 4.6      | `supabase/functions/game-session/`      |
 | World gen      | Claude Haiku 4.5       | `supabase/functions/generate-world/`    |
 | Image gen      | Gemini (`gemini-3-pro-image-preview`) | `supabase/functions/generate-image/` |
 
-The game-session edge function uses OpenAI Responses API with `previous_response_id` for stateful conversation threading — it does **not** send full message history each round.
+The game-session edge function uses the Anthropic Messages API, loading full conversation history from the `messages` table on each round and applying prompt caching on the system prompt and last history message.
 
 ### Game session WebSocket
 
@@ -54,7 +54,8 @@ The game-session edge function (`supabase/functions/game-session/index.ts`) is a
 | `supabase/functions/game-session/index.ts` | WebSocket handler, round orchestration |
 | `supabase/functions/game-session/state.ts` | In-memory session state (connections, pending messages) |
 | `supabase/functions/game-session/prompt.ts` | GM system prompt builder |
-| `supabase/functions/game-session/openai.ts` | OpenAI response parsing |
+| `supabase/functions/game-session/anthropic.ts` | Anthropic response parsing |
+| `supabase/functions/game-session/history.ts` | Conversation history reconstruction for Anthropic |
 | `supabase/functions/game-session/debounce.ts` | Per-campaign debounce timer |
 | `supabase/functions/generate-world/index.ts` | World gen orchestration |
 | `supabase/functions/generate-world/world-content.ts` | Section validation, class parsing |
@@ -67,7 +68,7 @@ The game-session edge function (`supabase/functions/game-session/index.ts`) is a
 
 Migrations live in `supabase/migrations/` (001–014). Key tables:
 
-- `campaigns` — campaign metadata, `last_response_id` (OpenAI), `world_id`
+- `campaigns` — campaign metadata, `last_response_id` (`null` → `pending` → `done`), `world_id`
 - `worlds` — `world_content` (WORLD.md), `classes` (JSONB), `status`
 - `players` — per-campaign player records linked to `auth.users`
 - `messages` — game log (actions + narration), `player_id = null` for AI messages
@@ -76,7 +77,7 @@ Migrations live in `supabase/migrations/` (001–014). Key tables:
 
 ## Testing
 
-- Tests use Vitest with mocks for edge runtime, Supabase, and OpenAI
+- Tests use Vitest with mocks for edge runtime, Supabase, and Anthropic
 - Mock stubs in `supabase/functions/__mocks__/`
 - Each edge function has a `__tests__/` directory next to its source
 
