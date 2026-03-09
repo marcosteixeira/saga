@@ -939,18 +939,18 @@ body {
       <div class="mermaid-wrap scrollable" style="max-height:72vh;">
         <div class="mermaid">
 flowchart TD
-    C1["Player 1 connects\n(wss://)"] --> AUTH["Verify JWT\n(SUPABASE_ANON_KEY)"]
+    C1["Player 1 connects (wss://)"] --> AUTH["Verify JWT"]
     C2["Player 2 connects"] --> AUTH
-    AUTH --> LOCK{"round_in_progress\n= false?"}
-    LOCK -->|"Claim slot"| FIRST["Opening Narration\n(Claude Sonnet 4.6)"]
+    AUTH --> LOCK{"round_in_progress = false?"}
+    LOCK -->|"Claim slot"| FIRST["Opening Narration"]
     LOCK -->|"Already claimed"| STREAM
-    FIRST --> STREAM["Stream chunks\n→ Supabase Realtime"]
+    FIRST --> STREAM["Stream → Supabase Realtime"]
     STREAM --> SAVE["Save to messages table"]
-    SAVE --> IDLE["Waiting for\nplayer actions"]
+    SAVE --> IDLE["Waiting for player actions"]
     IDLE --> ACTION["Player submits action"]
-    ACTION --> DEBOUNCE["Debounce timer\n(batch actions)"]
-    DEBOUNCE --> HISTORY["Rebuild full\nmessage history"]
-    HISTORY --> CLAUDE["Call Claude API\n(system prompt + history)"]
+    ACTION --> DEBOUNCE["Debounce timer"]
+    DEBOUNCE --> HISTORY["Rebuild message history"]
+    HISTORY --> CLAUDE["Call Claude API"]
     CLAUDE --> STREAM
         </div>
       </div>
