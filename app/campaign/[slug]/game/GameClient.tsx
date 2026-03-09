@@ -10,10 +10,14 @@ import { MessageBubble, NarrationGroupBubble } from './components/MessageBubble'
 import { MobileActionBar } from './components/MobileActionBar';
 import { DebounceTimer } from './components/DebounceTimer';
 import { buildGameSessionSocketConfig } from './ws-auth';
+import { useVoiceNarration } from './hooks/useVoiceNarration';
+import type { UseVoiceNarration } from './hooks/useVoiceNarration';
+import { appendStreamingContent } from './streaming-content';
 import type { Campaign } from '@/types/campaign';
 import type { Player } from '@/types/player';
 import type { World } from '@/types/world';
 import type { Message } from '@/types/message';
+import { Volume2, VolumeX, RotateCcw } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1602,6 +1606,7 @@ function ActiveGameView({
   wsStatus,
   isSilentReconnect,
   onSend,
+  voiceNarration,
 }: {
   campaign: Campaign;
   world: World;
@@ -1616,6 +1621,7 @@ function ActiveGameView({
   wsStatus: 'connecting' | 'connected' | 'disconnected';
   isSilentReconnect: boolean;
   onSend: (content: string) => void;
+  voiceNarration: UseVoiceNarration;
 }) {
   const feedRef = useRef<HTMLDivElement>(null);
   const [inputValue, setInputValue] = useState('');
@@ -1765,6 +1771,32 @@ function ActiveGameView({
             </span>
           </div>
           <div className="flex shrink-0 items-center gap-2">
+            {/* Voice controls */}
+            {voiceNarration.lastText && (
+              <button
+                onClick={() => voiceNarration.replay()}
+                disabled={voiceNarration.isLoading || voiceNarration.isPlaying}
+                title="Replay narration"
+                className="flex h-7 w-7 items-center justify-center text-ash/60 transition-colors hover:text-steam disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <RotateCcw
+                  size={14}
+                  className={voiceNarration.isLoading ? 'animate-spin' : ''}
+                />
+              </button>
+            )}
+            <button
+              onClick={() => voiceNarration.toggle()}
+              title={voiceNarration.enabled ? 'Disable voice narration' : 'Enable voice narration'}
+              className="flex h-7 w-7 items-center justify-center text-ash/60 transition-colors hover:text-steam"
+            >
+              {voiceNarration.enabled ? (
+                <Volume2 size={14} className={voiceNarration.isPlaying ? 'text-steam' : ''} />
+              ) : (
+                <VolumeX size={14} />
+              )}
+            </button>
+            <div className="h-3 w-px bg-gunmetal" />
             <div
               className="h-2 w-2 rounded-full bg-patina"
               style={{
@@ -1820,7 +1852,7 @@ function ActiveGameView({
                     group.push(allMessages[i]);
                     i++;
                   }
-                  items.push(<NarrationGroupBubble key={group[0].id} messages={group} />);
+                  items.push(<NarrationGroupBubble key={group[0].id} messages={group} onSpeak={voiceNarration.enabled ? voiceNarration.speak : undefined} />);
                 } else {
                   items.push(
                     <MessageBubble key={msg.id} message={msg} players={players} />
@@ -2098,7 +2130,10 @@ export default function GameClient({
   const [optimisticMessages, setOptimisticMessages] = useState<OptimisticMessage[]>([]);
   const [lastActionSentAt, setLastActionSentAt] = useState<number | null>(null);
   const [streamingContent, setStreamingContent] = useState('');
+  const streamingContentRef = useRef('');
   const [isStreaming, setIsStreaming] = useState(false);
+  const voiceNarration = useVoiceNarration();
+  const voiceNarrationRef = useRef(voiceNarration);
   const [wsStatus, setWsStatus] = useState<'connecting' | 'connected' | 'disconnected'>(
     'connecting'
   );
@@ -2113,6 +2148,10 @@ export default function GameClient({
   useEffect(() => {
     optimisticMessagesRef.current = optimisticMessages;
   }, [optimisticMessages]);
+
+  // Sync ref on every render so the long-lived WS useEffect always has fresh
+  // function references without needing to re-run and reconnect.
+  voiceNarrationRef.current = voiceNarration;
 
   // WebSocket connection with exponential-backoff reconnection
   useEffect(() => {
@@ -2203,7 +2242,9 @@ export default function GameClient({
         if (msg.type === 'chunk') {
           setIsStreaming(true);
           setLastActionSentAt(null);
-          setStreamingContent((prev) => prev + (msg.content as string));
+          setStreamingContent((prev) =>
+            appendStreamingContent(streamingContentRef, prev, msg.content as string)
+          );
           setViewState((prev) => (prev === 'loading' ? 'active' : prev));
         }
 
@@ -2211,8 +2252,10 @@ export default function GameClient({
           // Narration and action messages are delivered via Supabase Realtime
           // postgres_changes. This event only signals that streaming is done.
           console.log('[game-session] round:saved (streaming complete)');
+          const textToSpeak = streamingContentRef.current;
           setIsStreaming(false);
           setStreamingContent('');
+          if (textToSpeak) voiceNarrationRef.current.speak(textToSpeak);
         }
 
         if (msg.type === 'error') {
@@ -2245,6 +2288,7 @@ export default function GameClient({
       unmounted = true;
       if (reconnectTimer) clearTimeout(reconnectTimer);
       ws?.close();
+      voiceNarrationRef.current.stop();
     };
   }, [campaign.id]);
 
@@ -2357,6 +2401,7 @@ export default function GameClient({
       wsStatus={wsStatus}
       isSilentReconnect={isSilentReconnect}
       onSend={handleSend}
+      voiceNarration={voiceNarration}
     />
   );
 }
