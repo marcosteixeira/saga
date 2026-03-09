@@ -139,7 +139,7 @@ export default function Home() {
       </section>
 
       {/* ═══════════════════════════════════════════
-          SECTION 2 — FEATURES: Overlapping iron plates
+          SECTION 2 — JOURNEY: 5-step player rail
           ═══════════════════════════════════════════ */}
       <section className="relative px-6 py-32">
         {/* Section label */}
@@ -149,86 +149,184 @@ export default function Home() {
             className="text-3xl tracking-[0.1em] text-primary lg:text-4xl"
             style={{ fontFamily: "var(--font-display), sans-serif" }}
           >
-            THE ENGINE ROOM
+            THE JOURNEY
           </h2>
           <div className="mx-auto mt-4 h-[1px] w-32 bg-gradient-to-r from-transparent via-copper to-transparent" />
         </div>
 
-        {/* Feature plates — asymmetric grid */}
-        <div className="mx-auto grid max-w-5xl gap-6 md:grid-cols-3 md:gap-4">
-          {/* Feature 1 — slightly rotated */}
-          <div className="feature-plate p-8 transition-transform duration-500 hover:-translate-y-1 md:-rotate-1">
-            <div className="mb-4 flex items-center gap-3">
-              <div className="pressure-gauge !h-14 !w-14 !border-2">
-                <span
-                  className="text-lg font-bold text-brass"
-                  style={{ fontFamily: "var(--font-display), sans-serif" }}
-                >
-                  01
-                </span>
-              </div>
-              <h3
-                className="text-base tracking-[0.08em] text-brass"
-                style={{ fontFamily: "var(--font-heading), serif" }}
-              >
-                Create
-              </h3>
-            </div>
-            <div className="iron-seam mb-4" />
-            <p className="text-sm leading-relaxed text-steam/80">
-              Name your campaign and choose a setting. The AI generates a living
-              world with lore, factions, and a map — ready in seconds.
-            </p>
-          </div>
+        {/* Journey steps — horizontal on desktop, vertical on mobile */}
+        <div className="mx-auto max-w-5xl">
+          <div className="relative grid grid-cols-1 gap-8 sm:grid-cols-5 sm:gap-0">
+            {/* Connecting pipe line — desktop only */}
+            <div
+              className="pointer-events-none absolute left-0 right-0 top-[42px] hidden h-[3px] sm:block"
+              style={{
+                background:
+                  "linear-gradient(90deg, transparent 5%, var(--copper) 20%, var(--brass) 50%, var(--copper) 80%, transparent 95%)",
+                boxShadow: "0 0 8px rgba(196,148,61,0.3)",
+              }}
+              aria-hidden="true"
+            />
 
-          {/* Feature 2 — level, elevated */}
-          <div className="feature-plate p-8 transition-transform duration-500 hover:-translate-y-1 md:-translate-y-4">
-            <div className="mb-4 flex items-center gap-3">
-              <div className="pressure-gauge !h-14 !w-14 !border-2">
-                <span
-                  className="text-lg font-bold text-brass"
-                  style={{ fontFamily: "var(--font-display), sans-serif" }}
-                >
-                  02
-                </span>
+            {/* Step 1 — Arrive */}
+            <div className="flex flex-col items-center px-2 text-center">
+              <div
+                className="relative z-10 mb-4 flex h-[84px] w-[84px] flex-shrink-0 items-center justify-center rounded-full border-2 text-3xl"
+                style={{
+                  borderColor: "var(--ash)",
+                  background:
+                    "radial-gradient(circle at 35% 30%, rgba(154,138,122,0.2), rgba(26,24,20,0.95))",
+                  boxShadow: "0 0 20px rgba(154,138,122,0.15)",
+                }}
+              >
+                🔐
               </div>
               <h3
-                className="text-base tracking-[0.08em] text-brass"
+                className="mb-2 text-sm font-bold uppercase tracking-[0.07em] text-amber"
                 style={{ fontFamily: "var(--font-heading), serif" }}
               >
-                Gather
+                Arrive
               </h3>
+              <p className="text-xs leading-relaxed text-steam/70">
+                Sign in with a magic link. No passwords — just an invitation.
+              </p>
+              <div className="mt-3 flex flex-wrap justify-center gap-1">
+                <span className="rounded-sm border border-gunmetal/80 bg-gunmetal/40 px-2 py-0.5 font-mono text-[0.6rem] uppercase tracking-wider text-ash">
+                  Magic Link
+                </span>
+                <span className="rounded-sm border border-gunmetal/80 bg-gunmetal/40 px-2 py-0.5 font-mono text-[0.6rem] uppercase tracking-wider text-ash">
+                  OAuth
+                </span>
+              </div>
             </div>
-            <div className="iron-seam mb-4" />
-            <p className="text-sm leading-relaxed text-steam/80">
-              Share an invite link. Players join the lobby, create characters,
-              and get AI-generated portraits. 1 to 6 adventurers.
-            </p>
-          </div>
 
-          {/* Feature 3 — opposite rotation */}
-          <div className="feature-plate p-8 transition-transform duration-500 hover:-translate-y-1 md:rotate-1">
-            <div className="mb-4 flex items-center gap-3">
-              <div className="pressure-gauge !h-14 !w-14 !border-2">
-                <span
-                  className="text-lg font-bold text-brass"
-                  style={{ fontFamily: "var(--font-display), sans-serif" }}
-                >
-                  03
-                </span>
+            {/* Step 2 — Forge a World */}
+            <div className="flex flex-col items-center px-2 text-center">
+              <div
+                className="relative z-10 mb-4 flex h-[84px] w-[84px] flex-shrink-0 items-center justify-center rounded-full border-2 text-3xl"
+                style={{
+                  borderColor: "var(--patina)",
+                  background:
+                    "radial-gradient(circle at 35% 30%, rgba(90,122,109,0.2), rgba(26,24,20,0.95))",
+                  boxShadow: "0 0 20px rgba(90,122,109,0.15)",
+                }}
+              >
+                🌍
               </div>
               <h3
-                className="text-base tracking-[0.08em] text-brass"
+                className="mb-2 text-sm font-bold uppercase tracking-[0.07em] text-amber"
                 style={{ fontFamily: "var(--font-heading), serif" }}
               >
-                Play
+                Forge a World
               </h3>
+              <p className="text-xs leading-relaxed text-steam/70">
+                Name your campaign. The AI conjures a living setting — lore, factions, geography — in seconds.
+              </p>
+              <div className="mt-3 flex flex-wrap justify-center gap-1">
+                <span className="rounded-sm border border-patina/30 bg-patina/10 px-2 py-0.5 font-mono text-[0.6rem] uppercase tracking-wider text-patina">
+                  Claude Haiku
+                </span>
+                <span className="rounded-sm border border-sky-700/30 bg-sky-900/10 px-2 py-0.5 font-mono text-[0.6rem] uppercase tracking-wider text-sky-400/70">
+                  Gemini Art
+                </span>
+              </div>
             </div>
-            <div className="iron-seam mb-4" />
-            <p className="text-sm leading-relaxed text-steam/80">
-              The AI Game Master narrates in real-time. Explore, fight, and
-              shape the story. Every choice matters. Every die roll counts.
-            </p>
+
+            {/* Step 3 — Choose a Class */}
+            <div className="flex flex-col items-center px-2 text-center">
+              <div
+                className="relative z-10 mb-4 flex h-[84px] w-[84px] flex-shrink-0 items-center justify-center rounded-full border-2 text-3xl"
+                style={{
+                  borderColor: "var(--copper)",
+                  background:
+                    "radial-gradient(circle at 35% 30%, rgba(184,115,51,0.2), rgba(26,24,20,0.95))",
+                  boxShadow: "0 0 20px rgba(184,115,51,0.15)",
+                }}
+              >
+                ⚔️
+              </div>
+              <h3
+                className="mb-2 text-sm font-bold uppercase tracking-[0.07em] text-amber"
+                style={{ fontFamily: "var(--font-heading), serif" }}
+              >
+                Choose a Class
+              </h3>
+              <p className="text-xs leading-relaxed text-steam/70">
+                Pick your calling from classes born of the world&apos;s own mythology. A portrait is painted for you.
+              </p>
+              <div className="mt-3 flex flex-wrap justify-center gap-1">
+                <span className="rounded-sm border border-copper/30 bg-copper/10 px-2 py-0.5 font-mono text-[0.6rem] uppercase tracking-wider text-copper">
+                  Lobby
+                </span>
+                <span className="rounded-sm border border-sky-700/30 bg-sky-900/10 px-2 py-0.5 font-mono text-[0.6rem] uppercase tracking-wider text-sky-400/70">
+                  Portrait Gen
+                </span>
+              </div>
+            </div>
+
+            {/* Step 4 — Enter the Fray */}
+            <div className="flex flex-col items-center px-2 text-center">
+              <div
+                className="relative z-10 mb-4 flex h-[84px] w-[84px] flex-shrink-0 items-center justify-center rounded-full border-2 text-3xl"
+                style={{
+                  borderColor: "var(--furnace)",
+                  background:
+                    "radial-gradient(circle at 35% 30%, rgba(212,98,42,0.2), rgba(26,24,20,0.95))",
+                  boxShadow: "0 0 20px rgba(212,98,42,0.15)",
+                }}
+              >
+                🎲
+              </div>
+              <h3
+                className="mb-2 text-sm font-bold uppercase tracking-[0.07em] text-amber"
+                style={{ fontFamily: "var(--font-heading), serif" }}
+              >
+                Enter the Fray
+              </h3>
+              <p className="text-xs leading-relaxed text-steam/70">
+                Up to 6 adventurers gather. The AI Game Master narrates in real time — streaming, alive, reacting to every action.
+              </p>
+              <div className="mt-3 flex flex-wrap justify-center gap-1">
+                <span className="rounded-sm border border-furnace/30 bg-furnace/10 px-2 py-0.5 font-mono text-[0.6rem] uppercase tracking-wider text-furnace">
+                  Live WebSocket
+                </span>
+                <span className="rounded-sm border border-brass/30 bg-brass/10 px-2 py-0.5 font-mono text-[0.6rem] uppercase tracking-wider text-brass">
+                  Claude Sonnet
+                </span>
+              </div>
+            </div>
+
+            {/* Step 5 — Shape the Legend */}
+            <div className="flex flex-col items-center px-2 text-center">
+              <div
+                className="relative z-10 mb-4 flex h-[84px] w-[84px] flex-shrink-0 items-center justify-center rounded-full border-2 text-3xl"
+                style={{
+                  borderColor: "var(--amber)",
+                  background:
+                    "radial-gradient(circle at 35% 30%, rgba(232,168,53,0.2), rgba(26,24,20,0.95))",
+                  boxShadow: "0 0 20px rgba(232,168,53,0.15)",
+                }}
+              >
+                📜
+              </div>
+              <h3
+                className="mb-2 text-sm font-bold uppercase tracking-[0.07em] text-amber"
+                style={{ fontFamily: "var(--font-heading), serif" }}
+              >
+                Shape the Legend
+              </h3>
+              <p className="text-xs leading-relaxed text-steam/70">
+                Every round is remembered. NPCs, events, wounds — the world&apos;s memory grows with each session.
+              </p>
+              <div className="mt-3 flex flex-wrap justify-center gap-1">
+                <span className="rounded-sm border border-brass/30 bg-brass/10 px-2 py-0.5 font-mono text-[0.6rem] uppercase tracking-wider text-brass">
+                  MEMORY.md
+                </span>
+                <span className="rounded-sm border border-patina/30 bg-patina/10 px-2 py-0.5 font-mono text-[0.6rem] uppercase tracking-wider text-patina">
+                  Persistent DB
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       </section>
