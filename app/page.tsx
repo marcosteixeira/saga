@@ -332,7 +332,150 @@ export default function Home() {
       </section>
 
       {/* ═══════════════════════════════════════════
-          SECTION 3 — STATS: Pressure gauge row
+    SECTION 3 — AI ENGINE: Three model cards
+    ═══════════════════════════════════════════ */}
+<section className="relative px-6 py-20">
+  {/* Section label */}
+  <div className="mx-auto mb-16 max-w-4xl text-center">
+    <div className="brass-nameplate mx-auto mb-6">Under the Hood</div>
+    <h2
+      className="text-3xl tracking-[0.1em] text-primary lg:text-4xl"
+      style={{ fontFamily: "var(--font-display), sans-serif" }}
+    >
+      THE FOUNDRY
+    </h2>
+    <div className="mx-auto mt-4 h-[1px] w-32 bg-gradient-to-r from-transparent via-copper to-transparent" />
+    <p className="mx-auto mt-6 max-w-xl text-sm leading-relaxed text-steam/70">
+      Three specialized AI models working in concert — each mastering its own domain of the adventure.
+    </p>
+  </div>
+
+  {/* AI model cards */}
+  <div className="mx-auto grid max-w-5xl gap-6 md:grid-cols-3 md:gap-4">
+    {/* Claude Sonnet — Game Master */}
+    <div
+      className="feature-plate p-8 transition-transform duration-500 hover:-translate-y-1"
+      style={{ borderTop: "2px solid var(--brass)" }}
+    >
+      <p className="mb-3 font-mono text-[0.65rem] uppercase tracking-[0.15em] text-brass/60">
+        Anthropic — Claude Sonnet 4.6
+      </p>
+      <div className="mb-4 flex items-center gap-3">
+        <div className="pressure-gauge !h-14 !w-14 !border-2">
+          <span className="text-xl">🎭</span>
+        </div>
+        <h3
+          className="text-base tracking-[0.08em] text-brass"
+          style={{ fontFamily: "var(--font-heading), serif" }}
+        >
+          Game Master
+        </h3>
+      </div>
+      <div className="iron-seam mb-4" />
+      <p className="mb-4 text-sm leading-relaxed text-steam/80">
+        Real-time streaming narration over WebSocket. Holds full conversation history per session with prompt caching.
+      </p>
+      <dl className="space-y-1">
+        {(
+          [
+            ["Transport", "WebSocket (Deno)"],
+            ["Output", "Streaming chunks"],
+            ["Location", "game-session fn"],
+          ] as [string, string][]
+        ).map(([label, value]) => (
+          <div key={label} className="flex gap-2 font-mono text-[0.65rem]">
+            <dt className="uppercase tracking-wider text-ash/60">{label}:</dt>
+            <dd className="text-steam/70">{value}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+
+    {/* Claude Haiku — World Builder */}
+    <div
+      className="feature-plate p-8 transition-transform duration-500 hover:-translate-y-1 md:-translate-y-4"
+      style={{ borderTop: "2px solid var(--patina)" }}
+    >
+      <p
+        className="mb-3 font-mono text-[0.65rem] uppercase tracking-[0.15em]"
+        style={{ color: "var(--patina)" }}
+      >
+        Anthropic — Claude Haiku 4.5
+      </p>
+      <div className="mb-4 flex items-center gap-3">
+        <div className="pressure-gauge !h-14 !w-14 !border-2">
+          <span className="text-xl">🌍</span>
+        </div>
+        <h3
+          className="text-base tracking-[0.08em] text-brass"
+          style={{ fontFamily: "var(--font-heading), serif" }}
+        >
+          World Builder
+        </h3>
+      </div>
+      <div className="iron-seam mb-4" />
+      <p className="mb-4 text-sm leading-relaxed text-steam/80">
+        Webhook-triggered world generation from a campaign brief. Produces full WORLD.md content with section validation and class extraction.
+      </p>
+      <dl className="space-y-1">
+        {(
+          [
+            ["Trigger", "Supabase webhook"],
+            ["Retries", "3× on missing sections"],
+            ["Output", "WORLD.md + classes"],
+          ] as [string, string][]
+        ).map(([label, value]) => (
+          <div key={label} className="flex gap-2 font-mono text-[0.65rem]">
+            <dt className="uppercase tracking-wider text-ash/60">{label}:</dt>
+            <dd className="text-steam/70">{value}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+
+    {/* Gemini — Artisan */}
+    <div
+      className="feature-plate p-8 transition-transform duration-500 hover:-translate-y-1"
+      style={{ borderTop: "2px solid #4a5568" }}
+    >
+      <p className="mb-3 font-mono text-[0.65rem] uppercase tracking-[0.15em] text-sky-500/60">
+        Google — Gemini Pro Image
+      </p>
+      <div className="mb-4 flex items-center gap-3">
+        <div className="pressure-gauge !h-14 !w-14 !border-2">
+          <span className="text-xl">🎨</span>
+        </div>
+        <h3
+          className="text-base tracking-[0.08em] text-brass"
+          style={{ fontFamily: "var(--font-heading), serif" }}
+        >
+          Artisan
+        </h3>
+      </div>
+      <div className="iron-seam mb-4" />
+      <p className="mb-4 text-sm leading-relaxed text-steam/80">
+        Parallel cover and map generation on world creation. Character portraits on demand. Images stored in Supabase Storage.
+      </p>
+      <dl className="space-y-1">
+        {(
+          [
+            ["Parallel", "cover + map"],
+            ["On demand", "portraits"],
+            ["Storage", "campaign-images"],
+          ] as [string, string][]
+        ).map(([label, value]) => (
+          <div key={label} className="flex gap-2 font-mono text-[0.65rem]">
+            <dt className="uppercase tracking-wider text-ash/60">{label}:</dt>
+            <dd className="text-steam/70">{value}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  </div>
+</section>
+
+      {/* ═══════════════════════════════════════════
+          SECTION 4 — STATS: Pressure gauge row
           ═══════════════════════════════════════════ */}
       <section className="relative overflow-hidden py-20">
         {/* I-beam top */}
