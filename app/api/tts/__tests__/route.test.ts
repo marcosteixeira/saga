@@ -1,14 +1,47 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { POST } from '../route'
 
 const mockFetch = vi.fn()
 vi.stubGlobal('fetch', mockFetch)
+
+const mockGetUser = vi.fn()
+
+vi.mock('@/lib/supabase/server', () => ({
+  createAuthServerClient: vi.fn(() =>
+    Promise.resolve({
+      auth: { getUser: mockGetUser },
+    })
+  ),
+}))
 
 describe('POST /api/tts', () => {
   beforeEach(() => {
     vi.resetAllMocks()
     vi.stubEnv('ELEVENLABS_API_KEY', 'test-key')
     vi.stubEnv('ELEVENLABS_VOICE_ID', 'test-voice-id')
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'user-1' } } })
+  })
+
+  it('returns 401 if user is not authenticated', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: null } })
+    const { POST } = await import('../route')
+    const req = new Request('http://localhost/api/tts', {
+      method: 'POST',
+      body: JSON.stringify({ text: 'Hello adventurer' }),
+      headers: { 'content-type': 'application/json' },
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(401)
+  })
+
+  it('returns 400 if text exceeds 5000 chars', async () => {
+    const { POST } = await import('../route')
+    const req = new Request('http://localhost/api/tts', {
+      method: 'POST',
+      body: JSON.stringify({ text: 'a'.repeat(5001) }),
+      headers: { 'content-type': 'application/json' },
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(400)
   })
 
   it('streams audio from ElevenLabs and returns audio/mpeg', async () => {
@@ -20,9 +53,10 @@ describe('POST /api/tts', () => {
       })
     )
 
+    const { POST } = await import('../route')
     const req = new Request('http://localhost/api/tts', {
       method: 'POST',
-      body: JSON.stringify({ text: 'Hello adventurer', voiceId: 'test-voice-id' }),
+      body: JSON.stringify({ text: 'Hello adventurer' }),
       headers: { 'content-type': 'application/json' }
     })
 
@@ -42,6 +76,7 @@ describe('POST /api/tts', () => {
   })
 
   it('returns 400 if text is missing', async () => {
+    const { POST } = await import('../route')
     const req = new Request('http://localhost/api/tts', {
       method: 'POST',
       body: JSON.stringify({}),
@@ -51,19 +86,33 @@ describe('POST /api/tts', () => {
     expect(res.status).toBe(400)
   })
 
-  it('returns 500 if ElevenLabs returns non-ok', async () => {
+  it('returns 429 if ElevenLabs returns 429', async () => {
     mockFetch.mockResolvedValue(new Response('error', { status: 429 }))
+    const { POST } = await import('../route')
     const req = new Request('http://localhost/api/tts', {
       method: 'POST',
       body: JSON.stringify({ text: 'Hello' }),
       headers: { 'content-type': 'application/json' }
     })
     const res = await POST(req)
-    expect(res.status).toBe(500)
+    expect(res.status).toBe(429)
+  })
+
+  it('returns 502 if ElevenLabs returns 500', async () => {
+    mockFetch.mockResolvedValue(new Response('error', { status: 500 }))
+    const { POST } = await import('../route')
+    const req = new Request('http://localhost/api/tts', {
+      method: 'POST',
+      body: JSON.stringify({ text: 'Hello' }),
+      headers: { 'content-type': 'application/json' }
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(502)
   })
 
   it('returns 500 if ELEVENLABS_API_KEY is missing', async () => {
     vi.stubEnv('ELEVENLABS_API_KEY', '')
+    const { POST } = await import('../route')
     const req = new Request('http://localhost/api/tts', {
       method: 'POST',
       body: JSON.stringify({ text: 'Hello' }),
