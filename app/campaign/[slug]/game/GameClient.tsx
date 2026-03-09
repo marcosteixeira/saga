@@ -10,6 +10,8 @@ import { MessageBubble, NarrationGroupBubble } from './components/MessageBubble'
 import { MobileActionBar } from './components/MobileActionBar';
 import { DebounceTimer } from './components/DebounceTimer';
 import { buildGameSessionSocketConfig } from './ws-auth';
+import { useVoiceNarration } from './hooks/useVoiceNarration';
+import type { UseVoiceNarration } from './hooks/useVoiceNarration';
 import type { Campaign } from '@/types/campaign';
 import type { Player } from '@/types/player';
 import type { World } from '@/types/world';
@@ -1602,6 +1604,7 @@ function ActiveGameView({
   wsStatus,
   isSilentReconnect,
   onSend,
+  voiceNarration,
 }: {
   campaign: Campaign;
   world: World;
@@ -1616,6 +1619,7 @@ function ActiveGameView({
   wsStatus: 'connecting' | 'connected' | 'disconnected';
   isSilentReconnect: boolean;
   onSend: (content: string) => void;
+  voiceNarration: UseVoiceNarration;
 }) {
   const feedRef = useRef<HTMLDivElement>(null);
   const [inputValue, setInputValue] = useState('');
@@ -2098,7 +2102,9 @@ export default function GameClient({
   const [optimisticMessages, setOptimisticMessages] = useState<OptimisticMessage[]>([]);
   const [lastActionSentAt, setLastActionSentAt] = useState<number | null>(null);
   const [streamingContent, setStreamingContent] = useState('');
+  const streamingContentRef = useRef('');
   const [isStreaming, setIsStreaming] = useState(false);
+  const voiceNarration = useVoiceNarration();
   const [wsStatus, setWsStatus] = useState<'connecting' | 'connected' | 'disconnected'>(
     'connecting'
   );
@@ -2113,6 +2119,10 @@ export default function GameClient({
   useEffect(() => {
     optimisticMessagesRef.current = optimisticMessages;
   }, [optimisticMessages]);
+
+  useEffect(() => {
+    streamingContentRef.current = streamingContent;
+  }, [streamingContent]);
 
   // WebSocket connection with exponential-backoff reconnection
   useEffect(() => {
@@ -2211,8 +2221,10 @@ export default function GameClient({
           // Narration and action messages are delivered via Supabase Realtime
           // postgres_changes. This event only signals that streaming is done.
           console.log('[game-session] round:saved (streaming complete)');
+          const textToSpeak = streamingContentRef.current;
           setIsStreaming(false);
           setStreamingContent('');
+          if (textToSpeak) voiceNarration.speak(textToSpeak);
         }
 
         if (msg.type === 'error') {
@@ -2357,6 +2369,7 @@ export default function GameClient({
       wsStatus={wsStatus}
       isSilentReconnect={isSilentReconnect}
       onSend={handleSend}
+      voiceNarration={voiceNarration}
     />
   );
 }
