@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, after } from 'next/server'
 import { createServerSupabaseClient, createAuthServerClient } from '@/lib/supabase/server'
 import { broadcastCampaignEvent } from '@/lib/realtime-broadcast'
 
@@ -48,7 +48,7 @@ export async function POST(
 
   const { error: updateError } = await supabase
     .from('campaigns')
-    .update({ status: 'active' })
+    .update({ status: 'active', next_round_at: new Date().toISOString() })
     .eq('id', campaignId)
     .eq('status', 'lobby')
     .select('id')
@@ -62,6 +62,16 @@ export async function POST(
   }
 
   await broadcastCampaignEvent(campaignId, 'game:starting', {})
+
+  // Trigger opening narration immediately via after()
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL
+    ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
+  after(async () => {
+    await fetch(`${appUrl}/api/game-session/${campaignId}/round`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}` },
+    })
+  })
 
   // Fire-and-forget: campaign cover image
   const imageUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/generate-image`

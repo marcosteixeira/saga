@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+vi.mock('next/server', async () => {
+  const actual = await vi.importActual('next/server')
+  return { ...actual, after: vi.fn() }
+})
+
 vi.mock('@/lib/supabase/server', () => ({
   createServerSupabaseClient: vi.fn(),
   createAuthServerClient: vi.fn(),
@@ -150,7 +155,7 @@ describe('POST /api/campaign/[id]/start', () => {
 
     const res = await POST(makeRequest(), makeParams('abc'))
     expect(res.status).toBe(200)
-    expect(updateFn).toHaveBeenCalledWith({ status: 'active' })
+    expect(updateFn).toHaveBeenCalledWith(expect.objectContaining({ status: 'active', next_round_at: expect.any(String) }))
     expect(updateQuery.eq).toHaveBeenNthCalledWith(1, 'id', 'abc')
     expect(updateQuery.eq).toHaveBeenNthCalledWith(2, 'status', 'lobby')
     expect(broadcastCampaignEvent).toHaveBeenCalledWith('abc', 'game:starting', {})

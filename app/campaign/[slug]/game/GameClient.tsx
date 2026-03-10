@@ -9,7 +9,6 @@ import { ImageModal, type ImageModalState } from './components/ImageModal';
 import { MessageBubble, NarrationGroupBubble } from './components/MessageBubble';
 import { MobileActionBar } from './components/MobileActionBar';
 import { DebounceTimer } from './components/DebounceTimer';
-import { buildGameSessionSocketConfig } from './ws-auth';
 import type { Campaign } from '@/types/campaign';
 import type { Player } from '@/types/player';
 import type { World } from '@/types/world';
@@ -1599,8 +1598,8 @@ function ActiveGameView({
   isStreaming,
   currentUserId,
   campaignCoverImageUrl: initialCampaignCoverImageUrl,
-  wsStatus,
-  isSilentReconnect,
+  roundInProgress,
+  droppedActionId,
   onSend,
 }: {
   campaign: Campaign;
@@ -1613,9 +1612,9 @@ function ActiveGameView({
   isStreaming: boolean;
   currentUserId: string;
   campaignCoverImageUrl?: string;
-  wsStatus: 'connecting' | 'connected' | 'disconnected';
-  isSilentReconnect: boolean;
-  onSend: (content: string) => void;
+  roundInProgress: boolean;
+  droppedActionId: string | null;
+  onSend: (content: string) => Promise<void>;
 }) {
   const feedRef = useRef<HTMLDivElement>(null);
   const [inputValue, setInputValue] = useState('');
@@ -1685,8 +1684,7 @@ function ActiveGameView({
     setMobilePanel((prev) => (prev === panel ? null : panel));
   const handleImageClick = (state: ImageModalState) => setImageModal(state);
   const handleModalClose = () => setImageModal(null);
-  const showConnectionBanner = !isSilentReconnect && wsStatus !== 'connected';
-  const promptDisabled = wsStatus !== 'connected' && !isSilentReconnect;
+  const promptDisabled = roundInProgress;
 
   return (
     <div className="relative flex h-[100dvh] overflow-hidden bg-soot">
@@ -1781,16 +1779,6 @@ function ActiveGameView({
           </div>
         </header>
 
-        {/* Disconnected banner */}
-        {showConnectionBanner && (
-          <div
-            className="flex items-center justify-center gap-2 border-b border-furnace/40 bg-furnace/10 px-4 py-1.5 text-[11px] text-furnace/80"
-            style={{ fontFamily: 'var(--font-mono), monospace' }}
-          >
-            <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-furnace/80" />
-            {wsStatus === 'connecting' ? 'Connecting...' : 'Reconnecting...'}
-          </div>
-        )}
 
         {/* Feed */}
         <div
@@ -1881,6 +1869,11 @@ function ActiveGameView({
           disabled={promptDisabled}
           debounceStartedAt={debounceStartedAt}
         />
+        {droppedActionId && (
+          <p className="px-4 pb-2 text-xs text-furnace" style={{ fontFamily: 'var(--font-mono)' }}>
+            The GM is already reading — your action didn&apos;t make it this round.
+          </p>
+        )}
       </main>
 
       {/* Desktop right */}
@@ -2099,206 +2092,63 @@ export default function GameClient({
   const [lastActionSentAt, setLastActionSentAt] = useState<number | null>(null);
   const [streamingContent, setStreamingContent] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
-  const [wsStatus, setWsStatus] = useState<'connecting' | 'connected' | 'disconnected'>(
-    'connecting'
-  );
-  const [isSilentReconnect, setIsSilentReconnect] = useState(false);
-  const wsRef = useRef<WebSocket | null>(null);
-  const optimisticMessagesRef = useRef<OptimisticMessage[]>([]);
+  const [roundInProgress, setRoundInProgress] = useState(false);
+  const [droppedActionId, setDroppedActionId] = useState<string | null>(null);
 
   const currentPlayer = dbPlayers.find((p) => p.user_id === currentUserId);
   const playerName =
     currentPlayer?.character_name ?? currentPlayer?.username ?? 'Unknown';
 
-  useEffect(() => {
-    optimisticMessagesRef.current = optimisticMessages;
-  }, [optimisticMessages]);
-
-  // WebSocket connection with exponential-backoff reconnection
-  useEffect(() => {
-    let ws: WebSocket | null = null;
-    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-    let reconnectAttempt = 0;
-    let unmounted = false;
-    // Suppress banner/disable during cold-start restarts (close code 1006)
-    let silentReconnect = false;
-
-    const scheduleReconnect = (silent = false) => {
-      if (unmounted) return;
-      silentReconnect = silent;
-      setIsSilentReconnect(silent);
-      if (!silent) setWsStatus('disconnected');
-      const delay = Math.min(1000 * 2 ** reconnectAttempt, 30000);
-      reconnectAttempt++;
-      console.log(
-        `[game-session] reconnecting in ${delay}ms (attempt ${reconnectAttempt})${silent ? ' [silent]' : ''}`
-      );
-      if (reconnectTimer) clearTimeout(reconnectTimer);
-      reconnectTimer = setTimeout(connect, delay);
-    };
-
-    const connect = async () => {
-      if (unmounted) return;
-      if (!silentReconnect) setWsStatus('connecting');
-      console.log('[game-session] connecting… (attempt', reconnectAttempt + 1, ')');
-
-      const supabase = createClient();
-      const {
-        data: { session }
-      } = await supabase.auth.getSession();
-      if (unmounted) return;
-      if (!session?.access_token) {
-        console.warn('[game-session] no session — retrying');
-        scheduleReconnect();
-        return;
-      }
-
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-      const socketConfig = buildGameSessionSocketConfig({
-        supabaseUrl,
-        campaignId: campaign.id,
-        accessToken: session.access_token
-      });
-
-      ws = new WebSocket(socketConfig.url, socketConfig.protocols);
-      wsRef.current = ws;
-
-      ws.onopen = () => {
-        const socket = ws;
-        if (!socket) return;
-        const shouldReplayOptimistic = silentReconnect;
-        reconnectAttempt = 0;
-        silentReconnect = false;
-        setIsSilentReconnect(false);
-        setWsStatus('connected');
-        console.log('[game-session] connected');
-
-        if (shouldReplayOptimistic) {
-          const pendingOptimistic = optimisticMessagesRef.current.filter((message) => message.isOwn);
-          for (const message of pendingOptimistic) {
-            console.log('[game-session] replay optimistic action', {
-              id: message.id,
-              content: message.content
-            });
-            socket.send(
-              JSON.stringify({
-                type: 'action',
-                id: message.id,
-                content: message.content,
-                timestamp: message.timestamp
-              })
-            );
-          }
-        }
-      };
-
-      ws.onmessage = (event: MessageEvent) => {
-        let msg: { type: string; [key: string]: unknown };
-        try {
-          msg = JSON.parse(event.data as string);
-        } catch {
-          return;
-        }
-
-        if (msg.type === 'chunk') {
-          setIsStreaming(true);
-          setLastActionSentAt(null);
-          setStreamingContent((prev) => prev + (msg.content as string));
-          setViewState((prev) => (prev === 'loading' ? 'active' : prev));
-        }
-
-        if (msg.type === 'round:saved') {
-          // Narration and action messages are delivered via Supabase Realtime
-          // postgres_changes. This event only signals that streaming is done.
-          console.log('[game-session] round:saved (streaming complete)');
-          setIsStreaming(false);
-          setStreamingContent('');
-        }
-
-        if (msg.type === 'error') {
-          console.error('[game-session] server error:', msg.message);
-          // If we're still on the loading screen, the opening narration failed.
-          // Transition to active so the player isn't stuck forever — the feed will
-          // show empty and the GM typing indicator will be gone.
-          setViewState((prev) => (prev === 'loading' ? 'active' : prev));
-          setIsStreaming(false);
-          setLastActionSentAt(null);
-        }
-      };
-
-      ws.onclose = (event) => {
-        const isColdRestart = event.code === 1006;
-        console.log('[game-session] disconnected', {
-          code: event.code,
-          reason: event.reason || 'none',
-          silent: isColdRestart
-        });
-        wsRef.current = null;
-        if (unmounted) return;
-        scheduleReconnect(isColdRestart);
-      };
-    };
-
-    connect();
-
-    return () => {
-      unmounted = true;
-      if (reconnectTimer) clearTimeout(reconnectTimer);
-      ws?.close();
-    };
-  }, [campaign.id]);
-
-  // Supabase Realtime: subscribe to new message inserts for this campaign.
-  // This is the primary delivery path for player actions and narration —
-  // works across all edge function isolates, fixing the multiplayer isolation bug.
+  // Subscribe to Supabase Realtime broadcast channel for all game events.
   useEffect(() => {
     const supabase = createClient();
-
     const channel = supabase
-      .channel(`game-messages-${campaign.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-          filter: `campaign_id=eq.${campaign.id}`,
-        },
-        (payload) => {
-          const newMsg = payload.new as Message;
-          console.log('[realtime] messages INSERT', {
-            id: newMsg.id,
-            type: newMsg.type,
-            client_id: newMsg.client_id,
-          });
-
-          // Remove matching optimistic message (own action confirmed by DB).
-          if (newMsg.client_id) {
-            setOptimisticMessages((prev) =>
-              prev.filter((m) => m.id !== newMsg.client_id)
-            );
-          }
-
-          // Start/restart the debounce timer for all players when any action lands.
-          if (newMsg.type === 'action') {
-            setLastActionSentAt(new Date(newMsg.created_at).getTime());
-          }
-
-          // Add to live messages (dedup by id).
-          setLiveMessages((prev) => {
-            if (prev.some((m) => m.id === newMsg.id)) return prev;
-            return [...prev, newMsg].sort(
-              (a, b) =>
-                new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-            );
-          });
-
-          // Transition loading → active when the first narration arrives.
-          if (newMsg.type === 'narration') {
-            setViewState((prev) => (prev === 'loading' ? 'active' : prev));
-          }
+      .channel(`game:${campaign.id}`)
+      .on('broadcast', { event: 'action' }, ({ payload }) => {
+        const msg = payload as Message & { playerName?: string };
+        if (msg.client_id) {
+          setOptimisticMessages((prev) => prev.filter((m) => m.id !== msg.client_id));
         }
-      )
+        if (msg.type === 'action') {
+          setLastActionSentAt(new Date(msg.created_at).getTime());
+        }
+        setLiveMessages((prev) => {
+          if (prev.some((m) => m.id === msg.id)) return prev;
+          return [...prev, msg].sort(
+            (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+          );
+        });
+      })
+      .on('broadcast', { event: 'narration' }, ({ payload }) => {
+        const msg = payload as Message;
+        setLiveMessages((prev) => {
+          if (prev.some((m) => m.id === msg.id)) return prev;
+          return [...prev, msg].sort(
+            (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+          );
+        });
+        setViewState((prev) => (prev === 'loading' ? 'active' : prev));
+      })
+      .on('broadcast', { event: 'chunk' }, ({ payload }) => {
+        setIsStreaming(true);
+        setLastActionSentAt(null);
+        setStreamingContent((prev) => prev + ((payload as { content: string }).content ?? ''));
+        setViewState((prev) => (prev === 'loading' ? 'active' : prev));
+      })
+      .on('broadcast', { event: 'round:started' }, () => {
+        setRoundInProgress(true);
+      })
+      .on('broadcast', { event: 'round:saved' }, () => {
+        setIsStreaming(false);
+        setStreamingContent('');
+        setRoundInProgress(false);
+      })
+      .on('broadcast', { event: 'round:error' }, () => {
+        setViewState((prev) => (prev === 'loading' ? 'active' : prev));
+        setIsStreaming(false);
+        setLastActionSentAt(null);
+        setRoundInProgress(false);
+      })
       .subscribe();
 
     return () => {
@@ -2306,14 +2156,9 @@ export default function GameClient({
     };
   }, [campaign.id]);
 
-  const handleSend = (content: string) => {
+  const handleSend = async (content: string) => {
     const id = crypto.randomUUID();
     const timestamp = Date.now();
-    const ws = wsRef.current;
-    const canSendNow = ws?.readyState === WebSocket.OPEN && wsStatus === 'connected';
-    const canQueue = isSilentReconnect;
-
-    if (!canSendNow && !canQueue) return;
 
     setOptimisticMessages((prev) => [
       ...prev,
@@ -2323,17 +2168,27 @@ export default function GameClient({
         playerName,
         content,
         timestamp,
-        isOwn: true
-      }
+        isOwn: true,
+      },
     ]);
 
-    if (canSendNow && ws) {
-      console.log('[game-session] send action', { id, content });
-      ws.send(JSON.stringify({ type: 'action', id, content, timestamp }));
-      return;
-    }
+    try {
+      const res = await fetch(`/api/game-session/${campaign.id}/action`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, content, timestamp }),
+      });
 
-    console.log('[game-session] hold optimistic action during silent reconnect', { id, content });
+      if (res.status === 409) {
+        setOptimisticMessages((prev) => prev.filter((m) => m.id !== id));
+        setDroppedActionId(id);
+        setTimeout(() => setDroppedActionId(null), 5000);
+      } else if (!res.ok) {
+        setOptimisticMessages((prev) => prev.filter((m) => m.id !== id));
+      }
+    } catch {
+      setOptimisticMessages((prev) => prev.filter((m) => m.id !== id));
+    }
   };
 
   if (viewState === 'loading') {
@@ -2354,8 +2209,8 @@ export default function GameClient({
       isStreaming={isStreaming}
       currentUserId={currentUserId}
       campaignCoverImageUrl={campaignCoverImageUrl}
-      wsStatus={wsStatus}
-      isSilentReconnect={isSilentReconnect}
+      roundInProgress={roundInProgress}
+      droppedActionId={droppedActionId}
       onSend={handleSend}
     />
   );

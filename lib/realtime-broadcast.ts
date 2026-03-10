@@ -41,3 +41,11 @@ export async function broadcastPlayerJoin(campaignId: string, player: Player): P
 export async function broadcastPlayerUpdate(campaignId: string, player: Player): Promise<void> {
   await broadcastToTopic(`campaign:${campaignId}`, 'player:updated', player as unknown as Record<string, unknown>)
 }
+
+export async function broadcastGameEvent(
+  campaignId: string,
+  event: string,
+  payload: Record<string, unknown>
+): Promise<void> {
+  await broadcastToTopic(`game:${campaignId}`, event, payload)
+}

@@ -1,26 +1,14 @@
-export interface Player {
+// lib/game-session/prompt.ts
+import type { FirstCallResponse } from './types'
+
+interface PlayerInput {
   character_name: string | null
   character_class: string | null
   character_backstory: string | null
   username?: string | null
 }
 
-export interface FirstCallResponse {
-  world_context: { history: string; factions: string; tone: string }
-  opening_situation: string
-  starting_hooks: string[]
-  actions: []
-  narration: string[]
-}
-
-export interface RoundResponse {
-  actions: Array<{ clientId: string; playerName: string; content: string }>
-  narration: string[]
-}
-
-export type GMResponse = FirstCallResponse | RoundResponse
-
-export function buildGMSystemPrompt(worldContent: string, players: Player[]): string {
+export function buildGMSystemPrompt(worldContent: string, players: PlayerInput[]): string {
   const playerList = players
     .map((p) => {
       const name = p.character_name ?? p.username ?? 'Unknown'
@@ -30,6 +18,7 @@ export function buildGMSystemPrompt(worldContent: string, players: Player[]): st
     })
     .join('\n')
 
+  // Full prompt text — identical to supabase/functions/game-session/prompt.ts
   return `<role>
 You are the Game Master for a tabletop RPG campaign. Narrate the story in second person,
 immersive prose. React to all player actions collectively. Detect the language used in
@@ -95,8 +84,7 @@ physical action ("where are we going?", "when will we arrive?"), and declaration
 inactivity ("I'll sleep", "I'll wait", "I'll follow") are passive. For passive actions:
 write ONE sentence of acknowledgement at most, then immediately inject an event that forces
 engagement. Do NOT write more than one paragraph for a passive action. Do NOT keep the scene
-in a comfortable lull. Do NOT keep Elandor (or any NPC) talking mysteriously — have something
-happen: a figure appears, a commotion erupts, a weapon is drawn.
+in a comfortable lull.
 
 Proactive GM: You do not wait for players to engage the story. Every narration — regardless
 of what the players said — must advance the scene. If their actions were passive or
@@ -110,9 +98,6 @@ appears, an alarm sounds. This is not optional.
 Round 3 passive: full crisis — violence, fire, arrest, ambush. The players are physically
 forced to react. There is no round 4 of passivity.
 Reset the counter whenever a player takes a meaningful physical or narrative action.
-Examples of meaningful: attacking, running, hiding, investigating, making a decision with
-consequences. Examples of passive (do NOT reset): asking where they are, saying ok, sleeping,
-waiting, asking NPC questions that have no stakes.
 
 World texture: Weave world-specific details (locations, factions, creatures, history) into
 every narration. The world should feel alive and specific, not generic.
