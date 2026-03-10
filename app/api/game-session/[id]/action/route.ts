@@ -26,18 +26,14 @@ export async function POST(
 
   if (!player) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  // Check round lock
-  const { data: campaign, error: campaignError } = await supabase
+  // Reject actions while a round is actively running — they'll need to wait for the next window
+  const { data: campaign } = await supabase
     .from('campaigns')
-    .select('id, round_in_progress')
+    .select('round_in_progress')
     .eq('id', campaignId)
     .single()
 
-  if (campaignError || !campaign) {
-    return NextResponse.json({ error: 'Campaign not found' }, { status: 404 })
-  }
-
-  if (campaign.round_in_progress) {
+  if (campaign?.round_in_progress) {
     return NextResponse.json({ reason: 'round_in_progress' }, { status: 409 })
   }
 

@@ -28,8 +28,8 @@ vi.mock('@/lib/supabase/server', () => ({
           })),
           insert: mockMessagesInsert,
           // select handles two query shapes:
-          // 1. existingNarration: .select('id').eq().eq().limit(1)
-          // 2. historyRows: .select('content,...').eq().in().eq().order()
+          // 1. existingNarration: .select('id').eq(campaign_id).eq(type).limit(1)
+          // 2. historyRows: .select('content,...').eq(campaign_id).in(type,[]).eq(processed).order()
           select: vi.fn(() => ({
             eq: vi.fn(() => ({
               eq: vi.fn(() => ({

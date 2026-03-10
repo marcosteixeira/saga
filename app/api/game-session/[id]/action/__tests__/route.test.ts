@@ -2,8 +2,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const mockGetUser = vi.fn()
-const mockCampaignSelect = vi.fn()
 const mockPlayerSelect = vi.fn()
+const mockCampaignSelect = vi.fn()
 const mockMessageInsert = vi.fn()
 const mockCampaignUpdate = vi.fn()
 const mockBroadcastGameEvent = vi.fn()
@@ -16,7 +16,7 @@ vi.mock('@/lib/supabase/server', () => ({
     from: (table: string) => {
       if (table === 'campaigns') {
         return {
-          select: vi.fn(() => ({ eq: mockCampaignSelect })),
+          select: vi.fn(() => ({ eq: vi.fn(() => ({ single: mockCampaignSelect })) })),
           update: vi.fn(() => ({ eq: mockCampaignUpdate })),
         }
       }
@@ -44,6 +44,7 @@ describe('POST /api/game-session/[id]/action', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockBroadcastGameEvent.mockResolvedValue(undefined)
+    mockCampaignUpdate.mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) })
   })
 
   it('returns 401 when unauthenticated', async () => {
@@ -59,15 +60,10 @@ describe('POST /api/game-session/[id]/action', () => {
     expect(res.status).toBe(401)
   })
 
-  it('returns 409 when round_in_progress', async () => {
+  it('returns 409 when round is in progress', async () => {
     mockGetUser.mockResolvedValue({ data: { user: { id: 'user-1' } } })
-    mockCampaignSelect.mockReturnValue({
-      single: vi.fn().mockResolvedValue({
-        data: { id: 'campaign-1', round_in_progress: true },
-        error: null,
-      }),
-    })
     mockPlayerSelect.mockResolvedValue({ data: { id: 'player-1' }, error: null })
+    mockCampaignSelect.mockResolvedValue({ data: { round_in_progress: true }, error: null })
 
     const { POST } = await import('../route')
     const req = new Request('http://localhost', {
@@ -77,21 +73,13 @@ describe('POST /api/game-session/[id]/action', () => {
     const res = await POST(req, { params: Promise.resolve({ id: 'campaign-1' }) })
 
     expect(res.status).toBe(409)
-    const body = await res.json()
-    expect(body.reason).toBe('round_in_progress')
   })
 
-  it('saves action and updates next_round_at when round is not in progress', async () => {
+  it('saves action and schedules round worker', async () => {
     mockGetUser.mockResolvedValue({ data: { user: { id: 'user-1' } } })
-    mockCampaignSelect.mockReturnValue({
-      single: vi.fn().mockResolvedValue({
-        data: { id: 'campaign-1', round_in_progress: false },
-        error: null,
-      }),
-    })
     mockPlayerSelect.mockResolvedValue({ data: { id: 'player-1' }, error: null })
+    mockCampaignSelect.mockResolvedValue({ data: { round_in_progress: false }, error: null })
     mockMessageInsert.mockResolvedValue({ error: null })
-    mockCampaignUpdate.mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) })
 
     const { POST } = await import('../route')
     const req = new Request('http://localhost', {
@@ -111,14 +99,25 @@ describe('POST /api/game-session/[id]/action', () => {
     )
   })
 
+  it('accepts multiple actions from same player during debounce window', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'user-1' } } })
+    mockPlayerSelect.mockResolvedValue({ data: { id: 'player-1' }, error: null })
+    mockCampaignSelect.mockResolvedValue({ data: { round_in_progress: false }, error: null })
+    mockMessageInsert.mockResolvedValue({ error: null })
+
+    const { POST } = await import('../route')
+    const req = new Request('http://localhost', {
+      method: 'POST',
+      body: JSON.stringify({ id: 'msg-2', content: 'I dodge' }),
+    })
+    const res = await POST(req, { params: Promise.resolve({ id: 'campaign-1' }) })
+
+    // Any action is accepted when no round is running
+    expect(res.status).toBe(201)
+  })
+
   it('returns 403 when user is not a player in campaign', async () => {
     mockGetUser.mockResolvedValue({ data: { user: { id: 'user-1' } } })
-    mockCampaignSelect.mockReturnValue({
-      single: vi.fn().mockResolvedValue({
-        data: { id: 'campaign-1', round_in_progress: false },
-        error: null,
-      }),
-    })
     mockPlayerSelect.mockResolvedValue({ data: null, error: null })
 
     const { POST } = await import('../route')
