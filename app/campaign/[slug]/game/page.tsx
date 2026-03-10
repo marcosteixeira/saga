@@ -50,7 +50,7 @@ export default async function GamePage({ params }: Props) {
 
   const [playersResult, messagesResult, imagesResult] = await Promise.all([
     db.from('players').select('*').eq('campaign_id', campaign.id),
-    db.from('messages').select('*').eq('campaign_id', campaign.id).order('created_at', { ascending: true }).limit(50),
+    db.from('messages').select('*').eq('campaign_id', campaign.id).order('created_at', { ascending: false }).limit(50),
     db.from('images').select('entity_type, entity_id, image_type, public_url').eq('status', 'ready').in('entity_id', [world.id, campaign.id]),
   ])
 
@@ -69,7 +69,7 @@ export default async function GamePage({ params }: Props) {
       campaign={campaignWithImages}
       world={worldWithImages}
       players={playersResult.data ?? []}
-      messages={messagesResult.data ?? []}
+      messages={(messagesResult.data ?? []).reverse()}
       currentUserId={user.id}
       loadingImageUrl={loadingImageUrl}
       campaignCoverImageUrl={campaignWithImages.cover_url ?? worldWithImages.cover_url ?? undefined}
