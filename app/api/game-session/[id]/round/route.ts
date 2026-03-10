@@ -169,7 +169,7 @@ export async function POST(
     // Stream from Anthropic
     const rawStream = anthropic.messages.stream({
       model: 'claude-sonnet-4-6',
-      max_tokens: isFirstCall ? 4096 : 1024,
+      max_tokens: isFirstCall ? 4096 : 400,
       system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
       messages,
     })
