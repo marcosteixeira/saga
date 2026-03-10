@@ -182,7 +182,11 @@ export async function POST(
         event.delta.text
       ) {
         fullText += event.delta.text
-        await broadcastGameEvent(campaignId, 'chunk', { content: event.delta.text })
+        // First-call response is JSON — never stream raw chunks to clients.
+        // Narration is extracted after parsing and broadcast as narration events.
+        if (!isFirstCall) {
+          await broadcastGameEvent(campaignId, 'chunk', { content: event.delta.text })
+        }
       }
     }
 
