@@ -1,8 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-
-const TOTAL_SECONDS = 8;
+import { ROUND_DEBOUNCE_SECONDS as TOTAL_SECONDS } from '@/lib/game-session/config';
 const SIZE = 52;
 const CENTER = SIZE / 2;
 const R = 18;
