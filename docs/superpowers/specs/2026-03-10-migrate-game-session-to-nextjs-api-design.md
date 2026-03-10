@@ -13,7 +13,7 @@ The `game-session` Supabase Edge Function is a Deno WebSocket server. Supabase E
 Replace the WebSocket with:
 - REST API routes in Next.js for player actions and round triggers
 - Supabase Realtime **broadcast** for all real-time events (chunks, narration, actions, round state)
-- **pg_cron** for server-side debounce and round scheduling
+- **Vercel `unstable_after`** for server-side debounce scheduling (no pg_cron)
 
 No persistent connections. No in-memory state. No cold-start disconnects.
 
@@ -33,18 +33,18 @@ Client ──WS──▶ Supabase Edge Function
 ### New Flow
 ```
 Client ──POST /action──▶ Next.js API ──▶ DB (messages)
-                                      └─ UPDATE campaigns.fire_at = NOW() + 8s
+                                      └─ UPDATE campaigns.next_round_at = NOW() + 8s
                                       └─ broadcast 'action' event
+                                      └─ after(sleep 8s → POST /round)  [Vercel after()]
 
-pg_cron (every 2s): fire_at <= NOW() AND round_in_progress = false
-  └─▶ POST /api/game-session/[id]/round (internal)
-        ├─ acquire round_in_progress lock
-        ├─ 1s grace delay
-        ├─ broadcast 'round:started'
-        ├─ Anthropic stream → broadcast 'chunk' per token
-        ├─ save narration → broadcast 'narration' per paragraph
-        ├─ broadcast 'round:saved'
-        └─ release lock, reset fire_at = NULL
+POST /api/game-session/[id]/round (called by after() worker or start route)
+  ├─ acquire round_in_progress lock
+  ├─ check next_round_at: if > NOW() → skip (debounce extended by later action)
+  ├─ broadcast 'round:started'
+  ├─ Anthropic stream → broadcast 'chunk' per token
+  ├─ save narration → broadcast 'narration' per paragraph
+  ├─ broadcast 'round:saved'
+  └─ release lock, reset next_round_at = NULL
 ```
 
 Clients subscribe to one Supabase Realtime broadcast channel: `game:<campaignId>`.
@@ -58,22 +58,23 @@ Clients subscribe to one Supabase Realtime broadcast channel: `game:<campaignId>
 1. Validate auth (Supabase JWT)
 2. Check `campaigns.round_in_progress`
    - If `true` → return `409 { reason: 'round_in_progress' }` — action is **dropped**, never saved to DB
-   - If `false` → insert message (`processed: false`), update `fire_at = NOW() + 8s`, broadcast `action` event, return `201`
+   - If `false` → insert message (`processed: false`), update `next_round_at = NOW() + ROUND_DEBOUNCE_SECONDS`, broadcast `action` event, return `201`
+3. Use Vercel `unstable_after` to schedule background worker: sleep `ROUND_DEBOUNCE_SECONDS`, then `POST /round`
 
 ### `POST /api/game-session/[id]/round`
 
-Called by pg_cron (authenticated via service token).
+Called by the `after()` worker or the campaign start route (authenticated via service role key).
 
 1. Acquire `round_in_progress` lock (optimistic update, check returned rows)
 2. If lock not acquired → return `409` (another round in progress)
-3. Wait 1s grace period (catches in-flight action POSTs)
+3. Check self-cancelling debounce: if `next_round_at > NOW()` → release lock and return (stale worker)
 4. Broadcast `round:started`
 5. Atomically claim all `processed=false` actions
 6. Load world, players, history from DB
 7. Stream Anthropic → broadcast `chunk` per token
 8. Save narration paragraphs to DB → broadcast `narration` per paragraph
 9. Broadcast `round:saved`
-10. Release lock (`round_in_progress = false`, `fire_at = NULL`) in `finally`
+10. Release lock (`round_in_progress = false`, `next_round_at = NULL`) in `finally`
 
 ### Dropped Action UX
 
@@ -126,45 +127,42 @@ Loaded from DB via server component on page load — unchanged. Broadcast only c
 | `POST /action` 401 | Redirect to login |
 | `POST /action` 409 | "Late action" inline notice; button stays disabled |
 | Anthropic error mid-stream | Broadcast `round:error`; client shows error, re-enables button |
-| Round lock never released | `finally` block always releases; pg_cron retries next tick |
+| Round lock never released | `finally` block always releases lock unconditionally |
+| Worker fires but round already ran | `round_in_progress` check returns 409; skipped cleanly |
 
 ---
 
 ## Section 5: DB Changes
 
 ```sql
--- Add fire_at to campaigns for server-side debounce scheduling
-ALTER TABLE campaigns ADD COLUMN fire_at TIMESTAMPTZ;
+-- Add next_round_at to campaigns for Vercel after()-based debounce scheduling.
+-- Each player action sets next_round_at = NOW() + ROUND_DEBOUNCE_SECONDS.
+-- The after() worker fires after the debounce window and checks next_round_at <= NOW()
+-- before proceeding. If a later action extended the timer, the worker skips.
+ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS next_round_at TIMESTAMPTZ;
 
--- Enable pg_cron + pg_net for scheduled round triggers
-CREATE EXTENSION IF NOT EXISTS pg_cron;
-CREATE EXTENSION IF NOT EXISTS pg_net;
-
--- Cron: every 2s, trigger rounds that are due
-SELECT cron.schedule('fire-rounds', '*/2 * * * * *', $$
-  SELECT net.http_post(
-    url := current_setting('app.base_url') || '/api/game-session/' || id || '/round',
-    headers := jsonb_build_object('Authorization', 'Bearer ' || current_setting('app.service_token')),
-    body := '{}'::jsonb
-  )
-  FROM campaigns
-  WHERE fire_at <= NOW()
-    AND round_in_progress = false
-    AND fire_at IS NOT NULL;
-$$);
-
--- Remove messages from realtime publication (no longer needed)
-ALTER PUBLICATION supabase_realtime DROP TABLE messages;
+-- Remove messages from realtime publication — replaced by Supabase broadcast.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND tablename = 'messages'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime DROP TABLE messages;
+  END IF;
+END $$;
 ```
+
+No pg_cron, no pg_net. Round scheduling is handled entirely by Vercel `unstable_after`.
 
 ---
 
 ## Section 6: Testing
 
-- Unit tests: `POST /action` — auth, lock check, broadcast call, 409 path
-- Unit tests: `POST /round` — lock acquire/release, grace delay, Anthropic mock, broadcast sequence
-- Existing edge function tests adapted to Next.js API route shape (same logic)
-- `pg_cron` tested via manual trigger in dev (`SELECT cron.run_job(...)`)
+- Unit tests: `POST /action` — auth, lock check, broadcast call, 409 path, malformed JSON 400
+- Unit tests: `POST /round` — lock acquire/release, debounce skip, Anthropic mock, broadcast sequence, no-actions path (must emit `round:saved`)
+- Lib unit tests: `buildMessageHistory` — empty, opening-only, action+narration rounds
+- Lib unit tests: `isFirstCallResponse`, `buildGMSystemPrompt`, `buildFirstCallInput`
 - Integration: 2-player scenario — both submit actions, single AI call fires, both receive chunks
 
 ---
@@ -176,11 +174,18 @@ ALTER PUBLICATION supabase_realtime DROP TABLE messages;
 
 ## Files to Create
 
+- `lib/game-session/config.ts` — shared `ROUND_DEBOUNCE_SECONDS` constant
+- `lib/game-session/types.ts` — shared TypeScript types
+- `lib/game-session/prompt.ts` — GM system prompt builder
+- `lib/game-session/history.ts` — conversation history builder
 - `app/api/game-session/[id]/action/route.ts`
 - `app/api/game-session/[id]/round/route.ts`
-- `supabase/migrations/020_game_session_fire_at.sql`
+- `supabase/migrations/020_game_session_next_round_at.sql`
 
 ## Files to Modify
 
+- `lib/realtime-broadcast.ts` — add `broadcastGameEvent` for `game:` channel
+- `app/api/campaign/[id]/start/route.ts` — set `next_round_at`, trigger round via `after()`
 - `app/campaign/[slug]/game/GameClient.tsx` — remove WS, add broadcast subscription
+- `app/campaign/[slug]/game/components/DebounceTimer.tsx` — import `ROUND_DEBOUNCE_SECONDS`
 - `CLAUDE.md` — update architecture section
