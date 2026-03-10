@@ -16,20 +16,33 @@ yarn build        # Production build
 
 | Concern        | Model                  | Location                                |
 | -------------- | ---------------------- | --------------------------------------- |
-| Game narration | Claude Sonnet 4.6      | `supabase/functions/game-session/`      |
+| Game narration | Claude Sonnet 4.6      | `app/api/game-session/`                 |
 | World gen      | Claude Haiku 4.5       | `supabase/functions/generate-world/`    |
 | Image gen      | Gemini (`gemini-3-pro-image-preview`) | `supabase/functions/generate-image/` |
 
-The game-session edge function uses the Anthropic Messages API, loading full conversation history from the `messages` table on each round and applying prompt caching on the system prompt and last history message.
+### Game session flow
 
-### Game session WebSocket
+Player actions go through `POST /api/game-session/[id]/action` (Next.js API route). Each action:
+1. Checks `round_in_progress` — returns 409 if a round is running (action dropped)
+2. Saves message to `messages` table (`processed: false`)
+3. Sets `campaigns.next_round_at = NOW() + ROUND_DEBOUNCE_SECONDS` (debounce window)
+4. Broadcasts the action via Supabase Realtime broadcast on `game:<campaignId>`
+5. Uses Vercel `after` to schedule a background worker that sleeps `ROUND_DEBOUNCE_SECONDS`
+   then calls `POST /api/game-session/[id]/round`
 
-The game-session edge function (`supabase/functions/game-session/index.ts`) is a Deno WebSocket server. Clients connect via `wss://` and pass a Supabase JWT in `Sec-WebSocket-Protocol: jwt-<token>`. The server:
+The round route (called by the `after()` worker or the start route):
+1. Acquires `round_in_progress` lock (race-safe)
+2. Checks self-cancelling debounce: if `next_round_at > NOW()`, a later action extended the timer
+   — release lock and skip (the newer worker will fire instead)
+3. Streams from Anthropic, broadcasting `chunk` events on `game:<campaignId>`
+4. Saves narration to DB, broadcasts `narration` and `round:saved` events
+5. Releases lock and resets `next_round_at = NULL`
 
-1. Authenticates the token against Supabase Auth and looks up the player record
-2. On first connection with `last_response_id = null`, runs the opening narration (race-safe via optimistic update to `pending`)
-3. Queues player action messages with a debounce; when debounce fires, calls GPT-4o with the batch
-4. Broadcasts `chunk` events during streaming, then `round:saved` with the persisted DB rows
+`ROUND_DEBOUNCE_SECONDS` is a shared constant in `lib/game-session/config.ts` used by both
+the action route (server) and the `DebounceTimer` UI component (client).
+
+Clients subscribe to `game:<campaignId>` broadcast channel for all real-time events.
+Initial messages are loaded via the server component on page load.
 
 ### World generation flow
 
@@ -51,16 +64,15 @@ The game-session edge function (`supabase/functions/game-session/index.ts`) is a
 
 | File | Purpose |
 |------|---------|
-| `supabase/functions/game-session/index.ts` | WebSocket handler, round orchestration |
-| `supabase/functions/game-session/state.ts` | In-memory session state (connections, pending messages) |
-| `supabase/functions/game-session/prompt.ts` | GM system prompt builder |
-| `supabase/functions/game-session/anthropic.ts` | Anthropic response parsing |
-| `supabase/functions/game-session/history.ts` | Conversation history reconstruction for Anthropic |
-| `supabase/functions/game-session/debounce.ts` | Per-campaign debounce timer |
+| `app/api/game-session/[id]/action/route.ts` | Player action handler |
+| `app/api/game-session/[id]/round/route.ts` | AI round handler (streaming) |
+| `lib/game-session/config.ts` | Shared constants (`ROUND_DEBOUNCE_SECONDS`) |
+| `lib/game-session/prompt.ts` | GM system prompt builder |
+| `lib/game-session/history.ts` | Conversation history reconstruction |
 | `supabase/functions/generate-world/index.ts` | World gen orchestration |
 | `supabase/functions/generate-world/world-content.ts` | Section validation, class parsing |
 | `supabase/functions/generate-image/index.ts` | Gemini image gen + Supabase Storage upload |
-| `app/campaign/[slug]/game/GameClient.tsx` | Game room UI + WebSocket client |
+| `app/campaign/[slug]/game/GameClient.tsx` | Game room UI + Realtime broadcast client |
 | `lib/memory.ts` | Campaign memory file read/write helpers |
 | `lib/realtime-broadcast.ts` | Supabase Realtime broadcast helpers |
 
@@ -90,8 +102,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
 
 # AI
-OPENAI_API_KEY=            # GPT-4o for game narration
-ANTHROPIC_API_KEY=         # Claude Haiku for world gen
+ANTHROPIC_API_KEY=         # Claude Sonnet for game narration + Haiku for world gen
 GEMINI_API_KEY=            # Gemini for image gen
 
 # Edge function secrets
@@ -103,6 +114,5 @@ GENERATE_IMAGE_WEBHOOK_SECRET=   # Shared secret for generate-image calls
 
 - **TypeScript strict mode** everywhere
 - **Server components** by default; `'use client'` only when needed
-- **No session management in Next.js API routes** — game state lives in the WebSocket edge function
-- **Optimistic race guards**: `last_response_id = 'pending'` prevents duplicate first-calls when multiple players connect simultaneously
+- **Optimistic race guards**: `round_in_progress` lock + self-cancelling debounce via `next_round_at` prevent duplicate rounds
 - **Structured logging**: edge functions emit `JSON.stringify({ level, event, ...meta })` — never bare `console.log` strings
