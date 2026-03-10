@@ -494,7 +494,7 @@ git commit -m "feat: add broadcastGameEvent for game channel"
 
 ## Chunk 2: DB Migration
 
-### Task 5: Add fire_at column and pg_cron job
+### Task 5: Add next_round_at column
 
 **Files:**
 - Create: `supabase/migrations/020_game_session_next_round_at.sql`
@@ -1111,7 +1111,7 @@ export async function POST(
 ) {
   const { id: campaignId } = await params
 
-  // Auth: only service role key (called by pg_cron)
+  // Auth: only service role key (called by Vercel after() worker or campaign start route)
   const authHeader = req.headers.get('authorization')
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!authHeader || authHeader !== `Bearer ${serviceRoleKey}`) {
@@ -1703,17 +1703,20 @@ yarn test
 
 Expected: all passing
 
-- [ ] **Step 2: Push branch**
+- [ ] **Step 2: Create and push feature branch**
+
+Implementation goes on a feature branch — the `plan/` branch holds only these docs.
 
 ```bash
-git push -u origin plan/migrate-game-session-to-nextjs-api
+git checkout -b feat/migrate-game-session-to-nextjs-api
+git push -u origin feat/migrate-game-session-to-nextjs-api
 ```
 
 - [ ] **Step 3: Open PR**
 
 ```bash
 gh pr create \
-  --title "plan: migrate game-session WebSocket to Next.js API + Realtime" \
+  --title "feat: migrate game-session WebSocket to Next.js API + Realtime" \
   --body "$(cat <<'EOF'
 ## Summary
 
