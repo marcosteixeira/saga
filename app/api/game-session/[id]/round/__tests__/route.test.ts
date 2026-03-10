@@ -26,7 +26,7 @@ vi.mock('@/lib/supabase/server', () => ({
           update: vi.fn(() => ({
             eq: vi.fn(() => ({ eq: vi.fn(() => ({ eq: vi.fn(() => ({ select: vi.fn(() => mockMessagesUpdate()) })) })) })),
           })),
-          insert: mockMessagesInsert,
+          insert: vi.fn(() => ({ select: mockMessagesInsert })),
           // select handles two query shapes:
           // 1. existingNarration: .select('id').eq().eq().limit(1)
           // 2. historyRows: .select('content,...').eq().in().eq().order()
@@ -82,7 +82,7 @@ describe('POST /api/game-session/[id]/round', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockBroadcastGameEvent.mockResolvedValue(undefined)
-    mockMessagesInsert.mockResolvedValue({ error: null })
+    mockMessagesInsert.mockResolvedValue({ data: [{ id: 'narration-1', campaign_id: 'campaign-1', player_id: null, content: 'The sword strikes!', type: 'narration', processed: true, created_at: new Date().toISOString() }], error: null })
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key'
   })
 
