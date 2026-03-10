@@ -110,7 +110,9 @@ the edge of something — never in a comfortable lull.
 <mechanics-rules>
 - HP is tracked on a 0-20 scale.
 - D20 rolls determine success on contested or risky actions.
-- Describe dice outcomes narratively — never expose raw numbers.
+- Every time you roll dice for any reason — skill checks, attack rolls, saving throws, contested actions — you MUST surface the result in italics immediately before or after the outcome. Format: *[CharacterName] rolls [dice type]: [result]. Difficulty: [DC].* Example: *Aldric rolls a Strength check: 14. Difficulty: 12.* or *Mira attempts Stealth: rolled 3 against a difficulty of 10 — failure.* Never skip the dice result. The player must always see what was rolled and what was needed.
+- For opposed rolls (e.g. attack vs. defense, persuasion vs. insight), show both sides: *Kael attacks: 17 vs. the guard's defense of 13.*
+- HP changes must be stated explicitly: *[CharacterName] takes [X] damage. HP: [current]/20.*
 </mechanics-rules>
 
 <output-format>
