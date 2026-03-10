@@ -6,7 +6,7 @@
 
 **Architecture:** Player actions are POSTed to `/api/game-session/[id]/action`, which saves to DB, updates `campaigns.next_round_at = NOW() + 8s`, then uses Vercel `after()` to schedule a background worker that sleeps 8s and calls `POST /round`. The round route checks `next_round_at <= NOW()` before proceeding (self-cancelling debounce: if a later action extended the timer, earlier workers skip). The round route streams from Anthropic and broadcasts events over Supabase Realtime broadcast channel `game:<campaignId>`. A shared `ROUND_DEBOUNCE_SECONDS` constant keeps the DB timer and client UI in sync.
 
-**Tech Stack:** Next.js App Router (Node.js runtime), Vercel `unstable_after`, Supabase (Realtime broadcast), Anthropic SDK (`@anthropic-ai/sdk`), Vitest
+**Tech Stack:** Next.js App Router (Node.js runtime), Vercel `after`, Supabase (Realtime broadcast), Anthropic SDK (`@anthropic-ai/sdk`), Vitest
 
 ---
 
@@ -551,7 +551,7 @@ The `start` route sets `status = 'active'`. We also set `next_round_at = NOW()` 
 
 At the top of `app/api/campaign/[id]/start/route.ts`, add:
 ```typescript
-import { unstable_after as after } from 'next/server'
+import { after } from 'next/server'
 ```
 
 Find the `supabase.from('campaigns').update({ status: 'active' })` call and add `next_round_at`:
@@ -762,7 +762,7 @@ yarn test app/api/game-session/[id]/action/__tests__/route.test.ts
 
 ```typescript
 // app/api/game-session/[id]/action/route.ts
-import { NextResponse, unstable_after as after } from 'next/server'
+import { NextResponse, after } from 'next/server'
 import { createAuthServerClient, createServerSupabaseClient } from '@/lib/supabase/server'
 import { broadcastGameEvent } from '@/lib/realtime-broadcast'
 import { ROUND_DEBOUNCE_SECONDS } from '@/lib/game-session/config'
@@ -1655,7 +1655,7 @@ Player actions go through `POST /api/game-session/[id]/action` (Next.js API rout
 2. Saves message to `messages` table (`processed: false`)
 3. Sets `campaigns.next_round_at = NOW() + ROUND_DEBOUNCE_SECONDS` (debounce window)
 4. Broadcasts the action via Supabase Realtime broadcast on `game:<campaignId>`
-5. Uses Vercel `unstable_after` to schedule a background worker that sleeps `ROUND_DEBOUNCE_SECONDS`
+5. Uses Vercel `after` to schedule a background worker that sleeps `ROUND_DEBOUNCE_SECONDS`
    then calls `POST /api/game-session/[id]/round`
 
 The round route (called by the `after()` worker or the start route):
@@ -1721,7 +1721,7 @@ gh pr create \
 ## Summary
 
 - Replaces Supabase Edge Function WebSocket server with stateless Next.js API routes
-- Player actions via `POST /api/game-session/[id]/action`; self-cancelling debounce via `campaigns.next_round_at` + Vercel `unstable_after`
+- Player actions via `POST /api/game-session/[id]/action`; self-cancelling debounce via `campaigns.next_round_at` + Vercel `after`
 - AI streaming chunks delivered via Supabase Realtime broadcast (`game:<campaignId>`) instead of WebSocket
 - Eliminates 1006 disconnects caused by Supabase Edge Function wall-clock/CPU limits
 - `ROUND_DEBOUNCE_SECONDS` shared constant keeps server debounce and client `DebounceTimer` in sync

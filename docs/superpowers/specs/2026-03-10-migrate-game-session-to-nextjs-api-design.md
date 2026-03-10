@@ -13,7 +13,7 @@ The `game-session` Supabase Edge Function is a Deno WebSocket server. Supabase E
 Replace the WebSocket with:
 - REST API routes in Next.js for player actions and round triggers
 - Supabase Realtime **broadcast** for all real-time events (chunks, narration, actions, round state)
-- **Vercel `unstable_after`** for server-side debounce scheduling (no pg_cron)
+- **Vercel `after`** for server-side debounce scheduling (no pg_cron)
 
 No persistent connections. No in-memory state. No cold-start disconnects.
 
@@ -59,7 +59,7 @@ Clients subscribe to one Supabase Realtime broadcast channel: `game:<campaignId>
 2. Check `campaigns.round_in_progress`
    - If `true` → return `409 { reason: 'round_in_progress' }` — action is **dropped**, never saved to DB
    - If `false` → insert message (`processed: false`), update `next_round_at = NOW() + ROUND_DEBOUNCE_SECONDS`, broadcast `action` event, return `201`
-3. Use Vercel `unstable_after` to schedule background worker: sleep `ROUND_DEBOUNCE_SECONDS`, then `POST /round`
+3. Use Vercel `after` to schedule background worker: sleep `ROUND_DEBOUNCE_SECONDS`, then `POST /round`
 
 ### `POST /api/game-session/[id]/round`
 
@@ -153,7 +153,7 @@ BEGIN
 END $$;
 ```
 
-No pg_cron, no pg_net. Round scheduling is handled entirely by Vercel `unstable_after`.
+No pg_cron, no pg_net. Round scheduling is handled entirely by Vercel `after`.
 
 ---
 
