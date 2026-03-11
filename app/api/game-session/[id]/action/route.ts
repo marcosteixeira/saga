@@ -98,7 +98,10 @@ export async function POST(
     await new Promise((resolve) => setTimeout(resolve, ROUND_DEBOUNCE_SECONDS * 1000))
     await fetch(`${appUrl}/api/game-session/${campaignId}/round`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${serviceKey}` },
+      headers: {
+        Authorization: `Bearer ${serviceKey}`,
+        'x-vercel-protection-bypass': process.env.VERCEL_AUTOMATION_BYPASS_SECRET ?? '',
+      },
     })
   })
 

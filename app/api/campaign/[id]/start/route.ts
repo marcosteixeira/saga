@@ -72,7 +72,10 @@ export async function POST(
     try {
       const res = await fetch(`${appUrl}/api/game-session/${campaignId}/round`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}` },
+        headers: {
+          Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+          'x-vercel-protection-bypass': process.env.VERCEL_AUTOMATION_BYPASS_SECRET ?? '',
+        },
       })
       console.log(JSON.stringify({ level: 'info', event: 'campaign.start.round_called', campaignId, status: res.status }))
     } catch (err) {
