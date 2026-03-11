@@ -61,7 +61,6 @@ export function ImageModal({ modal, onClose }: { modal: ImageModalState; onClose
           alt={modal.caption ?? 'Campaign vision'}
           onLoad={() => setImgLoaded(true)}
           className="absolute inset-0 h-full w-full object-cover"
-          style={{ filter: 'saturate(0.85) brightness(0.72)' }}
         />
       </div>
 
@@ -70,14 +69,6 @@ export function ImageModal({ modal, onClose }: { modal: ImageModalState; onClose
         className="pointer-events-none absolute inset-x-0 top-0 h-1/3"
         style={{
           background: 'linear-gradient(180deg, rgba(13,12,10,0.85) 0%, transparent 100%)',
-          opacity: contentVisible ? 1 : 0,
-          transition: 'opacity 1s ease',
-        }}
-      />
-      <div
-        className="pointer-events-none absolute inset-x-0 bottom-0 h-2/5"
-        style={{
-          background: 'linear-gradient(0deg, rgba(13,12,10,0.95) 0%, rgba(13,12,10,0.6) 45%, transparent 100%)',
           opacity: contentVisible ? 1 : 0,
           transition: 'opacity 1s ease',
         }}
