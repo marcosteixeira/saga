@@ -823,7 +823,7 @@ body {
       </div>
       <div class="layer" style="--layer-color:var(--copper);">
         <span class="layer__label">Edge Runtime</span>
-        <span class="layer__tech">Deno · Supabase Edge Functions · WebSocket server</span>
+        <span class="layer__tech">Supabase Edge Functions (Deno) · world + image gen · Next.js API Routes · game session</span>
         <div class="layer__right"><span class="badge badge--copper">Streaming</span></div>
       </div>
       <div class="layer" style="--layer-color:var(--furnace);">
@@ -911,27 +911,27 @@ body {
     <div class="reveal t-label" style="color:var(--furnace);letter-spacing:0.25em;margin-bottom:16px;">Chapter II</div>
     <div class="reveal t-display" style="background:linear-gradient(120deg,var(--steam),var(--furnace));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:16px;">THE GAME<br>SESSION</div>
     <div class="reveal" style="margin-bottom:14px;"><div class="brass-rule" style="width:200px;margin-left:auto;"><div class="brass-rule-dot"></div></div></div>
-    <div class="reveal t-label" style="color:var(--ash);letter-spacing:0.15em;">WebSocket orchestration, streaming, and real-time broadcast</div>
+    <div class="reveal t-label" style="color:var(--ash);letter-spacing:0.15em;">Stateless API routes, self-cancelling debounce, and Supabase Realtime broadcast</div>
   </section>
 
-  <!-- ==================== SLIDE 7: WEBSOCKET ARCHITECTURE ==================== -->
+  <!-- ==================== SLIDE 7: GAME SESSION ARCHITECTURE ==================== -->
   <section class="slide split bg-foundry">
     <div class="corner corner--tl"></div>
     <div class="split-l reveal">
-      <div class="t-label" style="margin-bottom:12px;">game-session / index.ts</div>
-      <div class="t-heading" style="margin-bottom:18px;">WebSocket<br><span class="brass">Server</span></div>
+      <div class="t-label" style="margin-bottom:12px;">app/api/game-session/[id]/</div>
+      <div class="t-heading" style="margin-bottom:18px;">Game Session<br><span class="brass">API</span></div>
       <ul class="bullets" style="font-size:clamp(13px,1.5vw,16px);">
-        <li>Deno runtime on Supabase Edge Functions</li>
-        <li>JWT auth via <code style="color:var(--brass);font-family:var(--font-mono);font-size:0.88em">Sec-WebSocket-Protocol</code> header</li>
-        <li>Optimistic lock: <code style="color:var(--brass);font-family:var(--font-mono);font-size:0.88em">round_in_progress</code> flag prevents duplicate opening narrations</li>
-        <li>Per-campaign debounce timer batches player actions before calling Claude</li>
-        <li>Streams tokens in ~100ms batches to all connected clients</li>
+        <li>Stateless Next.js API routes on Vercel — no WebSocket server</li>
+        <li><code style="color:var(--brass);font-family:var(--font-mono);font-size:0.88em">POST /action</code> saves message, sets <code style="color:var(--brass);font-family:var(--font-mono);font-size:0.88em">next_round_at</code>, schedules round via Vercel <code style="color:var(--brass);font-family:var(--font-mono);font-size:0.88em">after()</code></li>
+        <li>Self-cancelling debounce: rapid actions extend the timer; only the last worker fires</li>
+        <li>Optimistic lock: <code style="color:var(--brass);font-family:var(--font-mono);font-size:0.88em">round_in_progress</code> + 409 guard drops overlapping rounds</li>
+        <li>Claude tokens streamed to all clients via Supabase Realtime broadcast</li>
       </ul>
       <div style="margin-top:18px;display:flex;gap:6px;flex-wrap:wrap;">
-        <span class="badge badge--copper">state.ts</span>
+        <span class="badge badge--copper">action/route.ts</span>
+        <span class="badge badge--copper">round/route.ts</span>
         <span class="badge badge--copper">prompt.ts</span>
         <span class="badge badge--copper">history.ts</span>
-        <span class="badge badge--copper">debounce.ts</span>
       </div>
     </div>
 
@@ -939,19 +939,20 @@ body {
       <div class="mermaid-wrap scrollable" style="max-height:72vh;">
         <div class="mermaid">
 flowchart TD
-    C1["Player 1 connects (wss://)"] --> AUTH["Verify JWT"]
-    C2["Player 2 connects"] --> AUTH
-    AUTH --> LOCK{"round_in_progress = false?"}
-    LOCK -->|"Claim slot"| FIRST["Opening Narration"]
-    LOCK -->|"Already claimed"| STREAM
-    FIRST --> STREAM["Stream → Supabase Realtime"]
-    STREAM --> SAVE["Save to messages table"]
-    SAVE --> IDLE["Waiting for player actions"]
-    IDLE --> ACTION["Player submits action"]
-    ACTION --> DEBOUNCE["Debounce timer"]
-    DEBOUNCE --> HISTORY["Rebuild message history"]
+    A1["Player submits action"] --> ACTION["POST /action"]
+    A2["Another player's action"] --> ACTION
+    ACTION --> LOCK{"round_in_progress?"}
+    LOCK -->|"yes"| DROP["Return 409 — action dropped"]
+    LOCK -->|"no"| SAVE["Save message\nset next_round_at = NOW + debounce"]
+    SAVE --> AFTER["Vercel after() → schedules round worker"]
+    AFTER --> SLEEP["Sleep ROUND_DEBOUNCE_SECONDS"]
+    SLEEP --> STALE{"next_round_at > NOW?"}
+    STALE -->|"newer action extended window"| SKIP["Skip — newer worker fires"]
+    STALE -->|"we are the last worker"| ACQUIRE["Acquire round_in_progress lock"]
+    ACQUIRE --> HISTORY["Rebuild message history"]
     HISTORY --> CLAUDE["Call Claude API"]
-    CLAUDE --> STREAM
+    CLAUDE --> STREAM["Stream → Supabase Realtime broadcast"]
+    STREAM --> PERSIST["Save narration · release lock"]
         </div>
       </div>
     </div>
@@ -1025,8 +1026,8 @@ history.push({ <span class="key">role</span>: <span class="str">'assistant'</spa
       <div style="text-align:center;color:var(--brass);font-size:18px;">→</div>
       <div class="plate plate--brass" style="padding:14px 12px;text-align:center;">
         <div style="font-size:20px;margin-bottom:6px;">⚙️</div>
-        <div style="font-family:var(--font-heading);font-weight:700;font-size:clamp(12px,1.4vw,16px);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">Edge Function</div>
-        <div style="font-size:11px;color:var(--ash);">Buffer ~100ms</div>
+        <div style="font-family:var(--font-heading);font-weight:700;font-size:clamp(12px,1.4vw,16px);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">Next.js API Route</div>
+        <div style="font-size:11px;color:var(--ash);">round/route.ts</div>
       </div>
       <div style="text-align:center;color:var(--brass);font-size:18px;">→</div>
       <div class="plate plate--patina" style="padding:14px 12px;text-align:center;">
@@ -1049,11 +1050,11 @@ history.push({ <span class="key">role</span>: <span class="str">'assistant'</spa
       </div>
       <div style="padding:14px 16px;background:var(--surface);border:1px solid var(--gunmetal);border-left:2px solid var(--copper);">
         <div class="t-label" style="color:var(--copper);margin-bottom:7px;">Channel naming</div>
-        <div class="t-mono" style="font-size:12px;color:var(--ash);line-height:1.8;">campaign:[id]:narration<br>campaign:[id]:messages<br>world:[id]</div>
+        <div class="t-mono" style="font-size:12px;color:var(--ash);line-height:1.8;">game:[campaignId] — chunk, narration,<br>round:started, round:saved events<br>world:[id] — generation progress</div>
       </div>
       <div style="padding:14px 16px;background:var(--surface);border:1px solid var(--gunmetal);border-left:2px solid var(--patina);">
         <div class="t-label" style="color:var(--patina);margin-bottom:7px;">Why Realtime?</div>
-        <div class="t-body" style="font-size:clamp(12px,1.3vw,15px);color:var(--ash);line-height:1.5;">Bypasses Vercel's 30s serverless timeout. Long-running Claude streams need a persistent broadcast layer.</div>
+        <div class="t-body" style="font-size:clamp(12px,1.3vw,15px);color:var(--ash);line-height:1.5;">Stateless Vercel functions can't hold open connections. Realtime broadcast fans streaming chunks out to all connected players simultaneously.</div>
       </div>
     </div>
   </section>
@@ -1139,7 +1140,7 @@ history.push({ <span class="key">role</span>: <span class="str">'assistant'</spa
     <div class="corner corner--tr"></div>
 
     <div class="reveal" style="margin-bottom:18px;">
-      <div class="t-label" style="margin-bottom:8px;">Supabase Postgres · 019 migrations</div>
+      <div class="t-label" style="margin-bottom:8px;">Supabase Postgres · 020 migrations</div>
       <div class="t-heading">Database Schema</div>
     </div>
 
@@ -1155,8 +1156,8 @@ history.push({ <span class="key">role</span>: <span class="str">'assistant'</spa
         <tbody>
           <tr>
             <td class="td-mono">campaigns</td>
-            <td><span class="t-mono" style="font-size:0.85em;color:var(--ash);">slug, status, round_in_progress, world_id, host_user_id</span></td>
-            <td>Campaign metadata + race-safe first-call lock</td>
+            <td><span class="t-mono" style="font-size:0.85em;color:var(--ash);">slug, status, round_in_progress, next_round_at, world_id, host_user_id</span></td>
+            <td>Campaign metadata + race-safe round lock + self-cancelling debounce timestamp</td>
           </tr>
           <tr>
             <td class="td-mono">worlds</td>
@@ -1207,7 +1208,7 @@ history.push({ <span class="key">role</span>: <span class="str">'assistant'</spa
         </div>
         <div class="plate plate--furnace" style="padding:14px 16px;">
           <div style="font-family:var(--font-heading);font-weight:700;font-size:14px;text-transform:uppercase;color:var(--furnace);margin-bottom:6px;">[slug]/game/</div>
-          <div class="t-body" style="font-size:13px;color:var(--ash);">GameClient.tsx — WebSocket + live narration + player input</div>
+          <div class="t-body" style="font-size:13px;color:var(--ash);">GameClient.tsx — Realtime broadcast + live narration + player input</div>
         </div>
         <div class="plate plate--patina" style="padding:14px 16px;">
           <div style="font-family:var(--font-heading);font-weight:700;font-size:14px;text-transform:uppercase;color:var(--patina);margin-bottom:6px;">[slug]/summary/</div>
@@ -1217,22 +1218,23 @@ history.push({ <span class="key">role</span>: <span class="str">'assistant'</spa
     </div>
 
     <div class="split-r reveal">
-      <div class="t-label" style="margin-bottom:10px;">Supabase Edge Functions</div>
+      <div class="t-label" style="margin-bottom:10px;">API Routes + Edge Functions</div>
       <div class="code-block scrollable" style="max-height:68vh;font-size:clamp(11px,1.2vw,14px);">
+<span class="cmt">app/api/game-session/[id]/</span>
+<span class="fn">├── action/route.ts</span>     <span class="cmt"># Save msg · debounce · after()</span>
+<span class="fn">└── round/route.ts</span>      <span class="cmt"># Acquire lock · Claude stream</span>
+
+<span class="cmt">lib/game-session/</span>
+<span class="fn">├── config.ts</span>           <span class="cmt"># ROUND_DEBOUNCE_SECONDS</span>
+<span class="fn">├── prompt.ts</span>           <span class="cmt"># System prompt builder</span>
+<span class="fn">├── history.ts</span>          <span class="cmt"># Message history rebuild</span>
+<span class="fn">└── types.ts</span>            <span class="cmt"># Shared types</span>
+
 <span class="cmt">supabase/functions/</span>
-<span class="fn">├── game-session/</span>       <span class="cmt"># WS server (Deno)</span>
-<span class="cmt">│   ├── index.ts</span>        <span class="cmt"># Handler + auth + rounds</span>
-<span class="cmt">│   ├── state.ts</span>        <span class="cmt"># In-memory connections</span>
-<span class="cmt">│   ├── prompt.ts</span>       <span class="cmt"># System prompt builder</span>
-<span class="cmt">│   ├── history.ts</span>      <span class="cmt"># Message history rebuild</span>
-<span class="cmt">│   ├── anthropic.ts</span>    <span class="cmt"># Claude response parsing</span>
-<span class="cmt">│   ├── stream.ts</span>       <span class="cmt"># Stream consumption</span>
-<span class="cmt">│   ├── ws-auth.ts</span>      <span class="cmt"># JWT extraction</span>
-<span class="cmt">│   └── debounce.ts</span>     <span class="cmt"># Action batching</span>
-<span class="fn">├── generate-world/</span>     <span class="cmt"># World gen</span>
+<span class="fn">├── generate-world/</span>     <span class="cmt"># World gen (Deno)</span>
 <span class="cmt">│   ├── index.ts</span>
 <span class="cmt">│   └── world-content.ts</span><span class="cmt"># Section validation</span>
-<span class="fn">└── generate-image/</span>     <span class="cmt"># Gemini images</span>
+<span class="fn">└── generate-image/</span>     <span class="cmt"># Gemini images (Deno)</span>
     <span class="cmt">└── index.ts</span>        <span class="cmt"># Gen + Storage upload</span>
 
 <span class="cmt">lib/</span>
@@ -1257,8 +1259,8 @@ history.push({ <span class="key">role</span>: <span class="str">'assistant'</spa
     <div class="decision-grid reveal" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
       <div class="decision-card">
         <div class="decision-card__num">01</div>
-        <div class="decision-card__title">Deno Edge over Next.js API Routes</div>
-        <div class="decision-card__body">Game session lives in a Deno WebSocket server on Supabase Edge — bypasses Vercel's 30s serverless timeout, scales without cold-start issues for active connections.</div>
+        <div class="decision-card__title">Next.js API Routes + Vercel after()</div>
+        <div class="decision-card__body">Game session migrated from Deno WebSocket to stateless Next.js API routes. Supabase Edge wall-clock limits caused 1006 disconnects mid-stream. Vercel <code style="color:var(--brass);font-family:var(--font-mono);font-size:0.9em">after()</code> schedules deferred round workers without holding a connection open.</div>
       </div>
       <div class="decision-card">
         <div class="decision-card__num">02</div>
@@ -1283,7 +1285,7 @@ history.push({ <span class="key">role</span>: <span class="str">'assistant'</spa
       <div class="decision-card">
         <div class="decision-card__num">06</div>
         <div class="decision-card__title">Magic Link Auth via Supabase</div>
-        <div class="decision-card__body">Frictionless onboarding — no passwords. JWT passed via WebSocket protocol header for edge function auth where HTTP cookies aren't accessible in Deno.</div>
+        <div class="decision-card__body">Frictionless onboarding — no passwords. Session cookie handled by Next.js server components via Supabase SSR helpers. No special transport needed.</div>
       </div>
     </div>
   </section>
@@ -1335,7 +1337,7 @@ history.push({ <span class="key">role</span>: <span class="str">'assistant'</spa
         <span class="badge badge--amber">Claude Haiku 4.5</span>
         <span class="badge badge--sky">Supabase Realtime</span>
         <span class="badge badge--copper">Gemini 3 Pro</span>
-        <span class="badge badge--patina">Deno Edge Functions</span>
+        <span class="badge badge--patina">Supabase Edge Fns</span>
         <span class="badge badge--sky">Vercel</span>
       </div>
     </div>

@@ -331,7 +331,7 @@ export default function Home() {
               </p>
               <div className="mt-3 flex flex-wrap justify-center gap-1">
                 <span className="rounded-sm border border-furnace/30 bg-furnace/10 px-2 py-0.5 font-mono text-[0.6rem] uppercase tracking-wider text-furnace">
-                  Live WebSocket
+                  Realtime Broadcast
                 </span>
                 <span className="rounded-sm border border-brass/30 bg-brass/10 px-2 py-0.5 font-mono text-[0.6rem] uppercase tracking-wider text-brass">
                   Claude Sonnet
@@ -416,14 +416,14 @@ export default function Home() {
             </div>
             <div className="iron-seam mb-4" />
             <p className="mb-4 text-sm leading-relaxed text-steam/80">
-              Real-time streaming narration over WebSocket. Holds full conversation history per session with prompt caching.
+              Real-time streaming narration via Next.js API routes. Chunks broadcast to all players via Supabase Realtime. Full conversation history with prompt caching.
             </p>
             <dl className="space-y-1">
               {(
                 [
-                  ["Transport", "WebSocket (Deno)"],
-                  ["Output", "Streaming chunks"],
-                  ["Location", "game-session fn"],
+                  ["Transport", "Next.js API + Vercel"],
+                  ["Output", "Realtime broadcast"],
+                  ["Location", "app/api/game-session"],
                 ] as [string, string][]
               ).map(([label, value]) => (
                 <div key={label} className="flex gap-2 font-mono text-[0.65rem]">
