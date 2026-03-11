@@ -1625,6 +1625,23 @@ function ActiveGameView({
     initialCampaignCoverImageUrl
   );
 
+  // On mount, fetch the campaign cover from DB in case the broadcast fired before we subscribed
+  useEffect(() => {
+    if (initialCampaignCoverImageUrl) return; // already have it
+    const supabase = createClient();
+    supabase
+      .from('images')
+      .select('public_url')
+      .eq('entity_type', 'campaign')
+      .eq('entity_id', campaign.id)
+      .eq('image_type', 'cover')
+      .eq('status', 'ready')
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.public_url) setLiveCoverUrl(data.public_url);
+      });
+  }, [campaign.id, initialCampaignCoverImageUrl]);
+
   // Subscribe to image updates
   useEffect(() => {
     const supabase = createClient();
@@ -1808,7 +1825,7 @@ function ActiveGameView({
                     group.push(allMessages[i]);
                     i++;
                   }
-                  items.push(<NarrationGroupBubble key={group[0].id} messages={group} />);
+                  items.push(<NarrationGroupBubble key={group.map(m => m.id).join('|')} messages={group} />);
                 } else {
                   items.push(
                     <MessageBubble key={msg.id} message={msg} players={players} />
@@ -2164,12 +2181,12 @@ export default function GameClient({
     if (!world.id) return;
     const supabase = createClient();
     const channel = supabase
-      .channel(`world:${world.id}:cover`)
+      .channel(`world:${world.id}`)
       .on('broadcast', { event: 'image:ready' }, ({ payload }) => {
-        const p = payload as { entity_type: string; entity_id: string; image_type: string; public_url: string };
+        const p = payload as { entity_type: string; entity_id: string; image_type: string; url: string };
         if (p.entity_type === 'campaign' && p.entity_id === campaign.id && p.image_type === 'cover') {
-          setLoadingBgUrl(p.public_url);
-          setCampaignCoverUrl(p.public_url);
+          setLoadingBgUrl(p.url);
+          setCampaignCoverUrl(p.url);
         }
       })
       .subscribe();

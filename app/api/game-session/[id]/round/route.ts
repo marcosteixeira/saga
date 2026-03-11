@@ -212,7 +212,7 @@ export async function POST(
 
     if (!narrationParts.length) throw new Error('Empty narration')
 
-    const { error: insertError } = await supabase
+    const { data: insertedRows, error: insertError } = await supabase
       .from('messages')
       .insert(
         narrationParts.map((paragraph) => ({
@@ -224,18 +224,20 @@ export async function POST(
           processed: true,
         }))
       )
+      .select('id, content, created_at')
 
     if (insertError) throw insertError
 
-    // Broadcast each narration paragraph
-    for (const paragraph of narrationParts) {
+    // Broadcast each narration paragraph with its real DB id (prevents client-side dedup dropping duplicates)
+    for (const row of insertedRows ?? []) {
       await broadcastGameEvent(campaignId, 'narration', {
+        id: row.id,
         campaign_id: campaignId,
         player_id: null,
-        content: paragraph,
+        content: row.content,
         type: 'narration',
         processed: true,
-        created_at: new Date().toISOString(),
+        created_at: row.created_at,
       })
     }
 

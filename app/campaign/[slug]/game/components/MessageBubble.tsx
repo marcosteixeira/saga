@@ -55,8 +55,8 @@ export function NarrationGroupBubble({ messages }: { messages: Message[] }) {
         <div className="h-px flex-1 bg-gradient-to-r from-brass/20 to-transparent" />
       </div>
       <div className="border-l-2 border-brass/30 py-1 pl-4 pr-2 flex flex-col gap-4" style={{ borderImage: 'linear-gradient(to bottom, var(--brass), transparent) 1' }}>
-        {messages.map((message) => (
-          <p key={message.id} className="text-base leading-loose text-steam sm:text-lg sm:leading-loose" style={{ fontFamily: 'var(--font-body), sans-serif', letterSpacing: '0.01em' }}>
+        {messages.map((message, index) => (
+          <p key={message.id ?? index} className="text-base leading-loose text-steam sm:text-lg sm:leading-loose" style={{ fontFamily: 'var(--font-body), sans-serif', letterSpacing: '0.01em' }}>
             {renderNarrationContent(message.content)}
           </p>
         ))}
