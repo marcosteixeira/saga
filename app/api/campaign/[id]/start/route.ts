@@ -66,11 +66,18 @@ export async function POST(
   // Trigger opening narration immediately via after()
   const appUrl = process.env.NEXT_PUBLIC_APP_URL
     ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
+  console.log(JSON.stringify({ level: 'info', event: 'campaign.start.after_scheduled', campaignId, appUrl, hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY }))
   after(async () => {
-    await fetch(`${appUrl}/api/game-session/${campaignId}/round`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}` },
-    })
+    console.log(JSON.stringify({ level: 'info', event: 'campaign.start.after_fired', campaignId, appUrl }))
+    try {
+      const res = await fetch(`${appUrl}/api/game-session/${campaignId}/round`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}` },
+      })
+      console.log(JSON.stringify({ level: 'info', event: 'campaign.start.round_called', campaignId, status: res.status }))
+    } catch (err) {
+      console.error(JSON.stringify({ level: 'error', event: 'campaign.start.round_fetch_failed', campaignId, message: String(err) }))
+    }
   })
 
   // Fire-and-forget: campaign cover image
