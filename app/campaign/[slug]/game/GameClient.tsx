@@ -2083,6 +2083,8 @@ export default function GameClient({
     gameAlreadyStarted ? 'active' : 'loading'
   );
 
+  const [loadingBgUrl, setLoadingBgUrl] = useState(loadingImageUrl);
+
   const [liveMessages, setLiveMessages] = useState<Message[]>(
     [...dbMessages].sort(
       (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
@@ -2156,6 +2158,22 @@ export default function GameClient({
     };
   }, [campaign.id]);
 
+  // Listen for campaign cover image becoming ready and update loading background.
+  useEffect(() => {
+    if (!world.id) return;
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`world:${world.id}:cover`)
+      .on('broadcast', { event: 'image:ready' }, ({ payload }) => {
+        const p = payload as { entity_type: string; entity_id: string; image_type: string; public_url: string };
+        if (p.entity_type === 'campaign' && p.entity_id === campaign.id && p.image_type === 'cover') {
+          setLoadingBgUrl(p.public_url);
+        }
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [world.id, campaign.id]);
+
   const handleSend = async (content: string) => {
     const id = crypto.randomUUID();
     const timestamp = Date.now();
@@ -2193,7 +2211,7 @@ export default function GameClient({
 
   if (viewState === 'loading') {
     return (
-      <LoadingState campaignName={campaign.name} backgroundImageUrl={loadingImageUrl} />
+      <LoadingState campaignName={campaign.name} backgroundImageUrl={loadingBgUrl} />
     );
   }
 
