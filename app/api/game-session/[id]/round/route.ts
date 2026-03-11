@@ -182,7 +182,9 @@ export async function POST(
         event.delta.text
       ) {
         fullText += event.delta.text
-        await broadcastGameEvent(campaignId, 'chunk', { content: event.delta.text })
+        if (!isFirstCall) {
+          await broadcastGameEvent(campaignId, 'chunk', { content: event.delta.text })
+        }
       }
     }
 
