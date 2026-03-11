@@ -2084,6 +2084,7 @@ export default function GameClient({
   );
 
   const [loadingBgUrl, setLoadingBgUrl] = useState(loadingImageUrl);
+  const [campaignCoverUrl, setCampaignCoverUrl] = useState(campaignCoverImageUrl);
 
   const [liveMessages, setLiveMessages] = useState<Message[]>(
     [...dbMessages].sort(
@@ -2168,6 +2169,7 @@ export default function GameClient({
         const p = payload as { entity_type: string; entity_id: string; image_type: string; public_url: string };
         if (p.entity_type === 'campaign' && p.entity_id === campaign.id && p.image_type === 'cover') {
           setLoadingBgUrl(p.public_url);
+          setCampaignCoverUrl(p.public_url);
         }
       })
       .subscribe();
@@ -2226,7 +2228,7 @@ export default function GameClient({
       streamingContent={streamingContent}
       isStreaming={isStreaming}
       currentUserId={currentUserId}
-      campaignCoverImageUrl={campaignCoverImageUrl}
+      campaignCoverImageUrl={campaignCoverUrl}
       roundInProgress={roundInProgress}
       droppedActionId={droppedActionId}
       onSend={handleSend}
