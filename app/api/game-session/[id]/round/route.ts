@@ -192,17 +192,17 @@ export async function POST(
     let narrationParts: string[]
 
     if (isFirstCall) {
-      console.log(JSON.stringify({ level: 'info', event: 'game_session.first_call_raw', campaignId, fullText: fullText.slice(0, 500) }))
+      const cleanText = fullText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
       let parsed: unknown
       try {
-        parsed = JSON.parse(fullText)
+        parsed = JSON.parse(cleanText)
       } catch (parseErr) {
-        throw new Error(`First-call JSON parse failed: ${String(parseErr)} — raw: ${fullText.slice(0, 200)}`)
+        throw new Error(`First-call JSON parse failed: ${String(parseErr)} — raw: ${cleanText.slice(0, 200)}`)
       }
       if (!isFirstCallResponse(parsed) || !Array.isArray((parsed as Record<string, unknown>).narration)) {
         throw new Error(`Invalid first-call response shape: ${JSON.stringify(Object.keys(parsed as object))}`)
       }
-      narrationParts = (parsed as Record<string, unknown[]>).narration.filter((p: unknown): p is string => typeof p === 'string')
+      narrationParts = (parsed as { narration: unknown[] }).narration.filter((p: unknown): p is string => typeof p === 'string')
     } else {
       narrationParts = fullText
         .split(/\n\n+/)
