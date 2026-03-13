@@ -765,7 +765,6 @@ body {
         <span class="badge badge--furnace">Claude Sonnet 4.6</span>
         <span class="badge badge--sky">Supabase</span>
         <span class="badge badge--copper">Gemini Images</span>
-        <span class="badge badge--patina">Deno Edge</span>
       </div>
     </div>
   </section>
@@ -823,7 +822,7 @@ body {
       </div>
       <div class="layer" style="--layer-color:var(--copper);">
         <span class="layer__label">Edge Runtime</span>
-        <span class="layer__tech">Supabase Edge Functions (Deno) · world + image gen · Next.js API Routes · game session</span>
+        <span class="layer__tech">Supabase Edge Functions (Deno) — world gen · image gen · Next.js API Routes — game session</span>
         <div class="layer__right"><span class="badge badge--copper">Streaming</span></div>
       </div>
       <div class="layer" style="--layer-color:var(--furnace);">
@@ -1166,12 +1165,12 @@ history.push({ <span class="key">role</span>: <span class="str">'assistant'</spa
           </tr>
           <tr>
             <td class="td-mono">players</td>
-            <td><span class="t-mono" style="font-size:0.85em;color:var(--ash);">user_id, campaign_id, character_name, character_class, character_backstory, hp</span></td>
+            <td><span class="t-mono" style="font-size:0.85em;color:var(--ash);">user_id, campaign_id, character_name, character_class, character_backstory, stats (JSONB), status, absence_mode</span></td>
             <td>Per-campaign player records linked to auth.users</td>
           </tr>
           <tr>
             <td class="td-mono">messages</td>
-            <td><span class="t-mono" style="font-size:0.85em;color:var(--ash);">campaign_id, player_id (null = AI), type, content, created_at</span></td>
+            <td><span class="t-mono" style="font-size:0.85em;color:var(--ash);">campaign_id, player_id (null = AI), client_id, type, content, processed, created_at</span></td>
             <td>Full game log — actions + narration — source of truth for history</td>
           </tr>
           <tr>
@@ -1183,9 +1182,11 @@ history.push({ <span class="key">role</span>: <span class="str">'assistant'</spa
       </table>
     </div>
 
-    <div class="reveal" style="margin-top:14px;padding:10px 16px;background:rgba(196,148,61,0.06);border:1px solid rgba(196,148,61,0.15);border-left:2px solid var(--brass);display:flex;align-items:center;gap:12px;">
+    <div class="reveal" style="margin-top:14px;padding:10px 16px;background:rgba(196,148,61,0.06);border:1px solid rgba(196,148,61,0.15);border-left:2px solid var(--brass);display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
       <span class="t-label" style="color:var(--brass);">⚙ Row Level Security</span>
       <span class="t-body" style="font-size:clamp(12px,1.4vw,15px);color:var(--ash);">All tables have RLS enabled — campaign members can read, only host can write, players restricted to own messages</span>
+      <span class="t-label" style="color:var(--brass);margin-left:16px;">⚙ Realtime</span>
+      <span class="t-body" style="font-size:clamp(12px,1.4vw,15px);color:var(--ash);"><code style="color:var(--brass);font-family:var(--font-mono);font-size:0.9em">messages</code> table excluded from Supabase Realtime publication — all real-time events use explicit broadcast API calls</span>
     </div>
   </section>
 
@@ -1197,22 +1198,34 @@ history.push({ <span class="key">role</span>: <span class="str">'assistant'</spa
     <div class="split-l reveal">
       <div class="t-label" style="margin-bottom:12px;">Next.js App Router</div>
       <div class="t-heading" style="margin-bottom:20px;">Routes &amp;<br><span class="brass">Components</span></div>
-      <div class="grid-2" style="gap:10px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;">
         <div class="plate plate--sky" style="padding:14px 16px;--plate-border:var(--sky-slate);">
-          <div style="font-family:var(--font-heading);font-weight:700;font-size:14px;text-transform:uppercase;color:var(--sky-slate);margin-bottom:6px;">campaign/new/</div>
+          <div style="font-family:var(--font-heading);font-weight:700;font-size:14px;text-transform:uppercase;color:var(--sky-slate);margin-bottom:6px;">/login</div>
+          <div class="t-body" style="font-size:13px;color:var(--ash);">Magic link / OAuth login</div>
+        </div>
+        <div class="plate plate--sky" style="padding:14px 16px;--plate-border:var(--sky-slate);">
+          <div style="font-family:var(--font-heading);font-weight:700;font-size:14px;text-transform:uppercase;color:var(--sky-slate);margin-bottom:6px;">/setup</div>
+          <div class="t-body" style="font-size:13px;color:var(--ash);">User profile setup (first login)</div>
+        </div>
+        <div class="plate plate--sky" style="padding:14px 16px;--plate-border:var(--sky-slate);">
+          <div style="font-family:var(--font-heading);font-weight:700;font-size:14px;text-transform:uppercase;color:var(--sky-slate);margin-bottom:6px;">/profile</div>
+          <div class="t-body" style="font-size:13px;color:var(--ash);">User dashboard — campaign list</div>
+        </div>
+        <div class="plate plate--sky" style="padding:14px 16px;--plate-border:var(--sky-slate);">
+          <div style="font-family:var(--font-heading);font-weight:700;font-size:14px;text-transform:uppercase;color:var(--sky-slate);margin-bottom:6px;">/campaign/new/</div>
           <div class="t-body" style="font-size:13px;color:var(--ash);">Campaign creation form</div>
         </div>
         <div class="plate plate--brass" style="padding:14px 16px;">
+          <div style="font-family:var(--font-heading);font-weight:700;font-size:14px;text-transform:uppercase;color:var(--brass);margin-bottom:6px;">[slug]/setup/</div>
+          <div class="t-body" style="font-size:13px;color:var(--ash);">World generation status — iris reveal animation</div>
+        </div>
+        <div class="plate plate--brass" style="padding:14px 16px;">
           <div style="font-family:var(--font-heading);font-weight:700;font-size:14px;text-transform:uppercase;color:var(--brass);margin-bottom:6px;">[slug]/lobby/</div>
-          <div class="t-body" style="font-size:13px;color:var(--ash);">Player join + character creation + world gen progress</div>
+          <div class="t-body" style="font-size:13px;color:var(--ash);">Character creation, player readiness, share link</div>
         </div>
         <div class="plate plate--furnace" style="padding:14px 16px;">
           <div style="font-family:var(--font-heading);font-weight:700;font-size:14px;text-transform:uppercase;color:var(--furnace);margin-bottom:6px;">[slug]/game/</div>
           <div class="t-body" style="font-size:13px;color:var(--ash);">GameClient.tsx — Realtime broadcast + live narration + player input</div>
-        </div>
-        <div class="plate plate--patina" style="padding:14px 16px;">
-          <div style="font-family:var(--font-heading);font-weight:700;font-size:14px;text-transform:uppercase;color:var(--patina);margin-bottom:6px;">[slug]/summary/</div>
-          <div class="t-body" style="font-size:13px;color:var(--ash);">Post-session recap</div>
         </div>
       </div>
     </div>
@@ -1239,6 +1252,9 @@ history.push({ <span class="key">role</span>: <span class="str">'assistant'</spa
 
 <span class="cmt">lib/</span>
 <span class="fn">├── realtime-broadcast.ts</span>
+<span class="fn">├── memory.ts</span>           <span class="cmt"># Campaign file read/write</span>
+<span class="fn">├── slug.ts</span>             <span class="cmt"># URL-safe slug generation</span>
+<span class="fn">├── seeded-random.ts</span>    <span class="cmt"># Reproducible RNG</span>
 <span class="fn">├── supabase/</span>
 <span class="cmt">│   ├── server.ts</span>       <span class="cmt"># Cookie-based (RSC)</span>
 <span class="cmt">│   └── client.ts</span>       <span class="cmt"># Browser client</span>
@@ -1286,6 +1302,16 @@ history.push({ <span class="key">role</span>: <span class="str">'assistant'</spa
         <div class="decision-card__num">06</div>
         <div class="decision-card__title">Magic Link Auth via Supabase</div>
         <div class="decision-card__body">Frictionless onboarding — no passwords. Session cookie handled by Next.js server components via Supabase SSR helpers. No special transport needed.</div>
+      </div>
+      <div class="decision-card">
+        <div class="decision-card__num">07</div>
+        <div class="decision-card__title">Narration Dedup via DB-Assigned IDs</div>
+        <div class="decision-card__body">Each narration paragraph is saved to the <code style="color:var(--brass);font-family:var(--font-mono);font-size:0.9em">messages</code> table and broadcast with its DB-assigned UUID. Clients deduplicate on ID — reconnects can't produce duplicate messages.</div>
+      </div>
+      <div class="decision-card">
+        <div class="decision-card__num">08</div>
+        <div class="decision-card__title">Campaign-Specific Cover Images</div>
+        <div class="decision-card__body">Each campaign gets its own cover image (separate from the shared world map). Generated on campaign start, regenerable by the host. Stored in Supabase Storage and broadcast to all clients via <code style="color:var(--brass);font-family:var(--font-mono);font-size:0.9em">image:ready</code>.</div>
       </div>
     </div>
   </section>
